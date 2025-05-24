@@ -177,6 +177,14 @@ export default function HomePage() { // Renamed from CatalogPage to HomePage
     setSearchTerm('');
   };
 
+  const handleUploadFinished = () => {
+    setIsUploadModalOpen(false); // Close the modal
+    // Reset lastVisibleDoc to ensure fresh load from the beginning if caching is involved
+    // or if we want to ensure the very latest data including newly uploaded items is on page 1.
+    setLastVisibleDoc(null);
+    loadFamilies(true); // Refresh the catalog data from the first page
+  };
+
   // --- Render Logic ---
   if (isLoading && allFetchedFamilies.length === 0) {
     return (
@@ -372,7 +380,7 @@ export default function HomePage() { // Renamed from CatalogPage to HomePage
         labelledById="upload-fonts-modal-title"
         size="xl" // Or your preferred size for upload form
       >
-        <ModalUploadForm />
+        <ModalUploadForm onUploadComplete={handleUploadFinished} />
       </Modal>
     </main>
   );

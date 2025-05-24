@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, ChangeEvent, DragEvent } from 'react';
+import { useState, useCallback, ChangeEvent, DragEvent, useEffect } from 'react';
 import { UploadCloud, FileText, XCircle } from 'lucide-react'; // Icons
 
 interface UploadableFile {
@@ -12,11 +12,18 @@ interface UploadableFile {
   serverData?: any; // Response from server for this file
 }
 
-export default function ModalUploadForm() {
+interface ModalUploadFormProps {
+  onUploadComplete?: () => void; // Callback for when all uploads are done
+}
+
+const MAX_CONCURRENT_UPLOADS = 3;
+
+export default function ModalUploadForm({ onUploadComplete }: ModalUploadFormProps) {
   const [filesToUpload, setFilesToUpload] = useState<UploadableFile[]>([]);
   const [isDragging, setIsDragging] = useState(false);
-  const [overallProgress, setOverallProgress] = useState(0);
   const [globalMessage, setGlobalMessage] = useState<string | null>(null);
+  const [isUploadingBatch, setIsUploadingBatch] = useState(false);
+  const [activeUploadCount, setActiveUploadCount] = useState(0);
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
@@ -67,134 +74,161 @@ export default function ModalUploadForm() {
   };
 
   const removeFile = (fileId: string) => {
-    setFilesToUpload(prev => prev.filter(f => f.id !== fileId));
+    setFilesToUpload(prev => prev.filter(f => f.id !== fileId && f.status === 'pending')); // Only allow removing pending files
   };
 
-  const startUpload = async () => {
-    if (filesToUpload.filter(f => f.status === 'pending').length === 0) {
-        setGlobalMessage("No new files to upload or all files are already processed.");
-        return;
-    }
-    setGlobalMessage("Starting upload process...");
+  const processFile = async (fileToProcess: UploadableFile) => {
+    setFilesToUpload(prev =>
+      prev.map(f =>
+        f.id === fileToProcess.id ? { ...f, status: 'uploading', progress: 0 } : f
+      )
+    );
 
-    const filesToProcess = filesToUpload.filter(f => f.status === 'pending');
-    let filesProcessedSuccessfully = 0;
+    const formData = new FormData();
+    formData.append('fonts', fileToProcess.file);
+    let success = false;
 
-    for (let i = 0; i < filesToProcess.length; i++) {
-      const currentFile = filesToProcess[i];
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', '/api/upload', true);
 
-      setFilesToUpload(prev =>
-        prev.map(f =>
-          f.id === currentFile.id ? { ...f, status: 'uploading', progress: 0 } : f
-        )
-      );
-
-      const formData = new FormData();
-      formData.append('fonts', currentFile.file);
-
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', '/api/upload', true);
-
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const percentage = Math.round((event.loaded / event.total) * 100);
-              setFilesToUpload(prev =>
-                prev.map(f =>
-                  f.id === currentFile.id ? { ...f, progress: percentage } : f
-                )
-              );
-            }
-          };
-
-          xhr.onloadstart = () => {
-            // Can set a specific sub-status like 'upload_started' if needed
-            setFilesToUpload(prev =>
-                prev.map(f =>
-                  f.id === currentFile.id ? { ...f, progress: 0 } : f // Ensure progress starts at 0
-                )
-              );
-          };
-
-          xhr.onload = () => {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percentage = Math.round((event.loaded / event.total) * 100);
             setFilesToUpload(prev =>
               prev.map(f =>
-                f.id === currentFile.id ? { ...f, status: 'processing', progress: 100 } : f
+                f.id === fileToProcess.id ? { ...f, progress: percentage } : f
               )
             );
-            if (xhr.status >= 200 && xhr.status < 300) {
-              try {
-                const data = JSON.parse(xhr.responseText);
-                if (data.results && data.results.length > 0) {
-                  const fileResult = data.results[0];
-                  if (fileResult.success) {
-                    setFilesToUpload(prev => prev.map(f => f.id === currentFile.id ? { ...f, status: 'completed', serverData: fileResult.data } : f));
-                    filesProcessedSuccessfully++;
-                  } else {
-                    setFilesToUpload(prev => prev.map(f => f.id === currentFile.id ? { ...f, status: 'error', error: fileResult.error || 'Unknown server error' } : f));
-                  }
-                } else if (data.error) {
-                    setFilesToUpload(prev => prev.map(f => f.id === currentFile.id ? { ...f, status: 'error', error: data.error } : f));
-                } else if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
-                    const specificError = data.errors.find((err: { file: string }) => err.file === currentFile.file.name);
-                    setFilesToUpload(prev => prev.map(f => f.id === currentFile.id ? { ...f, status: 'error', error: specificError?.error || data.message || 'Server processing error' } : f));
+          }
+        };
+
+        xhr.onloadstart = () => {
+          setFilesToUpload(prev =>
+              prev.map(f =>
+                f.id === fileToProcess.id ? { ...f, progress: 0 } : f
+              )
+            );
+        };
+
+        xhr.onload = async () => {
+          setFilesToUpload(prev =>
+            prev.map(f =>
+              f.id === fileToProcess.id ? { ...f, status: 'processing', progress: 100 } : f
+            )
+          );
+          await new Promise(r => setTimeout(r, 100));
+
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const data = JSON.parse(xhr.responseText);
+              if (data.results && data.results.length > 0) {
+                const fileResult = data.results[0];
+                if (fileResult.success) {
+                  setFilesToUpload(prev => prev.map(f => f.id === fileToProcess.id ? { ...f, status: 'completed', serverData: fileResult.data } : f));
+                  success = true;
                 } else {
-                  setFilesToUpload(prev => prev.map(f => f.id === currentFile.id ? { ...f, status: 'error', error: data.message || 'An unknown error occurred processing the response.' } : f));
+                  setFilesToUpload(prev => prev.map(f => f.id === fileToProcess.id ? { ...f, status: 'error', error: fileResult.error || 'Unknown server error' } : f));
                 }
-              } catch (parseError: any) {
-                console.error("Error parsing server response:", parseError);
-                setFilesToUpload(prev => prev.map(f => f.id === currentFile.id ? { ...f, status: 'error', error: 'Error parsing server response' } : f));
+              } else if (data.error) {
+                  setFilesToUpload(prev => prev.map(f => f.id === fileToProcess.id ? { ...f, status: 'error', error: data.error } : f));
+              } else if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+                  const specificError = data.errors.find((err: { file: string }) => err.file === fileToProcess.file.name);
+                  setFilesToUpload(prev => prev.map(f => f.id === fileToProcess.id ? { ...f, status: 'error', error: specificError?.error || data.message || 'Server processing error' } : f));
+              } else {
+                setFilesToUpload(prev => prev.map(f => f.id === fileToProcess.id ? { ...f, status: 'error', error: data.message || 'An unknown error occurred processing the response.' } : f));
               }
-            } else {
-              // Handle HTTP errors (e.g., 400, 500)
-              let errorMsg = `Server error: ${xhr.status}`;
-              try {
-                  const errorData = JSON.parse(xhr.responseText);
-                  errorMsg = errorData.error || errorData.message || errorMsg;
-              } catch (e) { /* Ignore parse error for error response */ }
-              setFilesToUpload(prev => prev.map(f => f.id === currentFile.id ? { ...f, status: 'error', error: errorMsg } : f));
+            } catch (parseError: any) {
+              console.error("Error parsing server response:", parseError);
+              setFilesToUpload(prev => prev.map(f => f.id === fileToProcess.id ? { ...f, status: 'error', error: 'Error parsing server response' } : f));
             }
-            resolve();
-          };
+          } else {
+            let errorMsg = `Server error: ${xhr.status}`;
+            try {
+                const errorData = JSON.parse(xhr.responseText);
+                errorMsg = errorData.error || errorData.message || errorMsg;
+            } catch (e) { /* Ignore */ }
+            setFilesToUpload(prev => prev.map(f => f.id === fileToProcess.id ? { ...f, status: 'error', error: errorMsg } : f));
+          }
+          resolve();
+        };
 
-          xhr.onerror = () => {
-            setFilesToUpload(prev =>
-              prev.map(f =>
-                f.id === currentFile.id ? { ...f, status: 'error', error: 'Upload failed (network error)' } : f
-              )
-            );
-            reject(new Error('Upload failed (network error)'));
-          };
+        xhr.onerror = () => {
+          setFilesToUpload(prev => prev.map(f => f.id === fileToProcess.id ? { ...f, status: 'error', error: 'Upload failed (network error)' } : f));
+          reject(new Error('Upload failed (network error)'));
+        };
 
-          xhr.ontimeout = () => {
-            setFilesToUpload(prev =>
-              prev.map(f =>
-                f.id === currentFile.id ? { ...f, status: 'error', error: 'Upload timed out' } : f
-              )
-            );
-            reject(new Error('Upload timed out'));
-          };
-
-          xhr.send(formData);
-        });
-
-      } catch (error: any) {
-        console.error('Upload error for file:', currentFile.file.name, error);
-        // This catch is for the Promise rejection (onerror, ontimeout)
-        // The status is already set in xhr.onerror/ontimeout, so no need to setFilesToUpload here unless for a generic fallback.
-        // If it wasn't an XHR error but something else in the try block before the promise:
-        if (!filesToUpload.find(f => f.id === currentFile.id && f.status === 'error')) {
-             setFilesToUpload(prev => prev.map(f => f.id === currentFile.id ? { ...f, status: 'error', error: error.message || 'Client-side error before XHR' } : f));
-        }
+        xhr.ontimeout = () => {
+          setFilesToUpload(prev => prev.map(f => f.id === fileToProcess.id ? { ...f, status: 'error', error: 'Upload timed out' } : f));
+          reject(new Error('Upload timed out'));
+        };
+        xhr.send(formData);
+      });
+    } catch (error: any) {
+      console.error('Upload error for file:', fileToProcess.file.name, error);
+      if (!filesToUpload.find(f => f.id === fileToProcess.id && f.status === 'error')) {
+           setFilesToUpload(prev => prev.map(f => f.id === fileToProcess.id ? { ...f, status: 'error', error: error.message || 'Client-side error before XHR' } : f));
       }
-      setOverallProgress(Math.round(((i + 1) / filesToProcess.length) * 100));
     }
-    setGlobalMessage(`Upload finished. ${filesProcessedSuccessfully} of ${filesToProcess.length} files processed successfully.`);
-    // Potentially call a onSuccess prop to notify parent (e.g., to refresh catalog)
+    return success; // Return whether this specific file was successful
+  };
+
+  // Main function to manage the queue and concurrency
+  const manageUploadQueue = useCallback(async () => {
+    const currentlyPending = filesToUpload.filter(f => f.status === 'pending');
+    const canStartMore = MAX_CONCURRENT_UPLOADS - activeUploadCount;
+
+    for (let i = 0; i < Math.min(currentlyPending.length, canStartMore); i++) {
+      const fileToProcess = currentlyPending[i];
+      setActiveUploadCount(prev => prev + 1);
+      // No await here, we want them to run concurrently
+      processFile(fileToProcess).finally(() => {
+        setActiveUploadCount(prev => prev - 1);
+        // After one finishes, try to process more from the queue
+        // This will be called recursively until queue is empty or all active slots are busy
+      });
+    }
+  }, [filesToUpload, activeUploadCount]); // Dependencies
+
+  // Effect to trigger queue management when filesToUpload or activeUploadCount changes
+  useEffect(() => {
+    if (isUploadingBatch && filesToUpload.some(f => f.status === 'pending')) {
+      manageUploadQueue();
+    }
+
+    // Check for batch completion
+    if (isUploadingBatch && activeUploadCount === 0 && !filesToUpload.some(f => f.status === 'pending' || f.status === 'uploading' || f.status === 'processing')) {
+      setIsUploadingBatch(false);
+      const errorsInBatch = filesToUpload.filter(f => f.status === 'error').length;
+      if (errorsInBatch === 0) {
+        setGlobalMessage(`Successfully uploaded ${filesToUpload.length} file(s).`);
+        if (onUploadComplete) {
+          setTimeout(() => {
+            onUploadComplete();
+            setFilesToUpload([]);
+            setGlobalMessage(null);
+          }, 1500);
+        }
+      } else {
+        setGlobalMessage(`Batch finished. ${filesToUpload.length - errorsInBatch} succeeded, ${errorsInBatch} failed.`);
+      }
+    }
+  }, [filesToUpload, activeUploadCount, isUploadingBatch, manageUploadQueue, onUploadComplete]);
+
+  const startUpload = () => { // Simplified startUpload, just kicks off the process
+    const filesToQueue = filesToUpload.filter(f => f.status === 'pending');
+    if (filesToQueue.length === 0) {
+      setGlobalMessage("No new files to upload or all files are already processed.");
+      return;
+    }
+    setIsUploadingBatch(true);
+    setGlobalMessage(`Queueing ${filesToQueue.length} file(s) for upload...`);
+    // The useEffect hook watching isUploadingBatch and filesToUpload will trigger manageUploadQueue
   };
 
   const pendingFileCount = filesToUpload.filter(f => f.status === 'pending').length;
+  const uploadingOrProcessingCount = filesToUpload.filter(f => f.status === 'uploading' || f.status === 'processing').length;
 
   return (
     <div className="p-1">
@@ -266,7 +300,7 @@ export default function ModalUploadForm() {
               {(item.status === 'uploading' || item.status === 'processing') && item.progress > 0 && (
                 <div className="mt-2 h-2 w-full bg-gray-200 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-150 ease-linear ${item.status === 'processing' ? 'bg-yellow-400 animate-pulse' : 'bg-blue-500'}`}
+                    className={`h-full rounded-full ${item.status === 'processing' ? 'bg-yellow-400 animate-pulse' : 'bg-blue-500'}`}
                     style={{ width: `${item.progress}%` }}
                   ></div>
                 </div>
@@ -280,11 +314,11 @@ export default function ModalUploadForm() {
         <div className="mt-6 pt-4 border-t">
           <button
             onClick={startUpload}
-            disabled={pendingFileCount === 0 || filesToUpload.some(f => f.status === 'uploading' || f.status === 'processing')}
+            disabled={pendingFileCount === 0 || isUploadingBatch}
             className="w-full px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 transition-colors font-semibold"
           >
-            {filesToUpload.some(f => f.status === 'uploading' || f.status === 'processing')
-                ? `Uploading... (${overallProgress}%)`
+            {isUploadingBatch
+                ? `Uploading ${uploadingOrProcessingCount} file(s)...`
                 : pendingFileCount > 0 ? `Upload ${pendingFileCount} Pending File${pendingFileCount > 1 ? 's' : ''}` : `All Files Processed`}
           </button>
         </div>
