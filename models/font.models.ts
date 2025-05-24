@@ -6,7 +6,18 @@ export type Classification =
   | "Display & Decorative"
   | "Symbol & Icon";
 
+export const CLASSIFICATION_VALUES: Classification[] = [
+  "Serif",
+  "Sans Serif",
+  "Script & Handwriting",
+  "Monospace",
+  "Display & Decorative",
+  "Symbol & Icon"
+];
+
 export type FontFormat = "TTF" | "OTF" | "WOFF" | "WOFF2" | "EOT";
+
+export const FONT_FORMAT_VALUES: FontFormat[] = ["TTF", "OTF", "WOFF", "WOFF2", "EOT"];
 
 export type FontStyle =
   | "Thin"
@@ -68,8 +79,8 @@ export interface FontFamily {
   classification: Classification;
   metadata: FamilyMetadata;
   fonts: Font[];
-  uploadDate: Date;
-  lastModified: Date;
+  uploadDate: string;
+  lastModified: string;
 }
 
 export interface Font {
