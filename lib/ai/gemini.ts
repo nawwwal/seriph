@@ -1,5 +1,6 @@
 import { GenerativeModel, GoogleAIBackend, getAI, getGenerativeModel, Schema } from "firebase/ai";
 import { app } from "@/lib/firebase/config"; // Import the initialized app
+import { CLASSIFICATION_VALUES, Classification, FamilyMetadata } from "@/models/font.models"; // Import Classification type/values & FamilyMetadata
 
 const MODEL_NAME = "gemini-2.5-flash-preview-04-17";
 
@@ -36,6 +37,65 @@ const tagsModel: GenerativeModel = getGenerativeModel(ai, {
         responseSchema: tagsSchema,
     },
 });
+
+// --- Model for Font Classification (Enum output) ---
+const classificationEnumSchema = Schema.enumString({
+    enum: CLASSIFICATION_VALUES
+});
+const classificationModel: GenerativeModel = getGenerativeModel(ai, {
+    model: MODEL_NAME,
+    generationConfig: {
+        responseMimeType: "text/x.enum", // Using text/x.enum for direct enum string output
+        responseSchema: classificationEnumSchema,
+    },
+});
+
+// --- Model for Comprehensive Font Analysis (JSON output) ---
+const fullAnalysisSchema = Schema.object({
+    properties: {
+        description: Schema.string({ description: "A concise and appealing marketing description (1-2 sentences, max 40-50 words)." }),
+        tags: Schema.array({
+            items: Schema.string({ description: "A relevant tag." }),
+            description: "An array of 5-7 relevant and diverse tags covering style, use-case, and visual characteristics."
+        }),
+        classification: Schema.enumString({
+            enum: CLASSIFICATION_VALUES,
+            description: "The primary design classification."
+        }),
+        subClassification: Schema.string({ description: "A more specific sub-classification (e.g., Old Style, Geometric, Grotesque). Optional." }),
+        moods: Schema.array({
+            items: Schema.string({ description: "A mood descriptor." }),
+            description: "An array of 3-5 mood descriptors (e.g., elegant, modern, playful)."
+        }),
+        useCases: Schema.array({
+            items: Schema.string({ description: "A recommended use case." }),
+            description: "An array of recommended use cases (e.g., headings, body text, branding)."
+        }),
+        // similarFamilies: Schema.array({ // Let's keep this simpler for now, as suggesting specific family names can be noisy
+        //     items: Schema.string({ description: "Name of a similar font family." }),
+        //     description: "An array of 1-3 similar font family names. Optional."
+        // }),
+        technicalCharacteristics: Schema.array({
+            items: Schema.string({ description: "A technical characteristic." }),
+            description: "An array of notable technical characteristics (e.g., highly legible, web-optimized). Optional."
+        })
+    }
+});
+
+const fullAnalysisModel: GenerativeModel = getGenerativeModel(ai, {
+    model: MODEL_NAME,
+    generationConfig: {
+        responseMimeType: "application/json",
+        responseSchema: fullAnalysisSchema,
+    },
+});
+
+export interface FullFontAnalysisResult {
+    description: string;
+    tags: string[];
+    classification: Classification;
+    metadata: Partial<FamilyMetadata>; // Use Partial as not all fields are guaranteed from AI
+}
 
 /**
  * Generates a descriptive text for a font family using the Gemini API.
@@ -93,6 +153,94 @@ export async function generateFontTags(
         return jsonData.tags || null;
     } catch (error) {
         console.error(`Error generating font tags for ${familyName}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Generates a primary classification for a font family using the Gemini API.
+ * @param familyName The name of the font family.
+ * @param description Optional description of the font family for more context.
+ * @returns A promise that resolves to a Classification string or null if an error occurs or classification is invalid.
+ */
+export async function generateFontClassification(
+    familyName: string,
+    description?: string
+): Promise<Classification | null> {
+    try {
+        let userPrompt = `Analyze the font family named "${familyName}"`;
+        if (description) {
+            userPrompt += ` described as: "${description}"`;
+        }
+        userPrompt += `. What is its primary design classification? Choose one from the following: ${CLASSIFICATION_VALUES.join(", ")}.`;
+
+        const result = await classificationModel.generateContent(userPrompt);
+        const response = result.response;
+        const classificationText = response.text() as Classification; // Cast based on enum schema
+
+        // Validate if the returned text is a valid Classification
+        if (classificationText && CLASSIFICATION_VALUES.includes(classificationText)) {
+            console.log(`Generated classification for ${familyName}: ${classificationText}`);
+            return classificationText;
+        }
+        console.warn(`AI returned an invalid or empty classification for ${familyName}: '${classificationText}'`);
+        return null;
+    } catch (error) {
+        console.error(`Error generating font classification for ${familyName}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Performs a comprehensive AI analysis of a font family.
+ * @param familyName The name of the font family.
+ * @param existingData Optional existing FontFamily data to provide context.
+ * @returns A promise that resolves to an object containing description, tags, classification, and other metadata, or null.
+ */
+export async function getFullFontAnalysis(
+    familyName: string,
+    foundry?: string, // Allow passing foundry separately if known
+    initialParsedClassification?: string // From font parser, if available
+): Promise<FullFontAnalysisResult | null> {
+    try {
+        let userPrompt = `Analyze the font family named "${familyName}"`;
+        if (foundry) userPrompt += ` by ${foundry}`;
+        userPrompt += `. Provide a comprehensive analysis including its primary classification, sub-classification (if applicable, like 'Old Style' for Serif or 'Geometric' for Sans Serif), 3-5 mood descriptors, 2-3 primary use case recommendations, and a few notable technical characteristics. Also generate a concise marketing description (1-2 sentences, max 40-50 words) and 5-7 diverse tags.`;
+        if (initialParsedClassification) userPrompt += ` The font parser initially suggested its classification might be around ${initialParsedClassification}.`;
+        userPrompt += ` Adhere to the requested JSON output schema.`;
+
+        const result = await fullAnalysisModel.generateContent(userPrompt);
+        const response = result.response;
+        const jsonData = JSON.parse(response.text());
+
+        console.log(`Generated full font analysis JSON for ${familyName}:`, jsonData);
+
+        if (!jsonData || !jsonData.description || !jsonData.tags || !jsonData.classification) {
+            console.warn(`Full analysis for ${familyName} missing core fields.`);
+            return null;
+        }
+
+        // Ensure classification is valid before returning
+        if (!CLASSIFICATION_VALUES.includes(jsonData.classification as Classification)) {
+            console.warn(`Full analysis for ${familyName} returned invalid classification: ${jsonData.classification}`);
+            return null; // Or handle by trying to re-classify or using a default
+        }
+
+        return {
+            description: jsonData.description,
+            tags: jsonData.tags,
+            classification: jsonData.classification as Classification,
+            metadata: {
+                subClassification: jsonData.subClassification,
+                moods: jsonData.moods,
+                useCases: jsonData.useCases,
+                // similarFamilies: jsonData.similarFamilies, // if re-enabled
+                technicalCharacteristics: jsonData.technicalCharacteristics,
+            }
+        };
+
+    } catch (error) {
+        console.error(`Error in getFullFontAnalysis for ${familyName}:`, error);
         return null;
     }
 }

@@ -32,16 +32,23 @@ export async function parseFontFile(buffer: ArrayBuffer, filename: string): Prom
 
     try {
         // Attempt with fontkit first (good for WOFF, WOFF2, and general metadata)
-        const fkFont = fontkit.create(Buffer.from(buffer));
-        if (fkFont) {
-            font = fkFont;
-            // Fontkit doesn't directly tell us WOFF vs WOFF2 in a simple property often
-            // We might infer from magic numbers or rely on filename for initial distinction if needed
-            // For now, let's try a crude check or rely on filename guess later
-            if (filename.toLowerCase().endsWith('.woff2')) detectedFormat = 'WOFF2';
-            else if (filename.toLowerCase().endsWith('.woff')) detectedFormat = 'WOFF';
-            else if (filename.toLowerCase().endsWith('.ttf')) detectedFormat = 'TTF';
-            else if (filename.toLowerCase().endsWith('.otf')) detectedFormat = 'OTF';
+        const fkResult = fontkit.create(Buffer.from(buffer));
+        if (fkResult) {
+            if ('fonts' in fkResult && fkResult.fonts.length > 0) { // Check if it's a FontCollection
+                font = fkResult.fonts[0]; // Use the first font from the collection
+            } else if ('postscriptName' in fkResult) { // Check if it's a single Font object (duck typing)
+                font = fkResult as fontkit.Font;
+            }
+
+            if (font) {
+                 // Fontkit doesn't directly tell us WOFF vs WOFF2 in a simple property often
+                // We might infer from magic numbers or rely on filename for initial distinction if needed
+                // For now, let's try a crude check or rely on filename guess later
+                if (filename.toLowerCase().endsWith('.woff2')) detectedFormat = 'WOFF2';
+                else if (filename.toLowerCase().endsWith('.woff')) detectedFormat = 'WOFF';
+                else if (filename.toLowerCase().endsWith('.ttf')) detectedFormat = 'TTF';
+                else if (filename.toLowerCase().endsWith('.otf')) detectedFormat = 'OTF';
+            }
         }
     } catch (e) {
         // console.warn(`Fontkit failed for ${filename}:`, e);

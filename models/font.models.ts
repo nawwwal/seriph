@@ -66,7 +66,13 @@ export interface FontMetadata {
 
 export interface FamilyMetadata {
   // Placeholder for family-specific metadata
-  [key: string]: any;
+  foundry?: string; // Already in use in firestoreUtils, ensure it's formally here
+  subClassification?: string; // AI-generated
+  moods?: string[]; // AI-generated, e.g., ["elegant", "modern", "playful"]
+  useCases?: string[]; // AI-generated, e.g., ["headings", "body text", "branding"]
+  similarFamilies?: string[]; // AI-generated, e.g., ["Helvetica", "Arial"]
+  technicalCharacteristics?: string[]; // AI-generated, e.g., ["highly legible", "good for web"]
+  // [key: string]: any; // Keep for flexibility if needed, or remove if all fields are defined
 }
 
 export interface FontFamily {
