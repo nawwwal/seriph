@@ -5,13 +5,13 @@ import Link from 'next/link';
 import { FontFamily, FontFormat, Classification, CLASSIFICATION_VALUES, FONT_FORMAT_VALUES } from "@/models/font.models"; // Import models & values
 import FontFamilyCard from "@/components/font/FamilyCard";
 import { getAllFontFamilies } from '@/lib/db/firestoreUtils'; // To fetch all data
-import { Timestamp, QueryDocumentSnapshot } from 'firebase/firestore';
+import { Timestamp } from 'firebase/firestore'; // QueryDocumentSnapshot removed as it's no longer needed for pagination
 import Fuse from 'fuse.js';
 import LoadingSpinner from '@/components/ui/LoadingSpinner'; // Import the spinner
 import Modal from '@/components/ui/Modal'; // Added Modal import
 import ModalUploadForm from '@/components/font/ModalUploadForm'; // Changed from UploadForm
 
-const ITEMS_PER_PAGE = 12; // Number of items to load per page
+// ITEMS_PER_PAGE removed as it's no longer used
 
 // Helper to serialize Firestore Timestamps (as before)
 const serializeFamilies = (families: any[]): FontFamily[] => {
@@ -38,7 +38,7 @@ const fuseOptions = {
   // You might want to add more options like ignoreLocation: true if positions don't matter much
 };
 
-const CACHE_KEY_FIRST_PAGE = 'fontFamiliesCache_firstPage';
+const CACHE_KEY_ALL_FAMILIES = 'fontFamiliesCache_all'; // Updated cache key
 const CACHE_EXPIRATION_MS = 60 * 60 * 1000; // 1 hour
 
 export default function HomePage() { // Renamed from CatalogPage to HomePage
@@ -47,9 +47,6 @@ export default function HomePage() { // Renamed from CatalogPage to HomePage
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [lastVisibleDoc, setLastVisibleDoc] = useState<QueryDocumentSnapshot<FontFamily> | null>(null);
-  const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false); // Added state for modal
 
@@ -60,60 +57,48 @@ export default function HomePage() { // Renamed from CatalogPage to HomePage
     tags: string[];
   }>({ classification: null, format: null, isVariable: null, tags: [] });
 
-  const loadFamilies = useCallback(async (isInitialLoad: boolean) => {
-    if (isInitialLoad) setIsLoading(true);
-    else setIsLoadingMore(true);
-    if (isInitialLoad) setError(null);
+  const loadFamilies = useCallback(async () => { // isInitialLoad parameter removed
+    setIsLoading(true);
+    setError(null);
 
     try {
-      if (isInitialLoad) {
-        // Try loading the first page from cache
-        const cached = localStorage.getItem(CACHE_KEY_FIRST_PAGE);
-        if (cached) {
-          const { timestamp, data, nextDocTimestamp } = JSON.parse(cached);
-          if (Date.now() - timestamp < CACHE_EXPIRATION_MS && data.length > 0) {
-            console.log("Loading first page from cache.");
-            const serializedCache = serializeFamilies(data); // Re-serialize in case of object structure issues from cache
-            setAllFetchedFamilies(serializedCache);
-            // Note: lastVisibleDoc cannot be perfectly recreated from simple JSON,
-            // so pagination after cache hit will always refetch from start OR we simplify cache.
-            // For simplicity, if cache is hit, we won't use a cached lastVisibleDoc for the *next* load more.
-            // The background fetch will establish the correct lastVisibleDoc.
-            setHasMore(true); // Assume more if cache had items, will be corrected by background fetch
-            setIsLoading(false);
-          }
+      // Try loading all families from cache
+      const cached = localStorage.getItem(CACHE_KEY_ALL_FAMILIES);
+      if (cached) {
+        const { timestamp, data } = JSON.parse(cached); // nextDocTimestamp removed
+        if (Date.now() - timestamp < CACHE_EXPIRATION_MS && data.length > 0) {
+          console.log("Loading all families from cache.");
+          const serializedCache = serializeFamilies(data);
+          setAllFetchedFamilies(serializedCache);
+          setIsLoading(false);
+          // No background fetch needed here if cache is fresh and contains all data
+          return; // Exit early if cache is good
         }
       }
 
-      // Fetch from Firestore
-      const { families: newFamiliesRaw, nextLastVisible: newNextDoc } = await getAllFontFamilies(
-        ITEMS_PER_PAGE,
-        isInitialLoad ? undefined : (lastVisibleDoc || undefined) // Ensure undefined if null
-      );
+      // Fetch all from Firestore
+      const { families: newFamiliesRaw } = await getAllFontFamilies(); // No pagination params
       const serializedNewFamilies = serializeFamilies(newFamiliesRaw);
 
-      setAllFetchedFamilies(prev => isInitialLoad ? serializedNewFamilies : [...prev, ...serializedNewFamilies]);
-      setLastVisibleDoc(newNextDoc);
-      setHasMore(newNextDoc !== null && newNextDoc !== undefined);
+      setAllFetchedFamilies(serializedNewFamilies);
 
-      if (isInitialLoad && serializedNewFamilies.length > 0 && (!localStorage.getItem(CACHE_KEY_FIRST_PAGE) || Date.now() - JSON.parse(localStorage.getItem(CACHE_KEY_FIRST_PAGE)!).timestamp >= CACHE_EXPIRATION_MS)) {
-         // Cache only the first page and if it's not already fresh in cache
-         localStorage.setItem(CACHE_KEY_FIRST_PAGE, JSON.stringify({ timestamp: Date.now(), data: serializedNewFamilies.slice(0, ITEMS_PER_PAGE)}));
+      if (serializedNewFamilies.length > 0) {
+         // Cache all fetched families
+         localStorage.setItem(CACHE_KEY_ALL_FAMILIES, JSON.stringify({ timestamp: Date.now(), data: serializedNewFamilies}));
       }
 
     } catch (err) {
       console.error("Error fetching font families:", err);
       setError("Sorry, we couldn't load the font families. Please try refreshing the page.");
     } finally {
-      if (isInitialLoad) setIsLoading(false);
-      else setIsLoadingMore(false);
+      setIsLoading(false); // Only one loading state now
     }
-  }, [lastVisibleDoc]); // lastVisibleDoc is a dependency for subsequent loads
+  }, []); // Dependencies array is now empty as pagination states are removed
 
   // Initial data load
   useEffect(() => {
-    loadFamilies(true);
-  }, [loadFamilies]); // loadFamilies is memoized with useCallback
+    loadFamilies();
+  }, [loadFamilies]);
 
   const fuseInstance = useMemo(() => new Fuse(allFetchedFamilies, fuseOptions), [allFetchedFamilies]);
 
@@ -143,7 +128,11 @@ export default function HomePage() { // Renamed from CatalogPage to HomePage
     if (debouncedSearchTerm.trim() !== '') {
       results = fuseInstance.search(debouncedSearchTerm.trim()).map(result => result.item);
     } else {
-      results = [...allFetchedFamilies]; // Start with all *fetched* families if no search term
+      // When no search term, displayedFamilies should be allFetchedFamilies,
+      // not necessarily a separate copy unless further client-side pagination/view management is added.
+      // For now, this is fine as is, but if client-side "show more" on the full list is added,
+      // displayedFamilies might be a slice of allFetchedFamilies.
+      results = [...allFetchedFamilies];
     }
 
     if (activeFilters.classification) {
@@ -179,15 +168,13 @@ export default function HomePage() { // Renamed from CatalogPage to HomePage
 
   const handleUploadFinished = () => {
     setIsUploadModalOpen(false); // Close the modal
-    // Reset lastVisibleDoc to ensure fresh load from the beginning if caching is involved
-    // or if we want to ensure the very latest data including newly uploaded items is on page 1.
-    setLastVisibleDoc(null);
-    loadFamilies(true); // Refresh the catalog data from the first page
+    // No need to reset lastVisibleDoc
+    loadFamilies(); // Refresh the catalog data (fetches all again)
   };
 
   // --- Render Logic ---
   if (isLoading && allFetchedFamilies.length === 0) {
-    return (
+  return (
         <main className="min-h-screen bg-gray-50 p-4 md:p-8 flex flex-col items-center justify-center">
             <div className="container mx-auto text-center">
                 {/* <div className="flex justify-between items-center mb-8">
@@ -209,7 +196,7 @@ export default function HomePage() { // Renamed from CatalogPage to HomePage
           <div className="text-center p-10 border border-red-300 bg-red-50 rounded-md">
             <p className="text-xl text-red-600">{error}</p>
             <button
-              onClick={() => loadFamilies(true)}
+              onClick={() => loadFamilies()} // Call loadFamilies without parameters
               className="mt-4 px-6 py-2 bg-red-500 text-white rounded hover:bg-red-700 transition-colors"
             >
               Try Again
@@ -351,24 +338,6 @@ export default function HomePage() { // Renamed from CatalogPage to HomePage
                         <FontFamilyCard key={family.id} family={family} />
                     ))}
                 </div>
-                {/* Load More Button */}
-                {hasMore && !isLoading && !debouncedSearchTerm && (
-                    <div className="mt-10 text-center">
-                        <button
-                            onClick={() => loadFamilies(false)} // false for not initial load
-                            disabled={isLoadingMore}
-                            className="px-8 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 transition-colors text-lg font-semibold"
-                        >
-                            {isLoadingMore ? 'Loading More...' : 'Load More Fonts'}
-                        </button>
-                    </div>
-                )}
-                 {!hasMore && !isLoading && !debouncedSearchTerm && allFetchedFamilies.length > 0 && (
-                    <div className="text-center py-8 mt-10">
-                         {/* Optional: Icon here e.g. <CheckCircle2 size={32} className="mx-auto mb-3 text-green-500" /> */}
-                        <p className="text-lg text-gray-500">You've reached the end of the font catalog.</p>
-                    </div>
-                )}
             </div>
         </div>
       </div>
