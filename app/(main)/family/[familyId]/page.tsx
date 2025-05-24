@@ -146,7 +146,7 @@ export default function FamilyDetailPage(/* { params }: FamilyDetailPageProps */
       <div className="container mx-auto max-w-5xl">
         {/* Back to Catalog Link */}
         <div className="mb-8">
-          <Link href="/catalog" className="text-blue-600 hover:text-blue-800 transition-colors duration-150 ease-in-out">
+          <Link href="/" className="text-blue-600 hover:text-blue-800 transition-colors duration-150 ease-in-out">
             &larr; Back to Catalog
           </Link>
         </div>

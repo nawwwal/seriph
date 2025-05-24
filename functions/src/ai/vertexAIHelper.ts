@@ -1,17 +1,27 @@
-import { PredictionServiceClient, helpers } from '@google-cloud/aiplatform';
+import { VertexAI, HarmCategory, HarmBlockThreshold } from '@google-cloud/vertexai'; // Updated import
 import { CLASSIFICATION_VALUES, Classification, FamilyMetadata } from '../models/font.models'; // Adjust path as needed
 import * as functions from 'firebase-functions';
 
 const PROJECT_ID = 'seriph';
 const LOCATION_ID = 'us-central1'; // Vertex AI region
-const PUBLISHER_MODEL = 'google'; // For official Google models like Gemini
 const MODEL_ID = 'gemini-2.5-pro-preview-05-06'; // Your chosen Gemini model
 
-// Initialize the Vertex AI Prediction Service Client
-// This client will use Application Default Credentials (ADC)
-// when running in a GCP environment like Cloud Functions.
-const predictionServiceClient = new PredictionServiceClient({
-  apiEndpoint: `${LOCATION_ID}-aiplatform.googleapis.com`,
+// Initialize the Vertex AI client for generative models
+const vertex_ai = new VertexAI({ project: PROJECT_ID, location: LOCATION_ID });
+
+const generativeModel = vertex_ai.getGenerativeModel({
+    model: MODEL_ID,
+    // Optional: Add safety settings and generation config if needed
+    safetySettings: [{
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
+    }],
+    generationConfig: {
+        maxOutputTokens: 2048,
+        temperature: 0.6,
+        topP: 0.9,
+        topK: 40,
+    },
 });
 
 // Define the schema for the full analysis (similar to before)
@@ -68,7 +78,7 @@ export async function getFontAnalysisVertexAI(
     parsedFontData: any // Data from serverParseFontFile
 ): Promise<VertexAIFullFontAnalysisResult | null> {
     const familyName = parsedFontData.familyName || 'Unknown Family';
-    functions.logger.info(`Starting Vertex AI analysis for font family: ${familyName}`);
+    functions.logger.info(`Starting Vertex AI (Gemini) analysis for font family: ${familyName}`);
 
     // Construct a detailed prompt using all available parsed font data
     let promptParts = [
@@ -96,85 +106,51 @@ export async function getFontAnalysisVertexAI(
     // For brevity, I'm not listing every single possible field from your spec, but you should include them.
     // Example: promptParts.push(`OpenType Features: ${parsedFontData.openTypeFeatures?.join(', ') || 'N/A'}`);
 
-    promptParts.push('\\nProvide a comprehensive analysis. Your response MUST be a valid JSON object adhering to the following structure (do NOT include any text before or after the JSON object):');
+    promptParts.push('\nProvide a comprehensive analysis. Your response MUST be a valid JSON object adhering to the following structure (do NOT include any text before or after the JSON object, including markdown backticks for the JSON block):\n');
     promptParts.push(JSON.stringify(vertexAISchema, null, 2)); // Include the schema in the prompt
-    promptParts.push('\\nBased on the provided font details and the schema, generate the JSON output.');
+    promptParts.push('\nBased on the provided font details and the schema, generate ONLY the JSON output.');
 
-    const fullPrompt = promptParts.join('\\n');
-    functions.logger.info(`Vertex AI Prompt for ${familyName} (first 500 chars): ${fullPrompt.substring(0, 500)}...`);
-
-    const endpoint = `projects/${PROJECT_ID}/locations/${LOCATION_ID}/publishers/${PUBLISHER_MODEL}/models/${MODEL_ID}`;
-
-    // Construct the request payload for the Vertex AI SDK
-    // The instance format for Gemini (non-multimodal text) is typically a Content object.
-    const instance = helpers.toValue({
-        content: {
-            role: 'user', // Or omit role for single turn
-            parts: [{ text: fullPrompt }]
-        }
-    });
-    const instances = [instance!]; // instance can be null if conversion fails, hence the non-null assertion
-
-    const parameter = {
-        temperature: 0.6,
-        maxOutputTokens: 2048, // Adjust as needed, ensure it's enough for the JSON
-        topP: 0.9,
-        topK: 40,
-        // Instruct the model to output JSON. For some models, this helps.
-        // For Gemini, the primary way is to ask for JSON in the prompt itself.
-        // "responseMimeType": "application/json" is not a direct parameter here,
-        // but asking for JSON in the prompt is key.
-    };
-    const parameters = helpers.toValue(parameter);
-
-    const request = {
-        endpoint,
-        instances,
-        parameters,
-    };
+    const fullPrompt = promptParts.join('\n');
+    functions.logger.info(`Vertex AI (Gemini) Prompt for ${familyName} (first 500 chars): ${fullPrompt.substring(0, 500)}...`);
 
     try {
-        const [response] = await predictionServiceClient.predict(request);
-        if (!response.predictions || response.predictions.length === 0) {
-            functions.logger.warn(`Vertex AI analysis for ${familyName} returned no predictions.`);
+        const result = await generativeModel.generateContent({contents: [{role: 'user', parts: [{text: fullPrompt}]}]});
+
+        if (!result.response || !result.response.candidates || result.response.candidates.length === 0) {
+            functions.logger.warn(`Vertex AI (Gemini) analysis for ${familyName} returned no candidates or an unexpected response structure.`, { response: result.response });
             return null;
         }
 
-        const prediction = response.predictions[0];
-        // The prediction structure for Gemini on Vertex AI (non-streaming text)
-        // usually has the content under `content.parts[0].text`.
-        // We need to convert the Struct to a JavaScript object.
-        const predictionResultObj = helpers.fromValue(prediction as protobuf.common.IValue) as any;
-
-        if (!predictionResultObj || !predictionResultObj.content || !predictionResultObj.content.parts || !predictionResultObj.content.parts[0].text) {
-             functions.logger.warn(`Vertex AI prediction for ${familyName} has an unexpected structure or no text part.`, { predictionResultObj });
+        const candidate = result.response.candidates[0];
+        if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0 || !candidate.content.parts[0].text) {
+            functions.logger.warn(`Vertex AI (Gemini) prediction for ${familyName} has no text part in the candidate.`, { candidate });
             return null;
         }
 
-        const jsonString = predictionResultObj.content.parts[0].text.trim();
-        functions.logger.info(`Raw JSON string from Vertex AI for ${familyName} (first 500 chars): ${jsonString.substring(0, 500)}...`);
+        const jsonString = candidate.content.parts[0].text.trim();
+        functions.logger.info(`Raw JSON string from Vertex AI (Gemini) for ${familyName} (first 500 chars): ${jsonString.substring(0, 500)}...`);
 
         let jsonData: any;
         try {
             // Attempt to parse the JSON string. Gemini might sometimes include backticks or "json" prefix.
-            const cleanedJsonString = jsonString.replace(/^```json\\n/, '').replace(/\\n```$/, '').trim();
+            const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
             jsonData = JSON.parse(cleanedJsonString);
         } catch (e: any) {
-            functions.logger.error(`Failed to parse JSON response from Vertex AI for ${familyName}. Error: ${e.message}`, { rawResponse: jsonString });
+            functions.logger.error(`Failed to parse JSON response from Vertex AI (Gemini) for ${familyName}. Error: ${e.message}`, { rawResponse: jsonString });
             return null;
         }
 
         if (!jsonData || !jsonData.description || !jsonData.tags || !jsonData.classification) {
-            functions.logger.warn(`Vertex AI analysis for ${familyName} missing core fields in parsed JSON.`, { parsedJson: jsonData });
+            functions.logger.warn(`Vertex AI (Gemini) analysis for ${familyName} missing core fields in parsed JSON.`, { parsedJson: jsonData });
             return null;
         }
 
         if (!CLASSIFICATION_VALUES.includes(jsonData.classification as Classification)) {
-            functions.logger.warn(`Vertex AI analysis for ${familyName} returned invalid classification: ${jsonData.classification}`);
+            functions.logger.warn(`Vertex AI (Gemini) analysis for ${familyName} returned invalid classification: ${jsonData.classification}`);
             return null;
         }
 
-        functions.logger.info(`Successfully parsed Vertex AI analysis for ${familyName}.`);
+        functions.logger.info(`Successfully parsed Vertex AI (Gemini) analysis for ${familyName}.`);
         return {
             description: jsonData.description,
             tags: jsonData.tags,
@@ -189,7 +165,7 @@ export async function getFontAnalysisVertexAI(
         };
 
     } catch (error: any) {
-        functions.logger.error(`Error calling Vertex AI for ${familyName}:`, {
+        functions.logger.error(`Error calling Vertex AI (Gemini) for ${familyName}:`, {
             message: error.message,
             stack: error.stack,
             details: error.details || error, // Some GCP errors have a details field
