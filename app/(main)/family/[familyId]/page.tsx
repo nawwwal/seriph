@@ -76,8 +76,12 @@ export default function FamilyDetailPage(/* { params }: FamilyDetailPageProps */
           // Serialize dates and ensure fonts array is correctly structured
           const processedFamily = {
             ...rawFamilyData,
-            uploadDate: rawFamilyData.uploadDate instanceof Timestamp ? rawFamilyData.uploadDate.toDate().toISOString() : String(rawFamilyData.uploadDate),
-            lastModified: rawFamilyData.lastModified instanceof Timestamp ? rawFamilyData.lastModified.toDate().toISOString() : String(rawFamilyData.lastModified),
+            uploadDate: rawFamilyData.uploadDate && typeof rawFamilyData.uploadDate === 'object' && 'toDate' in rawFamilyData.uploadDate
+                          ? (rawFamilyData.uploadDate as Timestamp).toDate().toISOString()
+                          : String(rawFamilyData.uploadDate || ''),
+            lastModified: rawFamilyData.lastModified && typeof rawFamilyData.lastModified === 'object' && 'toDate' in rawFamilyData.lastModified
+                          ? (rawFamilyData.lastModified as Timestamp).toDate().toISOString()
+                          : String(rawFamilyData.lastModified || ''),
             fonts: rawFamilyData.fonts ? rawFamilyData.fonts.map((font: any) => ({
               ...font,
               // Ensure any nested timestamps within font.metadata are also handled if they exist in your model in future
