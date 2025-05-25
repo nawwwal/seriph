@@ -121,9 +121,20 @@ export async function serverAddFontToFamilyAdmin(
         functions.logger.info(`Admin: Font ${fontFileDetails.originalName} processed successfully for family ${familyName}.`);
         const finalFamilyDoc = await familyRef.get();
         if (finalFamilyDoc.exists) {
-            return finalFamilyDoc.data() as FontFamily;
+            const rawData = finalFamilyDoc.data();
+            if (!rawData) return null;
+
+            return {
+                ...rawData,
+                uploadDate: rawData.uploadDate && typeof (rawData.uploadDate as any).toDate === 'function'
+                    ? (rawData.uploadDate as admin.firestore.Timestamp).toDate().toISOString()
+                    : String(rawData.uploadDate || ''),
+                lastModified: rawData.lastModified && typeof (rawData.lastModified as any).toDate === 'function'
+                    ? (rawData.lastModified as admin.firestore.Timestamp).toDate().toISOString()
+                    : String(rawData.lastModified || ''),
+            } as FontFamily;
         }
-        return null; // Should ideally not be reached if transaction succeeded
+        return null;
 
     } catch (error: any) {
         functions.logger.error(`Admin: Transaction failed for addFontToFamilyAdmin (family: ${familyName}, font: ${fontFileDetails.originalName}). Error:`, {

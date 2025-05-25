@@ -48,8 +48,8 @@ export async function serverAddFontToFamilyAdmin(
                     tags: aiAnalysisResult?.tags || [],
                     classification: aiAnalysisResult?.classification || parsedFontData.classification || 'Sans Serif',
                     fonts: [],
-                    uploadDate: admin.firestore.FieldValue.serverTimestamp(),
-                    lastModified: admin.firestore.FieldValue.serverTimestamp(),
+                    uploadDate: admin.firestore.FieldValue.serverTimestamp() as any,
+                    lastModified: admin.firestore.FieldValue.serverTimestamp() as any,
                     metadata: {
                         foundry: parsedFontData.foundry || '',
                         ...(aiAnalysisResult?.metadata || {}),
@@ -59,7 +59,7 @@ export async function serverAddFontToFamilyAdmin(
                 const existingData = familyDoc.data() as FontFamily;
                 familyDataToSet = { ...existingData }; // Start with existing data
                 existingFonts = existingData.fonts || [];
-                familyDataToSet.lastModified = admin.firestore.FieldValue.serverTimestamp();
+                familyDataToSet.lastModified = admin.firestore.FieldValue.serverTimestamp() as any;
 
                 // Merge AI data if provided, prioritizing new AI data for certain fields
                 if (aiAnalysisResult) {
