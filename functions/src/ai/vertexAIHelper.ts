@@ -1,33 +1,35 @@
-import { VertexAI, HarmCategory, HarmBlockThreshold } from '@google-cloud/vertexai'; // Updated import
-import { CLASSIFICATION_VALUES, Classification, FamilyMetadata } from '../models/font.models'; // Adjust path as needed
+import { GoogleGenAI, HarmCategory, HarmBlockThreshold, GenerationConfig, SafetySetting } from '@google/genai';
+import { CLASSIFICATION_VALUES, Classification, FamilyMetadata } from '../models/font.models';
 import * as functions from 'firebase-functions';
 
-const PROJECT_ID = 'seriph';
-const LOCATION_ID = 'us-central1'; // Vertex AI region
-const MODEL_ID = 'gemini-2.5-pro-preview-05-06'; // Your chosen Gemini model
+const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || 'seriph';
+const LOCATION_ID = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
+// Ensure GOOGLE_GENAI_USE_VERTEXAI=True is set in the function's environment variables for this to target Vertex.
 
-// Initialize the Vertex AI client for generative models
-const vertex_ai = new VertexAI({ project: PROJECT_ID, location: LOCATION_ID });
+const TARGET_MODEL_NAME = 'gemini-2.5-flash-preview-05-20'; // Your chosen Gemini model
 
-const generativeModel = vertex_ai.getGenerativeModel({
-    model: MODEL_ID,
-    // Optional: Add safety settings and generation config if needed
-    safetySettings: [{
-        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-        threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
-    }],
-    generationConfig: {
-        maxOutputTokens: 2048,
-        temperature: 0.6,
-        topP: 0.9,
-        topK: 40,
-    },
+// Initialize the GoogleGenAI client
+const genAI = new GoogleGenAI({
+    vertexai: true,
+    project: PROJECT_ID,
+    location: LOCATION_ID,
 });
 
-// Define the schema for the full analysis (similar to before)
-// This is for our internal reference and to structure the prompt,
-// as the direct Node.js client doesn't enforce responseSchema like firebase-admin/ai.
-// We will ask the model to return JSON in this structure.
+// Define shared generation config and safety settings
+const generationConfig: GenerationConfig = {
+    maxOutputTokens: 2048,
+    temperature: 0.6,
+    topP: 0.9,
+    topK: 40,
+    // responseMimeType: "application/json", // If you find this is supported for @google/genai
+};
+
+const safetySettings: SafetySetting[] = [{
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
+}];
+
+// Schema for AI analysis (remains the same)
 export const vertexAISchema = {
     type: 'object',
     properties: {
@@ -66,109 +68,110 @@ export interface VertexAIFullFontAnalysisResult {
     description: string;
     tags: string[];
     classification: Classification;
-    metadata: Partial<FamilyMetadata>; // Using FamilyMetadata for the 'metadata' part of the result
+    metadata: Partial<FamilyMetadata>;
 }
 
-/**
- * Performs a comprehensive AI analysis of a font family using Vertex AI Gemini model.
- * @param parsedFontData The full data extracted by the font parser.
- * @returns A promise that resolves to the analysis result or null.
- */
 export async function getFontAnalysisVertexAI(
-    parsedFontData: any // Data from serverParseFontFile
+    parsedFontData: any
 ): Promise<VertexAIFullFontAnalysisResult | null> {
     const familyName = parsedFontData.familyName || 'Unknown Family';
-    functions.logger.info(`Starting Vertex AI (Gemini) analysis for font family: ${familyName}`);
+    functions.logger.info(`Starting AI analysis for font family: ${familyName} using @google/genai (Vertex AI mode)`);
 
-    // Construct a detailed prompt using all available parsed font data
-    let promptParts = [
-        `Analyze the font family named "${familyName}".`,
-        `Parsed font details are as follows:`,
-        `Subfamily: ${parsedFontData.subfamilyName || 'N/A'}`,
-        `PostScript Name: ${parsedFontData.postScriptName || 'N/A'}`,
-        `Version: ${parsedFontData.version || 'N/A'}`,
-        `Copyright: ${parsedFontData.copyright || 'N/A'}`,
-        `Trademark: ${parsedFontData.trademark || 'N/A'}`,
-        `Format: ${parsedFontData.format || 'N/A'}`,
-        `Foundry (if known from parser): ${parsedFontData.foundry || 'N/A'}`,
-        `Weight (if known): ${parsedFontData.weight || 'N/A'}`,
-        `Style (if known): ${parsedFontData.style || 'N/A'}`,
-        `Is Variable: ${parsedFontData.isVariable ? 'Yes' : 'No'}`,
+    let promptPartsForModel = [
+        { text: `Analyze the font family named "${familyName}".` },
+        { text: `Parsed font details are as follows:` },
+        { text: `Subfamily: ${parsedFontData.subfamilyName || 'N/A'}` },
+        { text: `PostScript Name: ${parsedFontData.postScriptName || 'N/A'}` },
+        { text: `Version: ${parsedFontData.version || 'N/A'}` },
+        { text: `Copyright: ${parsedFontData.copyright || 'N/A'}` },
+        { text: `Trademark: ${parsedFontData.trademark || 'N/A'}` },
+        { text: `Format: ${parsedFontData.format || 'N/A'}` },
+        { text: `Foundry (if known from parser): ${parsedFontData.foundry || 'N/A'}` },
+        { text: `Weight (if known): ${parsedFontData.weight || 'N/A'}` },
+        { text: `Style (if known): ${parsedFontData.style || 'N/A'}` },
+        { text: `Is Variable: ${parsedFontData.isVariable ? 'Yes' : 'No'}` },
     ];
 
     if (parsedFontData.isVariable && parsedFontData.variableAxes && parsedFontData.variableAxes.length > 0) {
-        promptParts.push('Variable Axes:');
+        promptPartsForModel.push({ text: 'Variable Axes:' });
         parsedFontData.variableAxes.forEach((axis: any) => {
-            promptParts.push(`  - Tag: ${axis.tag}, Name: ${axis.name}, Min: ${axis.minValue}, Max: ${axis.maxValue}, Default: ${axis.defaultValue}`);
+            promptPartsForModel.push({ text: `  - Tag: ${axis.tag}, Name: ${axis.name}, Min: ${axis.minValue}, Max: ${axis.maxValue}, Default: ${axis.defaultValue}` });
         });
     }
-    // Add more parsed details as available and relevant, e.g., OpenType features, glyph count.
-    // For brevity, I'm not listing every single possible field from your spec, but you should include them.
-    // Example: promptParts.push(`OpenType Features: ${parsedFontData.openTypeFeatures?.join(', ') || 'N/A'}`);
 
-    promptParts.push('\nProvide a comprehensive analysis. Your response MUST be a valid JSON object adhering to the following structure (do NOT include any text before or after the JSON object, including markdown backticks for the JSON block):\n');
-    promptParts.push(JSON.stringify(vertexAISchema, null, 2)); // Include the schema in the prompt
-    promptParts.push('\nBased on the provided font details and the schema, generate ONLY the JSON output.');
+    promptPartsForModel.push({ text: '\nProvide a comprehensive analysis. Your response MUST be a valid JSON object adhering to the following structure (do NOT include any text before or after the JSON object, including markdown backticks for the JSON block):\n' });
+    promptPartsForModel.push({ text: JSON.stringify(vertexAISchema, null, 2) });
+    promptPartsForModel.push({ text: '\nBased on the provided font details and the schema, generate ONLY the JSON output.' });
 
-    const fullPrompt = promptParts.join('\n');
-    functions.logger.info(`Vertex AI (Gemini) Prompt for ${familyName} (first 500 chars): ${fullPrompt.substring(0, 500)}...`);
+    const fullPromptForLogging = promptPartsForModel.map(p => p.text).join('\n');
+    functions.logger.info(`@google/genai Prompt for ${familyName} (first 500 chars): ${fullPromptForLogging.substring(0, 500)}...`);
 
     try {
-        const result = await generativeModel.generateContent({contents: [{role: 'user', parts: [{text: fullPrompt}]}]});
+        const request = {
+            model: TARGET_MODEL_NAME,
+            contents: [{ role: 'user', parts: promptPartsForModel }],
+            generationConfig: generationConfig,
+            safetySettings: safetySettings,
+        };
 
-        if (!result.response || !result.response.candidates || result.response.candidates.length === 0) {
-            functions.logger.warn(`Vertex AI (Gemini) analysis for ${familyName} returned no candidates or an unexpected response structure.`, { response: result.response });
+        const result = await genAI.models.generateContent(request);
+
+        if (!result || !result.candidates || result.candidates.length === 0) {
+            functions.logger.warn(`@google/genai analysis for ${familyName} returned no candidates.`, { result });
             return null;
         }
 
-        const candidate = result.response.candidates[0];
+        const candidate = result.candidates[0];
+        if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'MAX_TOKENS') {
+             functions.logger.warn(`@google/genai analysis for ${familyName} finished with reason: ${candidate.finishReason}`, { candidate });
+             if (candidate.finishReason === 'SAFETY') return null;
+        }
+
         if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0 || !candidate.content.parts[0].text) {
-            functions.logger.warn(`Vertex AI (Gemini) prediction for ${familyName} has no text part in the candidate.`, { candidate });
+            functions.logger.warn(`@google/genai prediction for ${familyName} has no text part.`, { candidate });
             return null;
         }
 
         const jsonString = candidate.content.parts[0].text.trim();
-        functions.logger.info(`Raw JSON string from Vertex AI (Gemini) for ${familyName} (first 500 chars): ${jsonString.substring(0, 500)}...`);
+        functions.logger.info(`Raw JSON from @google/genai for ${familyName} (first 500): ${jsonString.substring(0, 500)}...`);
 
         let jsonData: any;
         try {
-            // Attempt to parse the JSON string. Gemini might sometimes include backticks or "json" prefix.
             const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
             jsonData = JSON.parse(cleanedJsonString);
         } catch (e: any) {
-            functions.logger.error(`Failed to parse JSON response from Vertex AI (Gemini) for ${familyName}. Error: ${e.message}`, { rawResponse: jsonString });
+            functions.logger.error(`Failed to parse JSON from @google/genai for ${familyName}. Error: ${e.message}`, { jsonString });
             return null;
         }
 
         if (!jsonData || !jsonData.description || !jsonData.tags || !jsonData.classification) {
-            functions.logger.warn(`Vertex AI (Gemini) analysis for ${familyName} missing core fields in parsed JSON.`, { parsedJson: jsonData });
+            functions.logger.warn(`@google/genai analysis for ${familyName} missing core fields.`, { jsonData });
             return null;
         }
 
         if (!CLASSIFICATION_VALUES.includes(jsonData.classification as Classification)) {
-            functions.logger.warn(`Vertex AI (Gemini) analysis for ${familyName} returned invalid classification: ${jsonData.classification}`);
+            functions.logger.warn(`@google/genai analysis for ${familyName} invalid classification: ${jsonData.classification}`);
             return null;
         }
 
-        functions.logger.info(`Successfully parsed Vertex AI (Gemini) analysis for ${familyName}.`);
+        functions.logger.info(`Successfully parsed @google/genai analysis for ${familyName}.`);
         return {
             description: jsonData.description,
             tags: jsonData.tags,
             classification: jsonData.classification as Classification,
-            metadata: { // Map the AI output to your FamilyMetadata structure
+            metadata: {
                 subClassification: jsonData.subClassification === null ? undefined : jsonData.subClassification,
                 moods: jsonData.moods,
                 useCases: jsonData.useCases,
                 technicalCharacteristics: jsonData.technicalCharacteristics,
-                // Note: 'foundry' is not directly in this AI schema, it comes from the parser.
             },
         };
 
     } catch (error: any) {
-        functions.logger.error(`Error calling Vertex AI (Gemini) for ${familyName}:`, {
+        functions.logger.error(`Error calling @google/genai for ${familyName}:`, {
             message: error.message,
             stack: error.stack,
-            details: error.details || error, // Some GCP errors have a details field
+            details: error.details || error,
         });
         return null;
     }
