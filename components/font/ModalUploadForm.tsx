@@ -80,7 +80,9 @@ export default function ModalUploadForm({ onUploadComplete }: ModalUploadFormPro
   };
 
   const removeFile = (fileId: string) => {
-    setFilesToUpload(prev => prev.filter(f => f.id !== fileId && f.status === 'pending'));
+    // Only remove the specific file. The previous logic kept only
+    // pending files, inadvertently dropping any others from the list.
+    setFilesToUpload(prev => prev.filter(f => f.id !== fileId));
   };
 
   const uploadSingleFileViaXHR = async (fileToProcess: UploadableFile) => {
