@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { adminStorage } from '@/lib/firebase/admin';
+import * as admin from 'firebase-admin';
 
 export const runtime = 'nodejs';
 
@@ -10,16 +11,26 @@ const UNPROCESSED_FONTS_PATH = 'unprocessed_fonts'; // Target path for the Cloud
 const MAX_FILES_PER_REQUEST = 20;
 
 export async function POST(request: NextRequest) {
-    // Simple header-based auth to protect the endpoint in absence of full auth
-    const providedToken = request.headers.get('x-upload-token') || '';
-    const requiredToken = process.env.UPLOAD_SECRET_TOKEN || '';
-    const isDev = process.env.NODE_ENV !== 'production';
-    if (!requiredToken && !isDev) {
-        console.error('UPLOAD_SECRET_TOKEN not configured — refusing to accept uploads in production.');
-        return NextResponse.json({ error: 'Server misconfiguration' }, { status: 503 });
+    // Require Firebase ID token for authenticated uploads
+    let uid: string | null = null;
+    const authHeader = request.headers.get('authorization') || '';
+    const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
+    if (bearer) {
+        try {
+            const decoded = await admin.auth().verifyIdToken(bearer);
+            uid = decoded.uid;
+        } catch (e) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
     }
-    if (!isDev && providedToken !== requiredToken) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Fallback: allow dev environment with x-upload-token if configured
+    if (!uid) {
+        const providedToken = request.headers.get('x-upload-token') || '';
+        const requiredToken = process.env.UPLOAD_SECRET_TOKEN || '';
+        const isDev = process.env.NODE_ENV !== 'production';
+        if (!isDev || !requiredToken || providedToken !== requiredToken) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
     }
     try {
         const formData = await request.formData();
@@ -81,6 +92,7 @@ export async function POST(request: NextRequest) {
                         // No cache control for unprocessed uploads
                         metadata: {
                             originalName: file.name,
+                            ...(uid ? { ownerId: uid } : {}),
                         },
                     },
                 });

@@ -6,6 +6,7 @@ import NavBar from '@/components/layout/NavBar';
 import Dropzone from '@/components/ui/Dropzone';
 import ProcessingView from '@/components/import/ProcessingView';
 import Stat from '@/components/ui/Stat';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
 type ImportState =
   | { kind: 'idle' }
@@ -27,11 +28,11 @@ type ImportState =
 export default function ImportPage() {
   const router = useRouter();
   const [state, setState] = useState<ImportState>({ kind: 'idle' });
+  const { user, isLoading } = useAuth();
 
   const handleFilesSelected = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
 
-    // Filter font files
     const fontFiles = files.filter((file) => {
       const ext = file.name.toLowerCase().split('.').pop();
       return ['ttf', 'otf', 'woff', 'woff2'].includes(ext || '');
@@ -45,13 +46,32 @@ export default function ImportPage() {
       return;
     }
 
+    if (!user) {
+      setState({ kind: 'error', message: 'Please sign in to upload fonts.' });
+      return;
+    }
+
     setState({ kind: 'queued', files: fontFiles });
 
-    // Start processing simulation (replace with actual upload logic)
-    setTimeout(() => {
+    try {
+      const idToken = await user.getIdToken();
+      const form = new FormData();
+      for (const f of fontFiles) form.append('fonts', f);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${idToken}` },
+        body: form,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || 'Upload failed');
+      }
+      // Begin progress UI while background processing happens
       processFiles(fontFiles);
-    }, 1000);
-  }, []);
+    } catch (e: any) {
+      setState({ kind: 'error', message: e.message || 'Upload failed.' });
+    }
+  }, [user]);
 
   const processFiles = async (files: File[]) => {
     const total = files.length;
@@ -113,6 +133,26 @@ export default function ImportPage() {
   };
 
   const stats = getStats();
+
+  // Gate when signed out
+  if (!user && !isLoading) {
+    return (
+      <div className="w-screen h-screen flex flex-col">
+        <NavBar />
+        <div className="flex-1 w-full h-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto">
+          <header className="w-full rule-b pb-4 sm:pb-5 md:pb-6">
+            <h1 className="cap-tight uppercase font-black tracking-tight text-[clamp(56px,9.5vw,140px)] leading-[0.9]">
+              Import Fonts
+            </h1>
+          </header>
+          <div className="mt-8 p-8 rule rounded-[var(--radius)] max-w-xl">
+            <div className="text-xl font-bold">Sign in required</div>
+            <p className="mt-2">Please sign in to upload fonts to your library.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-screen h-screen flex flex-col">

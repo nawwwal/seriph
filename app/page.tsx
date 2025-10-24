@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { FontFamily } from '@/models/font.models';
 import { getAllFontFamilies } from '@/lib/db/firestoreUtils';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import { Timestamp } from 'firebase/firestore';
 import NavBar from '@/components/layout/NavBar';
 import WelcomeState from '@/components/home/WelcomeState';
@@ -30,6 +31,7 @@ const CACHE_EXPIRATION_MS = 60 * 60 * 1000; // 1 hour
 
 export default function HomePage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [families, setFamilies] = useState<FontFamily[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +43,8 @@ export default function HomePage() {
 
     try {
       // Try loading from cache
-      const cached = localStorage.getItem(CACHE_KEY_ALL_FAMILIES);
+      const cacheKey = user?.uid ? `${CACHE_KEY_ALL_FAMILIES}_${user.uid}` : CACHE_KEY_ALL_FAMILIES;
+      const cached = localStorage.getItem(cacheKey);
       if (cached) {
         const { timestamp, data } = JSON.parse(cached);
         if (Date.now() - timestamp < CACHE_EXPIRATION_MS && data.length > 0) {
@@ -53,14 +56,14 @@ export default function HomePage() {
       }
 
       // Fetch from Firestore
-      const { families: newFamiliesRaw } = await getAllFontFamilies();
+      const { families: newFamiliesRaw } = await getAllFontFamilies(user?.uid);
       const serializedNewFamilies = serializeFamilies(newFamiliesRaw);
 
       setFamilies(serializedNewFamilies);
 
       if (serializedNewFamilies.length > 0) {
         localStorage.setItem(
-          CACHE_KEY_ALL_FAMILIES,
+          cacheKey,
           JSON.stringify({ timestamp: Date.now(), data: serializedNewFamilies })
         );
       }
@@ -70,7 +73,7 @@ export default function HomePage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user?.uid]);
 
   useEffect(() => {
     loadFamilies();

@@ -3,9 +3,11 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import ThemeSwitcher from '@/components/theme/ThemeSwitcher';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
 export default function NavBar() {
   const pathname = usePathname();
+  const { user, isLoading, signInWithGoogle, signOut } = useAuth();
 
   const isActive = (path: string) => {
     if (path === '/') {
@@ -35,7 +37,36 @@ export default function NavBar() {
         >
           Import
         </Link>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {user ? (
+            <>
+              <button
+                onClick={() => signOut()}
+                className="uppercase font-bold rule px-3 py-1 rounded-[var(--radius)] text-sm btn-ink"
+              >
+                Sign out
+              </button>
+              {user.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt={user.displayName || 'User'}
+                  className="w-8 h-8 rounded-full rule"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full rule flex items-center justify-center text-xs font-bold">
+                  {(user.displayName || 'U').charAt(0).toUpperCase()}
+                </div>
+              )}
+            </>
+          ) : (
+            <button
+              onClick={() => signInWithGoogle()}
+              className="uppercase font-bold rule px-3 py-1 rounded-[var(--radius)] text-sm btn-ink"
+              disabled={isLoading}
+            >
+              Sign in
+            </button>
+          )}
           <ThemeSwitcher />
         </div>
       </div>

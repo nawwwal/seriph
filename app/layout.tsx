@@ -3,6 +3,7 @@ import { League_Spartan } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { AuthProvider } from "@/lib/contexts/AuthContext";
 
 const leagueSpartan = League_Spartan({
   weight: ['400', '700', '900'],
@@ -50,7 +51,9 @@ export default function RootLayout({
         style={{ fontFamily: 'var(--font-league-spartan), system-ui, -apple-system, sans-serif' }}
       >
         <ThemeProvider>
-          {children}
+          <AuthProvider>
+            {children}
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

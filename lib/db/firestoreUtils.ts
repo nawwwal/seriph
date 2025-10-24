@@ -1,5 +1,5 @@
 import { db } from '@/lib/firebase/config';
-import { collection, doc, getDoc, query, getDocs, orderBy } from 'firebase/firestore';
+import { collection, doc, getDoc, query, getDocs, orderBy, where } from 'firebase/firestore';
 import { FontFamily } from '@/models/font.models';
 
 const FAMILIES_COLLECTION = 'fontfamilies';
@@ -8,13 +8,19 @@ const FAMILIES_COLLECTION = 'fontfamilies';
  * Retrieves all font families.
  * @returns An object containing the list of all font families.
  */
-export async function getAllFontFamilies(): Promise<{ families: FontFamily[] }> {
+export async function getAllFontFamilies(ownerId?: string): Promise<{ families: FontFamily[] }> {
     try {
         const familiesCol = collection(db, FAMILIES_COLLECTION);
-        const q = query(
-            familiesCol,
-            orderBy("name") // Order by name for consistent listing
-        );
+        const q = ownerId
+            ? query(
+                familiesCol,
+                where('ownerId', '==', ownerId),
+                orderBy("name")
+              )
+            : query(
+                familiesCol,
+                orderBy("name")
+              );
 
         const familySnapshot = await getDocs(q);
         const familyList = familySnapshot.docs.map(d => {
@@ -23,9 +29,36 @@ export async function getAllFontFamilies(): Promise<{ families: FontFamily[] }> 
         });
 
         return { families: familyList };
-    } catch (error) {
-        console.error("Error fetching all font families:", error);
-        return { families: [] };
+    } catch (error: any) {
+        const message = typeof error?.message === 'string' ? error.message : '';
+        const isIndexMissing = (error?.code === 'failed-precondition' || error?.code === 'permission-denied') && message.includes('requires an index');
+        if (!isIndexMissing) {
+            console.error("Error fetching all font families:", error);
+            return { families: [] };
+        }
+
+        try {
+            // Fallback: drop orderBy from query, then sort in-memory by name
+            const familiesCol = collection(db, FAMILIES_COLLECTION);
+            const qNoOrder = ownerId
+                ? query(
+                    familiesCol,
+                    where('ownerId', '==', ownerId)
+                  )
+                : query(familiesCol);
+
+            const snap = await getDocs(qNoOrder);
+            const list = snap.docs.map(d => {
+                const data = d.data() as FontFamily;
+                return { ...data, id: (data as any).id ?? d.id } as FontFamily;
+            });
+
+            list.sort((a, b) => a.name.localeCompare(b.name));
+            return { families: list };
+        } catch (fallbackError) {
+            console.error("Fallback fetch of font families failed:", fallbackError);
+            return { families: [] };
+        }
     }
 }
 

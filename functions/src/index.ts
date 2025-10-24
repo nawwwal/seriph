@@ -89,6 +89,9 @@ export const processUploadedFontStorage = onObjectFinalized(
       const processedFileName = `${processingId}-${originalFileName}`;
       const processedFileRef = bucket.file(`${PROCESSED_BUCKET_PATH}/${processedFileName}`);
 
+      // Read ownerId (if present) from unprocessed file's custom metadata
+      const ownerIdFromMetadata = (event.data.metadata && (event.data.metadata as any).metadata && (event.data.metadata as any).metadata.ownerId) || null;
+
       await processedFileRef.save(fileBuffer, {
         resumable: false,
         // Set contentType at the top level per GCS SaveOptions
@@ -101,6 +104,7 @@ export const processUploadedFontStorage = onObjectFinalized(
             processed: 'true',
             originalPath: filePath,
             processingId: processingId,
+            ...(ownerIdFromMetadata ? { ownerId: ownerIdFromMetadata } : {}),
           },
         },
       });
@@ -115,7 +119,7 @@ export const processUploadedFontStorage = onObjectFinalized(
         fileSize: fileBuffer.byteLength,
       };
 
-      const familyResult = await serverAddFontToFamilyAdmin(parsedFontData, fontFileDetails, aiAnalysisResult);
+      const familyResult = await serverAddFontToFamilyAdmin(parsedFontData, fontFileDetails, aiAnalysisResult, ownerIdFromMetadata || undefined);
 
       if (!familyResult) {
         logger.error(`[${originalFileName}] Failed to add font to family in Firestore. Attempting to move processed file to failed folder.`);

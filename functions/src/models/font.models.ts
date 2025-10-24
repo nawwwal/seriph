@@ -79,6 +79,7 @@ export interface FontFamily {
   id: string;
   name: string;
   normalizedName: string;
+  ownerId?: string;
   foundry?: string;
   description: string; // AI-generated
   tags: string[];

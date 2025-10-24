@@ -14,7 +14,8 @@ export async function serverAddFontToFamilyAdmin(
         downloadUrl: string;
         fileSize: number;
     },
-    aiAnalysisResult?: any
+    aiAnalysisResult?: any,
+    ownerId?: string
 ): Promise<FontFamily | null> {
     const familyName = parsedFontData.familyName || 'Unknown Family';
     const normalizedFamilyName = normalizeName(familyName);
@@ -38,6 +39,7 @@ export async function serverAddFontToFamilyAdmin(
                     id: familyDocId,
                     name: familyName,
                     normalizedName: normalizedFamilyName,
+                    ...(ownerId ? { ownerId } : {}),
                     description: aiAnalysisResult?.description || 'A new font family.',
                     tags: aiAnalysisResult?.tags || [],
                     classification: aiAnalysisResult?.classification || parsedFontData.classification || 'Sans Serif',
@@ -55,6 +57,11 @@ export async function serverAddFontToFamilyAdmin(
                 familyDataToSet = { ...existingData };
                 existingFonts = existingData.fonts || [];
                 familyDataToSet.lastModified = admin.firestore.FieldValue.serverTimestamp() as any;
+
+                // Backfill ownerId if missing
+                if (ownerId && !familyDataToSet.ownerId) {
+                    familyDataToSet.ownerId = ownerId;
+                }
 
                 if (aiAnalysisResult) {
                     functions.logger.info(`Updating existing family ${familyName} with AI data.`);

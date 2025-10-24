@@ -25,7 +25,7 @@
   "devDependencies": {
     "@types/fontkit": "latest",
     "@types/jszip": "latest",
-    "@types/node": "latest",
+    "@types/node": "^22.13.10",
     "@types/opentype.js": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
