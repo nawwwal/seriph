@@ -9,8 +9,20 @@ export default {
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        paper: "var(--paper)",
+        ink: "var(--ink)",
+        accent: "var(--accent)",
+        muted: "var(--muted)",
+        surface: "var(--surface)",
+      },
+      borderWidth: {
+        rule: "var(--rule)",
+      },
+      borderRadius: {
+        DEFAULT: "var(--radius)",
+      },
+      spacing: {
+        rhythm: "var(--rhythm)",
       },
     },
   },

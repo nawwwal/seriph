@@ -1,0 +1,58 @@
+/* Base theme: Ink (default) */
+:root,
+[data-theme="ink"] {
+  --paper: #F4F29A;
+  --ink: #0D7E6C;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  /* Extended tokens */
+  --accent: #0D7E6C;
+  --muted: color-mix(in srgb, var(--ink) 15%, transparent);
+  --surface: #FFFFFF;
+  --shadow: color-mix(in srgb, var(--ink) 20%, transparent);
+  --focus: #0D7E6C;
+}
+
+/* Noir theme */
+[data-theme="noir"] {
+  --paper: #0B0B0B;
+  --ink: #EDEDED;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --accent: #FFFFFF;
+  --muted: #1a1a1a;
+  --surface: #1a1a1a;
+  --shadow: rgba(0, 0, 0, 0.5);
+  --focus: #FFFFFF;
+}
+
+/* Sunset theme */
+[data-theme="sunset"] {
+  --paper: #FFF5E6;
+  --ink: #9C2B31;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --accent: #FF7A59;
+  --muted: #FFD7BE;
+  --surface: #FFFFFF;
+  --shadow: color-mix(in srgb, var(--ink) 15%, transparent);
+  --focus: #FF7A59;
+}
+
+/* Ocean theme */
+[data-theme="ocean"] {
+  --paper: #E7F6FF;
+  --ink: #0B5D8E;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --accent: #0E87CC;
+  --muted: #BEE6FF;
+  --surface: #FFFFFF;
+  --shadow: color-mix(in srgb, var(--ink) 15%, transparent);
+  --focus: #0E87CC;
+}
+

@@ -1,13 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { storage } from '@/lib/firebase/config'; // Client-side Firebase storage instance
-import { ref, uploadBytes } from 'firebase/storage';
 import { v4 as uuidv4 } from 'uuid';
+import { adminStorage } from '@/lib/firebase/admin';
+
+export const runtime = 'nodejs';
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB per file limit
 const ALLOWED_FONT_EXTENSIONS = ['ttf', 'otf', 'woff', 'woff2', 'eot'];
 const UNPROCESSED_FONTS_PATH = 'unprocessed_fonts'; // Target path for the Cloud Function
+const MAX_FILES_PER_REQUEST = 20;
 
 export async function POST(request: NextRequest) {
+    // Simple header-based auth to protect the endpoint in absence of full auth
+    const providedToken = request.headers.get('x-upload-token') || '';
+    const requiredToken = process.env.UPLOAD_SECRET_TOKEN || '';
+    const isDev = process.env.NODE_ENV !== 'production';
+    if (!requiredToken && !isDev) {
+        console.error('UPLOAD_SECRET_TOKEN not configured — refusing to accept uploads in production.');
+        return NextResponse.json({ error: 'Server misconfiguration' }, { status: 503 });
+    }
+    if (!isDev && providedToken !== requiredToken) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     try {
         const formData = await request.formData();
         const files = formData.getAll('fonts') as File[];
@@ -16,7 +29,11 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No files uploaded.' }, { status: 400 });
         }
 
-        const uploadResults = [];
+        if (files.length > MAX_FILES_PER_REQUEST) {
+            return NextResponse.json({ error: `Too many files. Max ${MAX_FILES_PER_REQUEST}.` }, { status: 413 });
+        }
+
+        const uploadResults: Array<{ success: boolean; originalName: string; message?: string; error?: string; }>= [];
 
         for (const file of files) {
             if (file.size > MAX_FILE_SIZE) {
@@ -49,22 +66,33 @@ export async function POST(request: NextRequest) {
                 continue;
             }
 
-            // Upload directly to the path monitored by the Cloud Function
+            // Upload directly to the path monitored by the Cloud Function using Admin SDK
             const uniqueFilename = `${uuidv4()}-${file.name}`;
-            const storageRef = ref(storage, `${UNPROCESSED_FONTS_PATH}/${uniqueFilename}`);
+            const bucket = adminStorage.bucket();
+            const destPath = `${UNPROCESSED_FONTS_PATH}/${uniqueFilename}`;
 
             try {
-                // Using client-side uploadBytes directly to the target path
-                await uploadBytes(storageRef, file, { contentType: file.type });
+                const arrayBuffer = await file.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                await bucket.file(destPath).save(buffer, {
+                    resumable: false,
+                    metadata: {
+                        contentType: file.type || 'application/octet-stream',
+                        // No cache control for unprocessed uploads
+                        metadata: {
+                            originalName: file.name,
+                        },
+                    },
+                });
 
                 uploadResults.push({
                     success: true,
                     originalName: file.name,
-                    message: 'File submitted for processing.' // Generic message
+                    message: 'File submitted for processing.'
                 });
 
             } catch (uploadError: any) {
-                console.error(`Error uploading ${file.name} directly to ${UNPROCESSED_FONTS_PATH}:`, uploadError);
+                console.error(`Error uploading ${file.name} to ${UNPROCESSED_FONTS_PATH}:`, uploadError);
                 uploadResults.push({
                     success: false,
                     originalName: file.name,
@@ -74,7 +102,6 @@ export async function POST(request: NextRequest) {
         }
 
         const allSubmissionsFailed = uploadResults.every(r => !r.success);
-        const anySubmissionsSucceeded = uploadResults.some(r => r.success);
 
         if (allSubmissionsFailed && uploadResults.length > 0) {
              return NextResponse.json(

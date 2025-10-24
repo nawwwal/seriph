@@ -17,7 +17,10 @@ export async function getAllFontFamilies(): Promise<{ families: FontFamily[] }> 
         );
 
         const familySnapshot = await getDocs(q);
-        const familyList = familySnapshot.docs.map(doc => doc.data() as FontFamily);
+        const familyList = familySnapshot.docs.map(d => {
+            const data = d.data() as FontFamily;
+            return { ...data, id: data.id ?? d.id } as FontFamily;
+        });
 
         return { families: familyList };
     } catch (error) {
@@ -41,7 +44,8 @@ export async function getFontFamilyById(familyId: string): Promise<FontFamily | 
         const familyDocSnap = await getDoc(familyDocRef);
 
         if (familyDocSnap.exists()) {
-            return familyDocSnap.data() as FontFamily;
+            const data = familyDocSnap.data() as FontFamily;
+            return { ...data, id: data.id ?? familyId } as FontFamily;
         }
         console.log(`Font family with ID "${familyId}" not found.`);
         return null;

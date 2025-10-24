@@ -89,16 +89,21 @@ export const processUploadedFontStorage = onObjectFinalized(
       const processedFileName = `${processingId}-${originalFileName}`;
       const processedFileRef = bucket.file(`${PROCESSED_BUCKET_PATH}/${processedFileName}`);
 
-      const newMetadata = {
-        contentType: contentType,
+      await processedFileRef.save(fileBuffer, {
+        resumable: false,
+        // Set contentType at the top level per GCS SaveOptions
+        contentType: contentType || 'application/octet-stream',
+        // cacheControl belongs in FileMetadata under `metadata`
         metadata: {
+          cacheControl: 'public, max-age=31536000',
+          // custom user metadata goes under `metadata`
+          metadata: {
             processed: 'true',
             originalPath: filePath,
             processingId: processingId,
-            cacheControl: 'public, max-age=31536000'
-        }
-      };
-      await processedFileRef.save(fileBuffer, newMetadata);
+          },
+        },
+      });
       await processedFileRef.makePublic();
       const downloadUrl = processedFileRef.publicUrl();
       logger.info(`[${originalFileName}] Font saved to ${processedFileRef.name} and made public at ${downloadUrl}`);

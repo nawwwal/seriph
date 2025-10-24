@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { v4 as uuidv4 } from 'uuid';
 import type { FontFamily, Font, FamilyMetadata, Classification } from '../models/font.models';
-const { normalizeName } = require('../utils/normalize');
+import { normalizeName } from '../utils/normalize';
 import * as functions from 'firebase-functions';
 
 const FAMILIES_COLLECTION = 'fontfamilies';

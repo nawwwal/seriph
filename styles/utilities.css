@@ -1,0 +1,199 @@
+/* Global styles */
+html, body {
+  height: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+/* Border utilities */
+.rule {
+  border-color: var(--ink);
+  border-width: var(--rule);
+}
+
+.rule-b {
+  border-bottom: var(--rule) solid var(--ink);
+}
+
+.rule-t {
+  border-top: var(--rule) solid var(--ink);
+}
+
+.rule-l {
+  border-left: var(--rule) solid var(--ink);
+}
+
+.rule-r {
+  border-right: var(--rule) solid var(--ink);
+}
+
+/* Typography utilities */
+.cap-tight {
+  line-height: .9;
+}
+
+/* Button and interaction utilities */
+.btn-ink {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.btn-ink:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.ink-bg {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* Decorative utilities */
+.cover-stripe {
+  background-image: linear-gradient(90deg, var(--ink) 22%, transparent 22% 44%, var(--ink) 44% 50%, transparent 50% 72%, var(--ink) 72% 78%, transparent 78%);
+  background-size: 24px 100%;
+  opacity: .12;
+  pointer-events: none;
+}
+
+.caret::after {
+  content: "→";
+  display: inline-block;
+  transform: translateY(0.02em);
+}
+
+.truncate-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.grid-poster-gap {
+  gap: calc(var(--rhythm) * 1.2);
+}
+
+.dashed-border {
+  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%230D7E6C' stroke-width='2' stroke-dasharray='8%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+}
+
+.step-number {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--ink);
+  color: var(--paper);
+  font-weight: bold;
+  margin-right: 12px;
+}
+
+/* Progress indicators */
+.progress-bar {
+  height: 6px;
+  border-radius: var(--radius);
+  background: var(--ink);
+  opacity: 0.3;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--ink);
+  transition: width 0.3s ease-in-out;
+}
+
+/* Animations */
+.pulse-animation {
+  animation: pulse 2s infinite;
+}
+
+.pulse {
+  animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
+}
+
+.slide-in {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Specimen container with hover effects */
+.specimen-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.specimen-text {
+  transition: transform 0.3s ease;
+}
+
+.specimen-container:hover .specimen-text {
+  transform: translateY(-50%);
+}
+
+.specimen-pangram {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.specimen-container:hover .specimen-pangram {
+  transform: translateY(0);
+}
+
+/* Style cards */
+.style-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.style-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 0 var(--ink);
+}
+
+/* Focus visible states */
+*:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
