@@ -1,4 +1,6 @@
-import * as admin from 'firebase-admin';
+import { getApps, initializeApp, applicationDefault, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 
 // Singleton initializer for Firebase Admin in Next.js (server-only)
 // Credentials resolution priority:
@@ -11,21 +13,20 @@ const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
 const rawPrivateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
 
-if (!admin.apps.length) {
+if (!getApps().length) {
   if (projectId && clientEmail && rawPrivateKey) {
     const privateKey = rawPrivateKey.replace(/\\n/g, '\n');
-    admin.initializeApp({
-      credential: admin.credential.cert({ projectId, clientEmail, privateKey }),
+    initializeApp({
+      credential: cert({ projectId, clientEmail, privateKey }),
       storageBucket: bucketName,
     });
   } else {
-    admin.initializeApp({
+    initializeApp({
+      credential: applicationDefault(),
       storageBucket: bucketName,
     });
   }
 }
 
-export const adminApp = admin.app();
-export const adminDb = admin.firestore();
-export const adminStorage = admin.storage();
-export type { app as FirebaseAdminApp } from 'firebase-admin';
+export const adminDb = getFirestore();
+export const adminStorage = getStorage();

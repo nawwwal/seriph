@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminDb } from '@/lib/firebase/admin';
+// Lazy import admin only after auth check passes to avoid initializing admin on 401s
 
 export const runtime = 'nodejs';
 
@@ -16,6 +16,9 @@ export async function POST(request: NextRequest) {
     if (!targetUid) {
       return NextResponse.json({ error: 'targetUid required' }, { status: 400 });
     }
+
+    // Import admin only after token validation
+    const { adminDb } = await import('@/lib/firebase/admin');
 
     const batchSize = 300;
     let updated = 0;
