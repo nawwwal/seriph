@@ -11,6 +11,7 @@ import WelcomeState from '@/components/home/WelcomeState';
 import ShelfState from '@/components/home/ShelfState';
 import Stat from '@/components/ui/Stat';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { storePendingFonts } from '@/utils/pendingFonts';
 
 const serializeFamilies = (families: any[]): FontFamily[] => {
   return families.map((family) => ({
@@ -79,10 +80,14 @@ export default function HomePage() {
     loadFamilies();
   }, [loadFamilies]);
 
-  const handleFilesSelected = (files: File[]) => {
-    // Navigate to import page with files
-    router.push('/import');
-  };
+  const handleFilesSelected = useCallback(
+    (files: File[]) => {
+      if (files.length === 0) return;
+      storePendingFonts(files);
+      router.push('/import');
+    },
+    [router]
+  );
 
   const handleAddFonts = () => {
     router.push('/import');

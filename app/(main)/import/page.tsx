@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import NavBar from '@/components/layout/NavBar';
 import Dropzone from '@/components/ui/Dropzone';
 import ProcessingView from '@/components/import/ProcessingView';
 import Stat from '@/components/ui/Stat';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { consumePendingFonts } from '@/utils/pendingFonts';
 
 type ImportState =
   | { kind: 'idle' }
@@ -68,48 +69,59 @@ export default function ImportPage() {
     }, 3000);
   }, [router]);
 
-  const handleFilesSelected = useCallback(async (files: File[]) => {
-    if (files.length === 0) return;
+  const handleFilesSelected = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
 
-    const fontFiles = files.filter((file) => {
-      const ext = file.name.toLowerCase().split('.').pop();
-      return ['ttf', 'otf', 'woff', 'woff2'].includes(ext || '');
-    });
-
-    if (fontFiles.length === 0) {
-      setState({
-        kind: 'error',
-        message: 'No valid font files found. Please upload .ttf, .otf, .woff, or .woff2 files.',
+      const fontFiles = files.filter((file) => {
+        const ext = file.name.toLowerCase().split('.').pop();
+        return ['ttf', 'otf', 'woff', 'woff2'].includes(ext || '');
       });
-      return;
-    }
 
-    if (!user) {
-      setState({ kind: 'error', message: 'Please sign in to upload fonts.' });
-      return;
-    }
-
-    setState({ kind: 'queued', files: fontFiles });
-
-    try {
-      const idToken = await user.getIdToken();
-      const form = new FormData();
-      for (const f of fontFiles) form.append('fonts', f);
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${idToken}` },
-        body: form,
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || 'Upload failed');
+      if (fontFiles.length === 0) {
+        setState({
+          kind: 'error',
+          message: 'No valid font files found. Please upload .ttf, .otf, .woff, or .woff2 files.',
+        });
+        return;
       }
-      // Begin progress UI while background processing happens
-      processFiles(fontFiles);
-    } catch (e: any) {
-      setState({ kind: 'error', message: e.message || 'Upload failed.' });
+
+      if (!user) {
+        setState({ kind: 'error', message: 'Please sign in to upload fonts.' });
+        return;
+      }
+
+      setState({ kind: 'queued', files: fontFiles });
+
+      try {
+        const idToken = await user.getIdToken();
+        const form = new FormData();
+        for (const f of fontFiles) form.append('fonts', f);
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${idToken}` },
+          body: form,
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data?.error || 'Upload failed');
+        }
+        // Begin progress UI while background processing happens
+        processFiles(fontFiles);
+      } catch (e: any) {
+        setState({ kind: 'error', message: e.message || 'Upload failed.' });
+      }
+    },
+    [processFiles, user]
+  );
+
+  useEffect(() => {
+    if (isLoading) return;
+    const pending = consumePendingFonts();
+    if (pending && pending.length > 0) {
+      handleFilesSelected(pending);
     }
-  }, [processFiles, user]);
+  }, [handleFilesSelected, isLoading]);
 
   const isDragOver = state.kind === 'drag-over';
   const isProcessing = state.kind === 'processing';
