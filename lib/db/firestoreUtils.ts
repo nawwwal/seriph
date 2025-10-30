@@ -1,6 +1,17 @@
 import { db } from '@/lib/firebase/config';
-import { collection, doc, getDoc, query, getDocs, orderBy, where } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  orderBy,
+  query,
+  where,
+  Timestamp,
+} from 'firebase/firestore';
 import { FontFamily } from '@/models/font.models';
+import { IngestRecord } from '@/models/ingest.models';
 
 const FAMILIES_COLLECTION = 'fontfamilies';
 
@@ -103,3 +114,53 @@ export async function getFontFamilyById(familyId: string): Promise<FontFamily | 
 }
 
 // Other client-side utility functions can remain or be added here.
+
+const serializeTimestampValue = (value: any): string | null => {
+  if (!value) return null;
+  if (value instanceof Timestamp) {
+    return value.toDate().toISOString();
+  }
+  if (typeof value?.toDate === 'function') {
+    return value.toDate().toISOString();
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return null;
+};
+
+export async function getUserIngests(userId?: string, max = 50): Promise<IngestRecord[]> {
+  if (!userId) {
+    return [];
+  }
+
+  try {
+    const ingestsCol = collection(db, 'users', userId, 'ingests');
+    const ingestsQuery = query(ingestsCol, orderBy('updatedAt', 'desc'), limit(max));
+    const snapshot = await getDocs(ingestsQuery);
+
+    return snapshot.docs.map((docSnap) => {
+      const data = docSnap.data() as Record<string, any>;
+      return {
+        id: docSnap.id,
+        ingestId: (data.ingestId as string) ?? docSnap.id,
+        ownerId: (data.ownerId as string) ?? userId,
+        originalName: (data.originalName as string) ?? 'Font file',
+        status: (data.status as string) ?? 'uploaded',
+        error: data.error ?? null,
+        errorCode: data.errorCode ?? null,
+        familyId: data.familyId ?? null,
+        requestId: data.requestId ?? null,
+        processingId: data.processingId ?? null,
+        uploadSource: data.uploadSource ?? null,
+        unprocessedPath: data.unprocessedPath ?? null,
+        processedPath: data.processedPath ?? null,
+        uploadedAt: serializeTimestampValue(data.uploadedAt),
+        updatedAt: serializeTimestampValue(data.updatedAt),
+      } as IngestRecord;
+    });
+  } catch (error) {
+    console.error('Error fetching ingests:', error);
+    return [];
+  }
+}

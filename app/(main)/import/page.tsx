@@ -1,77 +1,90 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import NavBar from '@/components/layout/NavBar';
 import Dropzone from '@/components/ui/Dropzone';
-import ProcessingView from '@/components/import/ProcessingView';
+import ProcessingView, { UploadItem, UploadStatus } from '@/components/import/ProcessingView';
 import Stat from '@/components/ui/Stat';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { consumePendingFonts } from '@/utils/pendingFonts';
+import { db } from '@/lib/firebase/config';
 
-type ImportState =
-  | { kind: 'idle' }
-  | { kind: 'drag-over' }
-  | { kind: 'queued'; files: File[] }
-  | {
-      kind: 'processing';
-      progress: number;
-      processed: number;
-      total: number;
-      currentFile?: string;
-    }
-  | {
-      kind: 'summary';
-      families: Array<{ name: string; styles: number; classification: string }>;
-    }
-  | { kind: 'error'; message: string; files?: string[] };
+const TERMINAL_STATUSES = new Set<UploadStatus>(['completed', 'failed']);
+
+const mapIngestStatus = (status?: string): UploadStatus => {
+  if (!status) return 'uploaded';
+  if (status === 'completed') return 'completed';
+  if (status === 'failed') return 'failed';
+  if (status === 'uploaded') return 'uploaded';
+  return 'processing';
+};
 
 export default function ImportPage() {
   const router = useRouter();
-  const [state, setState] = useState<ImportState>({ kind: 'idle' });
   const { user, isLoading } = useAuth();
+  const [phase, setPhase] = useState<'idle' | 'uploading' | 'processing' | 'summary'>('idle');
+  const [uploads, setUploads] = useState<UploadItem[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const listenersRef = useRef<Map<string, () => void>>(new Map());
+  const familyNameCacheRef = useRef<Map<string, string>>(new Map());
 
-  const processFiles = useCallback(async (files: File[]) => {
-    const total = files.length;
-    let processed = 0;
+  const clearListeners = useCallback(() => {
+    listenersRef.current.forEach((unsubscribe) => unsubscribe());
+    listenersRef.current.clear();
+  }, []);
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      setState({
-        kind: 'processing',
-        progress: Math.round(((i + 0.5) / total) * 100),
-        processed: i,
-        total,
-        currentFile: file.name,
-      });
+  const resetState = useCallback(() => {
+    clearListeners();
+    setUploads([]);
+    setPhase('idle');
+    setError(null);
+  }, [clearListeners]);
 
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      processed++;
-      setState({
-        kind: 'processing',
-        progress: Math.round((processed / total) * 100),
-        processed,
-        total,
-      });
+  const fetchFamilyName = useCallback(async (ingestId: string, familyId: string) => {
+    if (!familyId) return;
+    if (familyNameCacheRef.current.has(familyId)) {
+      const cachedName = familyNameCacheRef.current.get(familyId)!;
+      setUploads((prev) =>
+        prev.map((upload) =>
+          upload.ingestId === ingestId ? { ...upload, familyId, familyName: cachedName } : upload
+        )
+      );
+      return;
     }
 
-    setState({
-      kind: 'summary',
-      families: [
-        { name: 'Roboto', styles: 3, classification: 'Sans' },
-        { name: 'Montserrat', styles: files.length - 3, classification: 'Sans' },
-      ],
-    });
+    try {
+      const familySnap = await getDoc(doc(db, 'fontfamilies', familyId));
+      if (familySnap.exists()) {
+        const data = familySnap.data() as { name?: string };
+        const name = data?.name ?? null;
+        if (name) {
+          familyNameCacheRef.current.set(familyId, name);
+          setUploads((prev) =>
+            prev.map((upload) =>
+              upload.ingestId === ingestId ? { ...upload, familyId, familyName: name } : upload
+            )
+          );
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch family name', err);
+    }
 
-    setTimeout(() => {
-      router.push('/');
-    }, 3000);
-  }, [router]);
+    setUploads((prev) =>
+      prev.map((upload) =>
+        upload.ingestId === ingestId ? { ...upload, familyId, familyName: upload.familyName ?? null } : upload
+      )
+    );
+  }, []);
 
   const handleFilesSelected = useCallback(
     async (files: File[]) => {
-      if (files.length === 0) return;
+      if (!files.length || phase === 'uploading' || phase === 'processing') {
+        return;
+      }
 
       const fontFiles = files.filter((file) => {
         const ext = file.name.toLowerCase().split('.').pop();
@@ -79,41 +92,153 @@ export default function ImportPage() {
       });
 
       if (fontFiles.length === 0) {
-        setState({
-          kind: 'error',
-          message: 'No valid font files found. Please upload .ttf, .otf, .woff, or .woff2 files.',
-        });
+        setError('No valid font files found. Please upload .ttf, .otf, .woff, or .woff2 files.');
         return;
       }
 
       if (!user) {
-        setState({ kind: 'error', message: 'Please sign in to upload fonts.' });
+        setError('Please sign in to upload fonts.');
         return;
       }
 
-      setState({ kind: 'queued', files: fontFiles });
+      clearListeners();
+      setError(null);
+      setPhase('uploading');
+      setUploads(fontFiles.map((file) => ({ fileName: file.name, status: 'uploaded' })));
 
       try {
         const idToken = await user.getIdToken();
         const form = new FormData();
-        for (const f of fontFiles) form.append('fonts', f);
-        const res = await fetch('/api/upload', {
+        for (const file of fontFiles) form.append('fonts', file);
+
+        const response = await fetch('/api/upload', {
           method: 'POST',
           headers: { Authorization: `Bearer ${idToken}` },
           body: form,
         });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data?.error || 'Upload failed');
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Upload failed');
         }
-        // Begin progress UI while background processing happens
-        processFiles(fontFiles);
-      } catch (e: any) {
-        setState({ kind: 'error', message: e.message || 'Upload failed.' });
+
+        const results = Array.isArray(payload?.results) ? payload.results : [];
+        const successfulUploads: UploadItem[] = results
+          .filter((result: any) => result?.success)
+          .map((result: any) => ({
+            ingestId: result.ingestId ?? result.id,
+            fileName: result.originalName ?? 'Font file',
+            status: 'uploaded',
+          }));
+        const failedUploads: UploadItem[] = results
+          .filter((result: any) => !result?.success)
+          .map((result: any) => ({
+            fileName: result.originalName ?? 'Font file',
+            status: 'failed',
+            error: result.error ?? 'Failed to submit file for processing.',
+          }));
+
+        const combined = [...successfulUploads, ...failedUploads];
+        if (!combined.length) {
+          setError('No files were uploaded.');
+          setUploads([]);
+          setPhase('idle');
+          return;
+        }
+
+        setUploads(combined);
+        setPhase(successfulUploads.length > 0 ? 'processing' : 'summary');
+      } catch (err: any) {
+        console.error('Upload failed:', err);
+        setError(err?.message || 'Upload failed.');
+        setUploads([]);
+        setPhase('idle');
       }
     },
-    [processFiles, user]
+    [clearListeners, phase, user]
   );
+
+  useEffect(() => {
+    if (!user || phase !== 'processing') {
+      return;
+    }
+
+    uploads.forEach((upload) => {
+      if (!upload.ingestId || TERMINAL_STATUSES.has(upload.status)) {
+        return;
+      }
+
+      if (listenersRef.current.has(upload.ingestId)) {
+        return;
+      }
+
+      const unsubscribe = onSnapshot(
+        doc(db, 'users', user.uid, 'ingests', upload.ingestId),
+        (snapshot) => {
+          if (!snapshot.exists()) {
+            setUploads((prev) =>
+              prev.map((item) =>
+                item.ingestId === upload.ingestId
+                  ? { ...item, status: 'failed', error: 'Upload record missing.' }
+                  : item
+              )
+            );
+            return;
+          }
+
+          const data = snapshot.data() as Record<string, any>;
+          const nextStatus = mapIngestStatus(data.status);
+          setUploads((prev) =>
+            prev.map((item) =>
+              item.ingestId === upload.ingestId
+                ? {
+                    ...item,
+                    status: nextStatus,
+                    error: data.error ?? item.error ?? null,
+                    familyId: data.familyId ?? item.familyId ?? null,
+                  }
+                : item
+            )
+          );
+
+          if (data.familyId) {
+            fetchFamilyName(upload.ingestId!, data.familyId);
+          }
+        },
+        (listenerError) => {
+          console.error('Ingest listener error:', listenerError);
+          setUploads((prev) =>
+            prev.map((item) =>
+              item.ingestId === upload.ingestId
+                ? { ...item, status: 'failed', error: listenerError.message }
+                : item
+            )
+          );
+        }
+      );
+
+      listenersRef.current.set(upload.ingestId, unsubscribe);
+    });
+  }, [fetchFamilyName, phase, uploads, user]);
+
+  useEffect(() => {
+    uploads.forEach((upload) => {
+      if (!upload.ingestId) return;
+      if (!TERMINAL_STATUSES.has(upload.status)) return;
+      const unsubscribe = listenersRef.current.get(upload.ingestId);
+      if (unsubscribe) {
+        unsubscribe();
+        listenersRef.current.delete(upload.ingestId);
+      }
+    });
+  }, [uploads]);
+
+  useEffect(() => {
+    if (phase !== 'processing' || uploads.length === 0) return;
+    const allDone = uploads.every((upload) => TERMINAL_STATUSES.has(upload.status));
+    if (allDone) {
+      setPhase('summary');
+    }
+  }, [phase, uploads]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -123,26 +248,30 @@ export default function ImportPage() {
     }
   }, [handleFilesSelected, isLoading]);
 
-  const isDragOver = state.kind === 'drag-over';
-  const isProcessing = state.kind === 'processing';
-  const isSummary = state.kind === 'summary';
-  const isError = state.kind === 'error';
+  useEffect(() => clearListeners, [clearListeners]);
 
-  // Get stats based on state
-  const getStats = () => {
-    if (isProcessing) {
-      return { families: 2, styles: state.total, recent: state.currentFile || '—' };
+  const stats = useMemo(() => {
+    if (uploads.length === 0) {
+      return { total: 0, completed: 0, processing: 0, failed: 0 };
     }
-    if (isSummary) {
-      const totalStyles = state.families.reduce((sum, f) => sum + f.styles, 0);
-      return { families: state.families.length, styles: totalStyles, recent: state.families[0]?.name || '—' };
-    }
-    return { families: 0, styles: 0, recent: '—' };
-  };
+    const completed = uploads.filter((upload) => upload.status === 'completed').length;
+    const failed = uploads.filter((upload) => upload.status === 'failed').length;
+    const processing = uploads.filter(
+      (upload) => upload.status === 'processing' || upload.status === 'uploaded'
+    ).length;
+    return { total: uploads.length, completed, processing, failed };
+  }, [uploads]);
 
-  const stats = getStats();
+  const statusLabel =
+    phase === 'summary'
+      ? 'Complete'
+      : phase === 'processing'
+      ? 'Processing'
+      : phase === 'uploading'
+      ? 'Uploading'
+      : 'Ready';
+  const isDropzoneDisabled = phase === 'uploading' || phase === 'processing';
 
-  // Gate when signed out
   if (!user && !isLoading) {
     return (
       <div className="w-screen h-screen flex flex-col">
@@ -186,95 +315,59 @@ export default function ImportPage() {
           </p>
         </header>
 
-        {(isProcessing || isSummary) && (
+        {uploads.length > 0 && (
           <section className="mt-4 sm:mt-6 md:mt-8 rule-t rule-b">
             <div className="grid grid-cols-2 sm:grid-cols-4">
-              <Stat label="Families" value={stats.families} />
-              <Stat label="Styles" value={stats.styles} />
-              <Stat label="Recently Added" value={stats.recent} />
+              <Stat label="Total Files" value={stats.total} />
+              <Stat label="Completed" value={stats.completed} />
+              <Stat label="Processing" value={stats.processing} />
+              <Stat label="Failed" value={stats.failed} />
               <div className="p-3 sm:p-4">
                 <div className="uppercase text-xs sm:text-sm font-bold opacity-80">Status</div>
-                <div className="text-2xl sm:text-3xl font-black cap-tight">
-                  {isProcessing ? 'Processing' : 'Complete'}
-                </div>
+                <div className="text-2xl sm:text-3xl font-black cap-tight">{statusLabel}</div>
               </div>
             </div>
           </section>
         )}
 
-        <main className="mt-6 sm:mt-8 md:mt-10">
-          {state.kind === 'idle' && (
+        <main className="mt-6 sm:mt-8 md:mt-10 space-y-8">
+          {(phase === 'idle' || phase === 'summary') && (
             <div className="fade-in">
               <div className="text-center mb-8">
                 <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight">
-                  Select Font Files
+                  {phase === 'summary' ? 'Import More Fonts' : 'Select Font Files'}
                 </h2>
-                <p className="mt-2 text-lg">Drag and drop or click to browse</p>
+                <p className="mt-2 text-lg">
+                  Drag and drop or click to browse your font files.
+                </p>
               </div>
-              <Dropzone onFilesSelected={handleFilesSelected} />
+              <Dropzone onFilesSelected={handleFilesSelected} disabled={isDropzoneDisabled} />
             </div>
           )}
 
-          {state.kind === 'queued' && (
+          {phase === 'uploading' && uploads.length > 0 && (
             <div className="text-center p-10 rule rounded-[var(--radius)] fade-in">
-              <h2 className="text-2xl font-black uppercase mb-4">Preparing to Upload</h2>
+              <h2 className="text-2xl font-black uppercase mb-4">Uploading Fonts</h2>
               <p className="text-lg">
-                {state.files.length} file{state.files.length !== 1 ? 's' : ''} ready to process
+                Submitting {uploads.length} file{uploads.length !== 1 ? 's' : ''} for processing...
               </p>
             </div>
           )}
 
-          {isProcessing && (
-            <ProcessingView
-              progress={state.progress}
-              processed={state.processed}
-              total={state.total}
-              currentFile={state.currentFile}
-              queuedFiles={
-                state.currentFile
-                  ? Array(state.total - state.processed - 1)
-                      .fill(0)
-                      .map((_, i) => `Font-${i + 1}.ttf`)
-                  : []
-              }
-              organizedFamilies={[
-                { name: 'Roboto', styles: Math.min(3, state.processed), classification: 'Sans' },
-                {
-                  name: 'Montserrat',
-                  styles: Math.max(0, state.processed - 3),
-                  classification: 'Sans',
-                },
-              ]}
-            />
+          {phase === 'processing' && uploads.length > 0 && (
+            <ProcessingView uploads={uploads} phase="processing" />
           )}
 
-          {isSummary && (
-            <div className="text-center p-10 rule rounded-[var(--radius)] fade-in">
-              <h2 className="text-3xl font-black uppercase mb-4">Import Complete!</h2>
-              <p className="text-lg mb-6">
-                Successfully organized {state.families.length} font{' '}
-                {state.families.length !== 1 ? 'families' : 'family'}
-              </p>
-              <div className="space-y-2 max-w-md mx-auto">
-                {state.families.map((family, idx) => (
-                  <div key={idx} className="rule p-3 rounded-[var(--radius)] text-left">
-                    <div className="font-bold">{family.name}</div>
-                    <div className="text-sm opacity-80">
-                      {family.styles} style{family.styles !== 1 ? 's' : ''} · {family.classification}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-6 text-sm opacity-70">Redirecting to shelf...</p>
-            </div>
+          {phase === 'summary' && uploads.length > 0 && (
+            <ProcessingView uploads={uploads} phase="summary" />
           )}
 
-          {isError && (
+          {error && (
             <div className="text-center p-10 rule rounded-[var(--radius)] fade-in bg-[var(--muted)]">
-              <h2 className="text-2xl font-black uppercase mb-4">Upload Error</h2>
-              <p className="text-lg mb-6">{state.message}</p>
+              <h2 className="text-2xl font-black uppercase mb-4">Upload Issue</h2>
+              <p className="text-lg mb-6">{error}</p>
               <button
-                onClick={() => setState({ kind: 'idle' })}
+                onClick={resetState}
                 className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] btn-ink"
               >
                 Try Again

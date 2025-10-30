@@ -33,6 +33,11 @@ service cloud.firestore {
       allow read: if isAuthenticated() && userId == request.auth.uid;
       allow write: if false;
     }
+
+    match /users/{userId}/ingests/{ingestId} {
+      allow read: if isAuthenticated() && userId == request.auth.uid;
+      allow write: if false;
+    }
     
     // Default: allow reads for everything else, but no writes
     match /{document=**} {

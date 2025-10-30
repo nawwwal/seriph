@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { FontFamily } from '@/models/font.models';
-import { getAllFontFamilies } from '@/lib/db/firestoreUtils';
+import { IngestRecord } from '@/models/ingest.models';
+import { getAllFontFamilies, getUserIngests } from '@/lib/db/firestoreUtils';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { Timestamp } from 'firebase/firestore';
 import NavBar from '@/components/layout/NavBar';
@@ -34,6 +35,7 @@ export default function HomePage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
   const [families, setFamilies] = useState<FontFamily[]>([]);
+  const [pendingIngests, setPendingIngests] = useState<IngestRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shelfMode, setShelfMode] = useState<'spines' | 'covers'>('covers');
@@ -122,10 +124,27 @@ export default function HomePage() {
     }
   }, [authLoading, user]);
 
+  const loadIngests = useCallback(async () => {
+    if (authLoading) return;
+    if (!user?.uid) {
+      setPendingIngests([]);
+      return;
+    }
+
+    try {
+      const ingests = await getUserIngests(user.uid);
+      const visible = ingests.filter((ingest) => ingest.status !== 'completed');
+      setPendingIngests(visible);
+    } catch (ingestError) {
+      console.error('Error fetching pending ingests:', ingestError);
+    }
+  }, [authLoading, user?.uid]);
+
   useEffect(() => {
     if (authLoading) return;
     loadFamilies();
-  }, [authLoading, loadFamilies]);
+    loadIngests();
+  }, [authLoading, loadFamilies, loadIngests]);
 
   const handleFilesSelected = useCallback(
     (files: File[]) => {
@@ -171,7 +190,7 @@ export default function HomePage() {
     );
   }
 
-  if (error && families.length === 0) {
+  if (error && families.length === 0 && pendingIngests.length === 0) {
     return (
       <div className="w-screen h-screen flex flex-col bg-[var(--paper)]">
         <NavBar />
@@ -179,7 +198,10 @@ export default function HomePage() {
           <div className="text-center p-10 rule rounded-[var(--radius)] max-w-lg bg-[var(--surface)]">
             <p className="text-xl text-[var(--ink)]">{error}</p>
             <button
-              onClick={() => loadFamilies()}
+              onClick={() => {
+                loadFamilies();
+                loadIngests();
+              }}
               className="mt-4 px-6 py-2 rule rounded-[var(--radius)] btn-ink uppercase font-bold"
             >
               Try Again
@@ -192,7 +214,9 @@ export default function HomePage() {
 
   const totalStyles = families.reduce((sum, family) => sum + family.fonts.length, 0);
   const recentFamily = families.length > 0 ? families[0].name : '—';
-  const isEmpty = families.length === 0;
+  const hasPendingIngests = pendingIngests.length > 0;
+  const hasLibraryContent = families.length > 0 || hasPendingIngests;
+  const isEmpty = !hasLibraryContent;
 
   return (
     <div className="w-screen h-screen flex flex-col">
@@ -227,10 +251,11 @@ export default function HomePage() {
 
         {!isEmpty && (
           <section className="mt-4 sm:mt-6 md:mt-8 rule-t rule-b">
-            <div className="grid grid-cols-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 sm:grid-cols-5">
               <Stat label="Families" value={families.length} />
               <Stat label="Styles" value={totalStyles} />
               <Stat label="Recently Added" value={recentFamily} />
+              <Stat label="Uploads In Progress" value={pendingIngests.length} />
               <div className="p-3 sm:p-4">
                 <div className="uppercase text-xs sm:text-sm font-bold opacity-80">Shelf Mode</div>
                 <div className="flex gap-2 mt-1">
@@ -261,8 +286,8 @@ export default function HomePage() {
         ) : (
           <ShelfState
             families={families}
+            pendingIngests={pendingIngests}
             shelfMode={shelfMode}
-            onShelfModeChange={setShelfMode}
             onAddFonts={handleAddFonts}
           />
         )}
@@ -286,9 +311,9 @@ export default function HomePage() {
               <div className="uppercase font-bold">Export</div>
               <button
                 onClick={handleExport}
-                disabled={isEmpty}
+                disabled={families.length === 0}
                 className={`mt-2 uppercase font-bold rule px-3 py-2 rounded-[var(--radius)] btn-ink text-sm ${
-                  isEmpty ? 'opacity-50 cursor-not-allowed' : ''
+                  families.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
                 Download Catalog CSV
