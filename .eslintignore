@@ -1,0 +1,10 @@
+.next
+dist
+functions
+node_modules
+public
+docs
+.vercel
+coverage
+react-app.js
+scripts

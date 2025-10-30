@@ -1,0 +1,40 @@
+name: Functions CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: functions-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      GOOGLE_CLOUD_PROJECT: 'demo-project'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix functions
+
+      - name: Lint (functions)
+        run: npm run lint --prefix functions
+
+      - name: Unit tests
+        run: npm test --prefix functions
+
+      - name: Build
+        run: npm run build --prefix functions

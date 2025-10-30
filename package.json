@@ -9,10 +9,14 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "npm run lint:web && npm run lint:functions",
+    "lint:web": "ESLINT_USE_FLAT_CONFIG=false eslint --report-unused-disable-directives .",
+    "lint:functions": "npm run lint --prefix functions",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
-    "firebase": "^12.4.0",
+    "firebase": "latest",
     "firebase-admin": "latest",
     "firebase-functions": "latest",
     "fontkit": "latest",
@@ -28,13 +32,18 @@
   "devDependencies": {
     "@types/fontkit": "latest",
     "@types/jszip": "latest",
-    "@types/node": "^22.13.10",
+    "@types/node": "latest",
     "@types/opentype.js": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
     "@types/uuid": "latest",
+    "@typescript-eslint/eslint-plugin": "latest",
+    "@typescript-eslint/parser": "latest",
+    "eslint": "latest",
+    "eslint-config-next": "latest",
     "postcss": "latest",
     "tailwindcss": "latest",
-    "typescript": "latest"
+    "typescript": "latest",
+    "vitest": "latest"
   }
 }

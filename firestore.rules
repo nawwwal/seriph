@@ -1,7 +1,46 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Read-only for public by default. Writes go through Cloud Functions/Admin.
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner() {
+      return isAuthenticated() && 
+             resource.data.ownerId != null && 
+             resource.data.ownerId == request.auth.uid;
+    }
+    
+    // Font families collection
+    match /fontfamilies/{familyId} {
+      // Allow public reads for all font families
+      // Note: Queries filtering by ownerId will work, but won't enforce ownership
+      // at the rules level - they'll just return empty results if user doesn't match
+      allow read: if true;
+      
+      // Writes go through Cloud Functions/Admin only
+      allow write: if false;
+    }
+    
+    // Ingests collection (if it exists)
+    match /ingests/{ingestId} {
+      // Only allow users to read their own ingests
+      allow read: if isAuthenticated() && 
+                     resource.data.ownerId != null && 
+                     resource.data.ownerId == request.auth.uid;
+      allow write: if false;
+    }
+    
+    // Users collection (if storing user profiles)
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if isAuthenticated() && userId == request.auth.uid;
+      allow write: if false;
+    }
+    
+    // Default: allow reads for everything else, but no writes
     match /{document=**} {
       allow read: if true;
       allow write: if false;

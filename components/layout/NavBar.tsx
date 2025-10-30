@@ -2,6 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import ThemeSwitcher from '@/components/theme/ThemeSwitcher';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
@@ -47,10 +48,14 @@ export default function NavBar() {
                 Sign out
               </button>
               {user.photoURL ? (
-                <img
+                <Image
                   src={user.photoURL}
                   alt={user.displayName || 'User'}
-                  className="w-8 h-8 rounded-full rule"
+                  width={32}
+                  height={32}
+                  className="w-8 h-8 rounded-full rule object-cover"
+                  priority={false}
+                  unoptimized
                 />
               ) : (
                 <div className="w-8 h-8 rounded-full rule flex items-center justify-center text-xs font-bold">
@@ -73,4 +78,3 @@ export default function NavBar() {
     </nav>
   );
 }
-

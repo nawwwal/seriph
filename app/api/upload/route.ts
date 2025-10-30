@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { adminStorage } from '@/lib/firebase/admin';
+import { getAdminStorage } from '@/lib/firebase/admin';
 import * as admin from 'firebase-admin';
+import type { Storage } from 'firebase-admin/storage';
 
 export const runtime = 'nodejs';
 
@@ -44,6 +45,17 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: `Too many files. Max ${MAX_FILES_PER_REQUEST}.` }, { status: 413 });
         }
 
+        let bucket: ReturnType<Storage['bucket']>;
+        try {
+            bucket = getAdminStorage().bucket();
+        } catch (storageError: any) {
+            console.error('Firebase Storage is not configured correctly.', storageError);
+            return NextResponse.json(
+                { error: 'Storage service unavailable. Contact an administrator.' },
+                { status: 500 }
+            );
+        }
+
         const uploadResults: Array<{ success: boolean; originalName: string; message?: string; error?: string; }>= [];
 
         for (const file of files) {
@@ -79,7 +91,6 @@ export async function POST(request: NextRequest) {
 
             // Upload directly to the path monitored by the Cloud Function using Admin SDK
             const uniqueFilename = `${uuidv4()}-${file.name}`;
-            const bucket = adminStorage.bucket();
             const destPath = `${UNPROCESSED_FONTS_PATH}/${uniqueFilename}`;
 
             try {

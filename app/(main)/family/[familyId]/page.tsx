@@ -50,9 +50,8 @@ export default function FamilyDetailPage() {
   }, [family]);
 
   const filteredFonts = useMemo(() => {
-    if (!family) return {};
     if (activeFilter === 'All') return groupedFontsBySubfamily;
-    
+
     return Object.entries(groupedFontsBySubfamily).reduce((acc, [key, variants]) => {
       const matchesFilter = 
         (activeFilter === 'Regular' && key.toLowerCase().includes('regular')) ||

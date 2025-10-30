@@ -30,6 +30,44 @@ export default function ImportPage() {
   const [state, setState] = useState<ImportState>({ kind: 'idle' });
   const { user, isLoading } = useAuth();
 
+  const processFiles = useCallback(async (files: File[]) => {
+    const total = files.length;
+    let processed = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setState({
+        kind: 'processing',
+        progress: Math.round(((i + 0.5) / total) * 100),
+        processed: i,
+        total,
+        currentFile: file.name,
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      processed++;
+      setState({
+        kind: 'processing',
+        progress: Math.round((processed / total) * 100),
+        processed,
+        total,
+      });
+    }
+
+    setState({
+      kind: 'summary',
+      families: [
+        { name: 'Roboto', styles: 3, classification: 'Sans' },
+        { name: 'Montserrat', styles: files.length - 3, classification: 'Sans' },
+      ],
+    });
+
+    setTimeout(() => {
+      router.push('/');
+    }, 3000);
+  }, [router]);
+
   const handleFilesSelected = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
 
@@ -71,49 +109,7 @@ export default function ImportPage() {
     } catch (e: any) {
       setState({ kind: 'error', message: e.message || 'Upload failed.' });
     }
-  }, [user]);
-
-  const processFiles = async (files: File[]) => {
-    const total = files.length;
-    let processed = 0;
-
-    // Simulate processing
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      setState({
-        kind: 'processing',
-        progress: Math.round(((i + 0.5) / total) * 100),
-        processed: i,
-        total,
-        currentFile: file.name,
-      });
-
-      // Simulate processing delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      processed++;
-      setState({
-        kind: 'processing',
-        progress: Math.round((processed / total) * 100),
-        processed,
-        total,
-      });
-    }
-
-    // Show summary
-    setState({
-      kind: 'summary',
-      families: [
-        { name: 'Roboto', styles: 3, classification: 'Sans' },
-        { name: 'Montserrat', styles: files.length - 3, classification: 'Sans' },
-      ],
-    });
-
-    // Redirect to home after 3 seconds
-    setTimeout(() => {
-      router.push('/');
-    }, 3000);
-  };
+  }, [processFiles, user]);
 
   const isDragOver = state.kind === 'drag-over';
   const isProcessing = state.kind === 'processing';
@@ -300,4 +296,3 @@ export default function ImportPage() {
     </div>
   );
 }
-

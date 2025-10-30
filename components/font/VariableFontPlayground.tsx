@@ -9,23 +9,20 @@ interface VariableFontPlaygroundProps {
 }
 
 const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, fontFamilyName }) => {
-  if (!font.isVariable || !font.variableAxes || font.variableAxes.length === 0) {
-    return <p className="text-sm text-gray-500">This font is not variable or has no defined axes.</p>;
-  }
+  const axes = useMemo(() => font.variableAxes ?? [], [font.variableAxes]);
+  const isVariableFont = font.isVariable && axes.length > 0;
 
-  // Initialize axis values from their defaultValues
   const initialAxisValues = useMemo(() => {
-    const values: { [tag: string]: number } = {};
-    font.variableAxes!.forEach(axis => {
+    return axes.reduce<Record<string, number>>((values, axis) => {
       values[axis.tag] = axis.defaultValue;
-    });
-    return values;
-  }, [font.variableAxes]);
+      return values;
+    }, {});
+  }, [axes]);
 
-  const [currentAxisValues, setCurrentAxisValues] = useState<{ [tag: string]: number }>(initialAxisValues);
+  const [currentAxisValues, setCurrentAxisValues] = useState<Record<string, number>>(initialAxisValues);
 
   useEffect(() => {
-    setCurrentAxisValues(initialAxisValues); // Reset if font prop changes
+    setCurrentAxisValues(initialAxisValues);
   }, [initialAxisValues]);
 
   const handleSliderChange = (tag: string, value: number) => {
@@ -34,10 +31,9 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
 
   // Generate the font-variation-settings CSS string
   const fontVariationSettings = useMemo(() => {
-    return font.variableAxes!
-      .map(axis => `'${axis.tag}' ${currentAxisValues[axis.tag]}`)
-      .join(', ');
-  }, [font.variableAxes, currentAxisValues]);
+    if (!isVariableFont) return '';
+    return axes.map(axis => `'${axis.tag}' ${currentAxisValues[axis.tag]}`).join(', ');
+  }, [axes, currentAxisValues, isVariableFont]);
 
   const uniqueFontFamilyCssName = useMemo(() =>
     `VFPlayground_${fontFamilyName.replace(/\s+/g, '_')}_${font.subfamily.replace(/\s+/g, '_')}`
@@ -45,7 +41,7 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
 
   // Dynamically create @font-face rule
   useEffect(() => {
-    if (!font.downloadUrl) return;
+    if (!isVariableFont || !font.downloadUrl) return;
 
     const styleSheetId = `font-style-${uniqueFontFamilyCssName}`;
     let styleElement = document.getElementById(styleSheetId) as HTMLStyleElement | null;
@@ -71,10 +67,14 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
       //   document.head.removeChild(styleElement);
       // }
     };
-  }, [font.downloadUrl, font.format, uniqueFontFamilyCssName]);
+  }, [font.downloadUrl, font.format, uniqueFontFamilyCssName, isVariableFont]);
 
   const [previewText, setPreviewText] = useState('The quick brown fox jumps over the lazy dog.');
   const [previewFontSize, setPreviewFontSize] = useState(48);
+
+  if (!isVariableFont) {
+    return <p className="text-sm text-gray-500">This font is not variable or has no defined axes.</p>;
+  }
 
 
   return (
@@ -96,7 +96,7 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mb-6">
-        {font.variableAxes!.map((axis: VariableAxis) => (
+        {axes.map((axis: VariableAxis) => (
           <div key={axis.tag} className="flex flex-col">
             <div className="flex justify-between items-center mb-1">
                 <label htmlFor={`slider-${axis.tag}`} className="text-sm font-medium text-gray-600">
