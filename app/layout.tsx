@@ -25,7 +25,7 @@ export default function RootLayout({
     process.env.NEXT_PUBLIC_ENABLE_REACT_GRAB === 'true' ||
     process.env.NEXT_PUBLIC_ENABLE_REACT_GRAB === '1';
   return (
-    <html lang="en">
+    <html lang="en" data-theme="ink" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
