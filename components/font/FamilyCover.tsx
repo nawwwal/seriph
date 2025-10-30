@@ -2,6 +2,7 @@
 
 import { FontFamily } from '@/models/font.models';
 import Link from 'next/link';
+import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
 
 interface FamilyCoverProps {
   family: FontFamily;
@@ -33,6 +34,8 @@ function getSampleChars(classification: string): string {
 }
 
 export default function FamilyCover({ family, mode }: FamilyCoverProps) {
+  // Ensure fonts are registered so samples render with the actual family
+  useRegisterFamilyFonts(family);
   const pattern = getFamilyPattern(family.name);
   const sampleChars = getSampleChars(family.classification);
 
@@ -69,4 +72,3 @@ export default function FamilyCover({ family, mode }: FamilyCoverProps) {
     </Link>
   );
 }
-

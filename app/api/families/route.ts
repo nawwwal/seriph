@@ -13,8 +13,8 @@ export async function GET(request: NextRequest) {
     }
 
     const db = getAdminDb();
-    const familiesRef = db.collection('fontfamilies');
-    const snapshot = await familiesRef.where('ownerId', '==', uid).get();
+    const familiesRef = db.collection('users').doc(uid).collection('fontfamilies');
+    const snapshot = await familiesRef.get();
 
     const families = snapshot.docs
       .map((doc) => {

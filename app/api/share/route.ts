@@ -36,20 +36,27 @@ function sanitizeFamily(family: FontFamily): SanitizedFamily {
   return sanitized;
 }
 
-async function getFamily(db: Firestore, familyId: string): Promise<FontFamily | null> {
-  if (!familyId) {
-    return null;
+async function getFamily(db: Firestore, familyId: string, ownerId?: string): Promise<FontFamily | null> {
+  if (!familyId) return null;
+  if (ownerId) {
+    const snap = await db.collection('users').doc(ownerId).collection('fontfamilies').doc(familyId).get();
+    if (snap.exists) {
+      const data = snap.data() as FontFamily;
+      return { ...data, id: data.id ?? snap.id };
+    }
   }
-  const snapshot = await db.collection('fontfamilies').doc(familyId).get();
-  if (!snapshot.exists) {
-    return null;
+  // Legacy fallback
+  const legacy = await db.collection('fontfamilies').doc(familyId).get();
+  if (legacy.exists) {
+    const data = legacy.data() as FontFamily;
+    return { ...data, id: data.id ?? legacy.id };
   }
-  const data = snapshot.data() as FontFamily;
-  return { ...data, id: data.id ?? snapshot.id };
+  return null;
 }
 
 export async function GET(request: NextRequest) {
   const familyId = request.nextUrl.searchParams.get('familyId') || '';
+  const ownerId = request.nextUrl.searchParams.get('ownerId') || undefined;
   if (!familyId) {
     return NextResponse.json(
       { error: 'familyId query parameter is required' },
@@ -59,7 +66,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getAdminDb();
-    const family = await getFamily(db, familyId);
+    const family = await getFamily(db, familyId, ownerId);
     if (!family) {
       return NextResponse.json({ error: 'Family not found' }, { status: 404 });
     }
@@ -91,8 +98,9 @@ export async function POST(request: NextRequest) {
     }
 
     const families: SanitizedFamily[] = [];
+    const ownerId = request.nextUrl.searchParams.get('ownerId') || undefined;
     for (const familyId of familyIds) {
-      const family = await getFamily(db, familyId);
+      const family = await getFamily(db, familyId, ownerId);
       if (family) {
         families.push(sanitizeFamily(family));
       }

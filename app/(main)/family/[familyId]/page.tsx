@@ -5,12 +5,14 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { FontFamily, Font as FontVariant } from '@/models/font.models';
 import { getFontFamilyById } from '@/lib/db/firestoreUtils';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import { Timestamp } from 'firebase/firestore';
 import NavBar from '@/components/layout/NavBar';
 import FontDetailLoader from '@/components/ui/FontDetailLoader';
 import StyleCard from '@/components/font/StyleCard';
 import Specimen from '@/components/font/Specimen';
 import TypeTester from '@/components/font/TypeTester';
+import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
 
 const serializeFamilyData = (family: any): FontFamily | null => {
   if (!family) return null;
@@ -31,11 +33,15 @@ const serializeFamilyData = (family: any): FontFamily | null => {
 export default function FamilyDetailPage() {
   const routeParams = useParams<{ familyId: string }>();
   const familyId = routeParams.familyId;
+  const { user } = useAuth();
 
   const [family, setFamily] = useState<FontFamily | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>('All');
+
+  // Register fonts for this family when available
+  useRegisterFamilyFonts(family || undefined);
 
   const groupedFontsBySubfamily = useMemo(() => {
     if (!family || !family.fonts) return {};
@@ -76,7 +82,7 @@ export default function FamilyDetailPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const rawFamilyData = await getFontFamilyById(familyId);
+        const rawFamilyData = await getFontFamilyById(familyId, user?.uid);
         if (rawFamilyData) {
           const processedFamily = serializeFamilyData(rawFamilyData);
           setFamily(processedFamily as FontFamily);
@@ -92,7 +98,7 @@ export default function FamilyDetailPage() {
     };
 
     fetchFamilyData();
-  }, [familyId]);
+  }, [familyId, user?.uid]);
 
   if (isLoading) {
     return <FontDetailLoader />;

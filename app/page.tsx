@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { FontFamily } from '@/models/font.models';
 import { IngestRecord } from '@/models/ingest.models';
 import { getAllFontFamilies, getUserIngests } from '@/lib/db/firestoreUtils';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, onSnapshot, collection, orderBy, limit as fsLimit } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
 import NavBar from '@/components/layout/NavBar';
 import WelcomeState from '@/components/home/WelcomeState';
 import ShelfState from '@/components/home/ShelfState';
@@ -39,6 +40,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shelfMode, setShelfMode] = useState<'spines' | 'covers'>('covers');
+  const familiesReloadTimer = useRef<NodeJS.Timeout | null>(null);
 
   const loadFamilies = useCallback(async () => {
     if (authLoading) {
@@ -106,7 +108,21 @@ export default function HomePage() {
       if (errorCode) {
         throw new Error(errorMessage || 'Failed to load font families.');
       }
-      const serializedNewFamilies = serializeFamilies(newFamiliesRaw);
+      let serializedNewFamilies = serializeFamilies(newFamiliesRaw);
+
+      // Fallback: if user is present and client-side query returned nothing, try server-side filtered by ownerId
+      if (user && serializedNewFamilies.length === 0) {
+        try {
+          const idToken = await user.getIdToken();
+          const res = await fetch('/api/families', { headers: { Authorization: `Bearer ${idToken}` } });
+          if (res.ok) {
+            const json = await res.json();
+            serializedNewFamilies = serializeFamilies(json.families ?? []);
+          }
+        } catch (e) {
+          // ignore; leave empty
+        }
+      }
 
       setFamilies(serializedNewFamilies);
 
@@ -145,6 +161,61 @@ export default function HomePage() {
     loadFamilies();
     loadIngests();
   }, [authLoading, loadFamilies, loadIngests]);
+
+  // Live ingest listener: keeps pending uploads fresh and refreshes shelf when items complete
+  useEffect(() => {
+    if (authLoading || !user?.uid) return;
+    const ingestsCol = collection(db, 'users', user.uid, 'ingests');
+    const unsubscribe = onSnapshot(
+      // Order for stability; limit to avoid heavy payloads
+      (orderBy as any) ? (collection(db, 'users', user.uid, 'ingests') as any) : ingestsCol,
+      (snap: any) => {
+        try {
+          const all = snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) } as any));
+          const visible = all
+            .filter((ing: any) => (ing.status ?? 'uploaded') !== 'completed')
+            .map((ing: any) => ({
+              id: ing.id,
+              ingestId: ing.ingestId ?? ing.id,
+              ownerId: ing.ownerId ?? user.uid,
+              originalName: ing.originalName ?? 'Font file',
+              status: ing.status ?? 'uploaded',
+              error: ing.error ?? null,
+              errorCode: ing.errorCode ?? null,
+              familyId: ing.familyId ?? null,
+              requestId: ing.requestId ?? null,
+              processingId: ing.processingId ?? null,
+              uploadSource: ing.uploadSource ?? null,
+              unprocessedPath: ing.unprocessedPath ?? null,
+              processedPath: ing.processedPath ?? null,
+              uploadedAt:
+                ing.uploadedAt?.toDate?.() ? ing.uploadedAt.toDate().toISOString() : ing.uploadedAt ?? null,
+              updatedAt:
+                ing.updatedAt?.toDate?.() ? ing.updatedAt.toDate().toISOString() : ing.updatedAt ?? null,
+            }));
+          setPendingIngests(visible);
+
+          // If any completed in snapshot, schedule a families refresh (debounced)
+          const hasCompleted = all.some((ing: any) => ing.status === 'completed');
+          if (hasCompleted) {
+            if (familiesReloadTimer.current) clearTimeout(familiesReloadTimer.current);
+            familiesReloadTimer.current = setTimeout(() => {
+              loadFamilies();
+            }, 800);
+          }
+        } catch (e) {
+          console.error('Ingest snapshot parse failed', e);
+        }
+      },
+      (err: any) => {
+        console.error('Ingest snapshot listener error', err);
+      }
+    );
+    return () => {
+      if (familiesReloadTimer.current) clearTimeout(familiesReloadTimer.current);
+      unsubscribe();
+    };
+  }, [authLoading, user?.uid, loadFamilies]);
 
   const handleFilesSelected = useCallback(
     (files: File[]) => {

@@ -1,12 +1,14 @@
 'use client';
 
 import { FontFamily } from '@/models/font.models';
+import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
 
 interface SpecimenProps {
   family: FontFamily;
 }
 
 export default function Specimen({ family }: SpecimenProps) {
+  useRegisterFamilyFonts(family);
   const primaryFont = family.fonts[0];
 
   return (
@@ -36,4 +38,3 @@ export default function Specimen({ family }: SpecimenProps) {
     </section>
   );
 }
-

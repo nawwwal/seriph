@@ -13,23 +13,21 @@ type RouteContext = {
   };
 };
 
-async function loadFamily(db: Firestore, familyId: string): Promise<FontFamily | null> {
-  if (!familyId) {
-    return null;
-  }
-  const snapshot = await db.collection('fontfamilies').doc(familyId).get();
-  if (!snapshot.exists) {
-    return null;
-  }
+async function loadFamily(db: Firestore, uid: string, familyId: string): Promise<FontFamily | null> {
+  if (!familyId || !uid) return null;
+  const snapshot = await db.collection('users').doc(uid).collection('fontfamilies').doc(familyId).get();
+  if (!snapshot.exists) return null;
   const data = snapshot.data() as FontFamily;
   return { ...data, id: data.id ?? snapshot.id };
 }
 
-export async function GET(_request: NextRequest, context: RouteContext) {
+export async function GET(request: NextRequest, context: RouteContext) {
   const { familyId } = context.params;
   try {
+    const uid = await getUidFromRequest(request);
+    if (!uid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const db = getAdminDb();
-    const family = await loadFamily(db, familyId);
+    const family = await loadFamily(db, uid, familyId);
     if (!family) {
       return NextResponse.json({ error: 'Family not found' }, { status: 404 });
     }
@@ -52,7 +50,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
   try {
     const db = getAdminDb();
-    const familyRef = db.collection('fontfamilies').doc(familyId);
+    const familyRef = db.collection('users').doc(uid).collection('fontfamilies').doc(familyId);
     const snapshot = await familyRef.get();
     if (!snapshot.exists) {
       return NextResponse.json({ error: 'Family not found' }, { status: 404 });
@@ -87,7 +85,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     (updates as any).lastModified = admin.firestore.FieldValue.serverTimestamp();
     await familyRef.set(updates, { merge: true });
 
-    const updated = await loadFamily(db, familyId);
+    const updated = await loadFamily(db, uid, familyId);
     return NextResponse.json({ family: updated });
   } catch (error: any) {
     console.error(`PATCH /api/families/${familyId} failed`, error);

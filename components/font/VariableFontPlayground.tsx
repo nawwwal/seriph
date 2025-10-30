@@ -51,10 +51,11 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
       document.head.appendChild(styleElement);
     }
 
+    const proxied = `/api/font/proxy?url=${encodeURIComponent(font.downloadUrl)}`;
     const fontFaceRule = `
       @font-face {
         font-family: '${uniqueFontFamilyCssName}';
-        src: url('${font.downloadUrl}') format('${font.format === "TTF" ? "truetype" : font.format.toLowerCase()}');
+        src: url('${proxied}') format('${font.format === "TTF" ? "truetype" : font.format.toLowerCase()}');
         font-weight: normal; /* Default, actual variation via settings */
         font-style: normal;  /* Default, actual variation via settings */
       }

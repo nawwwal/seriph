@@ -10,6 +10,7 @@ import Stat from '@/components/ui/Stat';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { consumePendingFonts } from '@/utils/pendingFonts';
 import { db } from '@/lib/firebase/config';
+import { FontFamily } from '@/models/font.models';
 
 const TERMINAL_STATUSES = new Set<UploadStatus>(['completed', 'failed']);
 
@@ -239,6 +240,32 @@ export default function ImportPage() {
       setPhase('summary');
     }
   }, [phase, uploads]);
+
+  // Warm shelf cache via server API when any upload completes so Shelf shows fonts immediately
+  useEffect(() => {
+    (async () => {
+      if (!user || uploads.length === 0) return;
+      const anyCompleted = uploads.some((u) => u.status === 'completed');
+      if (!anyCompleted) return;
+      try {
+        const idToken = await user.getIdToken();
+        const res = await fetch('/api/families', {
+          headers: { Authorization: `Bearer ${idToken}` },
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        const families: FontFamily[] = Array.isArray(json?.families) ? json.families : [];
+        const cacheKey = user?.uid ? `fontFamiliesCache_all_${user.uid}` : 'fontFamiliesCache_all';
+        localStorage.setItem(
+          cacheKey,
+          JSON.stringify({ timestamp: Date.now(), data: families })
+        );
+      } catch (e) {
+        // Non-fatal cache warm failure
+        console.warn('Shelf cache warm failed', e);
+      }
+    })();
+  }, [uploads, user]);
 
   useEffect(() => {
     if (isLoading) return;

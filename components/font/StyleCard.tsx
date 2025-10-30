@@ -1,6 +1,7 @@
 'use client';
 
 import { Font as FontVariant } from '@/models/font.models';
+import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
 
 interface StyleCardProps {
   subfamilyName: string;
@@ -9,6 +10,20 @@ interface StyleCardProps {
 }
 
 export default function StyleCard({ subfamilyName, variants, familyName }: StyleCardProps) {
+  // Register fonts for this family to ensure the style card renders correctly
+  useRegisterFamilyFonts({
+    // Minimal object to satisfy hook, avoids prop drilling the whole family
+    id: familyName,
+    name: familyName,
+    normalizedName: familyName,
+    description: '',
+    tags: [],
+    classification: 'Sans Serif' as any,
+    metadata: {},
+    fonts: variants as any,
+    uploadDate: '',
+    lastModified: '',
+  } as any);
   const primaryVariant = variants[0];
   const weight = primaryVariant.weight || 400;
   const isItalic = subfamilyName.toLowerCase().includes('italic');
@@ -46,4 +61,3 @@ export default function StyleCard({ subfamilyName, variants, familyName }: Style
     </div>
   );
 }
-

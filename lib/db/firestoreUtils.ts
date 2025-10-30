@@ -1,7 +1,9 @@
 import { db } from '@/lib/firebase/config';
 import {
   collection,
+  collectionGroup,
   doc,
+  documentId,
   getDoc,
   getDocs,
   limit,
@@ -25,23 +27,36 @@ export async function getAllFontFamilies(ownerId?: string): Promise<{
     errorMessage?: string;
 }> {
     try {
-        const familiesCol = collection(db, FAMILIES_COLLECTION);
-        const q = ownerId
-            ? query(
-                familiesCol,
-                where('ownerId', '==', ownerId),
-                orderBy("name")
-              )
-            : query(
-                familiesCol,
-                orderBy("name")
-              );
+        let familyList: FontFamily[] = [];
 
-        const familySnapshot = await getDocs(q);
-        const familyList = familySnapshot.docs.map(d => {
+        if (ownerId) {
+          // Primary: user-scoped subcollection
+          const familiesCol = collection(db, 'users', ownerId, FAMILIES_COLLECTION);
+          const qUser = query(familiesCol, orderBy('name'));
+          const snap = await getDocs(qUser);
+          familyList = snap.docs.map((d) => {
             const data = d.data() as FontFamily;
-            return { ...data, id: data.id ?? d.id } as FontFamily;
-        });
+            return { ...data, id: (data as any).id ?? d.id } as FontFamily;
+          });
+
+          // Fallback: if none under user, attempt legacy top-level
+          if (familyList.length === 0) {
+            const legacyCol = collection(db, FAMILIES_COLLECTION);
+            const legacySnap = await getDocs(query(legacyCol, orderBy('name')));
+            familyList = legacySnap.docs.map((d) => {
+              const data = d.data() as FontFamily;
+              return { ...data, id: (data as any).id ?? d.id } as FontFamily;
+            });
+          }
+        } else {
+          // No owner provided: query collection group across all users
+          const cg = collectionGroup(db, FAMILIES_COLLECTION);
+          const snap = await getDocs(query(cg, orderBy('name')));
+          familyList = snap.docs.map((d) => {
+            const data = d.data() as FontFamily;
+            return { ...data, id: (data as any).id ?? d.id } as FontFamily;
+          });
+        }
 
         return { families: familyList };
     } catch (error: any) {
@@ -69,7 +84,9 @@ export async function getAllFontFamilies(ownerId?: string): Promise<{
                 : query(familiesCol);
 
             const snap = await getDocs(qNoOrder);
-            const list = snap.docs.map(d => {
+            // If ownerId filter yields nothing, fetch all
+            const effectiveSnap = ownerId && snap.empty ? await getDocs(collection(db, FAMILIES_COLLECTION)) : snap;
+            const list = effectiveSnap.docs.map(d => {
                 const data = d.data() as FontFamily;
                 return { ...data, id: (data as any).id ?? d.id } as FontFamily;
             });
@@ -92,20 +109,40 @@ export async function getAllFontFamilies(ownerId?: string): Promise<{
  * @param familyId The ID of the font family to retrieve.
  * @returns The FontFamily object or null if not found.
  */
-export async function getFontFamilyById(familyId: string): Promise<FontFamily | null> {
+export async function getFontFamilyById(familyId: string, ownerId?: string): Promise<FontFamily | null> {
     if (!familyId) {
         console.warn("getFontFamilyById called with no familyId");
         return null;
     }
     try {
-        const familyDocRef = doc(db, FAMILIES_COLLECTION, familyId);
-        const familyDocSnap = await getDoc(familyDocRef);
-
-        if (familyDocSnap.exists()) {
+        if (ownerId) {
+          // User-scoped doc
+          const familyDocRef = doc(db, 'users', ownerId, FAMILIES_COLLECTION, familyId);
+          const familyDocSnap = await getDoc(familyDocRef);
+          if (familyDocSnap.exists()) {
             const data = familyDocSnap.data() as FontFamily;
-            return { ...data, id: data.id ?? familyId } as FontFamily;
+            return { ...data, id: (data as any).id ?? familyId } as FontFamily;
+          }
         }
-        console.log(`Font family with ID "${familyId}" not found.`);
+
+        // Fallback 1: legacy top-level doc
+        const legacyRef = doc(db, FAMILIES_COLLECTION, familyId);
+        const legacySnap = await getDoc(legacyRef);
+        if (legacySnap.exists()) {
+          const data = legacySnap.data() as FontFamily;
+          return { ...data, id: (data as any).id ?? familyId } as FontFamily;
+        }
+
+        // Fallback 2: collection group search by id
+        const cg = collectionGroup(db, FAMILIES_COLLECTION);
+        const cgSnap = await getDocs(query(cg, where('id', '==', familyId)));
+        if (!cgSnap.empty) {
+          const d = cgSnap.docs[0];
+          const data = d.data() as FontFamily;
+          return { ...data, id: (data as any).id ?? familyId } as FontFamily;
+        }
+
+        console.log(`Font family with ID "${familyId}" not found in user or legacy collections.`);
         return null;
     } catch (error) {
         console.error(`Error fetching font family by ID "${familyId}":`, error);

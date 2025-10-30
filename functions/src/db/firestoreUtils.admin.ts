@@ -21,7 +21,9 @@ export async function serverAddFontToFamilyAdmin(
     const normalizedFamilyName = normalizeName(familyName);
     const familyDocId = normalizedFamilyName || uuidv4();
 
-    const familyRef = admin.firestore().collection(FAMILIES_COLLECTION).doc(familyDocId);
+    const familyRef = ownerId
+        ? admin.firestore().collection('users').doc(ownerId).collection(FAMILIES_COLLECTION).doc(familyDocId)
+        : admin.firestore().collection(FAMILIES_COLLECTION).doc(familyDocId);
     const fontId = normalizeName(
         (parsedFontData.postScriptName || parsedFontData.subfamilyName || fontFileDetails.originalName) + '-' + (parsedFontData.format || 'TYPE')
     );

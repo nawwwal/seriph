@@ -22,7 +22,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
   try {
     const db = getAdminDb();
-    const familyRef = db.collection('fontfamilies').doc(familyId);
+    const familyRef = db.collection('users').doc(uid).collection('fontfamilies').doc(familyId);
     const snapshot = await familyRef.get();
 
     if (!snapshot.exists) {

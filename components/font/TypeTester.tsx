@@ -2,12 +2,14 @@
 
 import { useState } from 'react';
 import { FontFamily } from '@/models/font.models';
+import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
 
 interface TypeTesterProps {
   family: FontFamily;
 }
 
 export default function TypeTester({ family }: TypeTesterProps) {
+  useRegisterFamilyFonts(family);
   const [selectedStyle, setSelectedStyle] = useState(family.fonts[0]?.subfamily || 'Regular');
   const [fontSize, setFontSize] = useState('24px');
   const [testText, setTestText] = useState(
@@ -78,4 +80,3 @@ export default function TypeTester({ family }: TypeTesterProps) {
     </section>
   );
 }
-
