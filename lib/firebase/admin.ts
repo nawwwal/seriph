@@ -14,6 +14,50 @@ const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID;
 const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
 const rawPrivateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
 
+function coercePrivateKey(input?: string | null): string | null {
+  if (!input) return null;
+  let pk = input.trim();
+  // If it looks like base64 (no BEGIN header and lots of base64 chars), try to decode
+  const looksLikeBase64 = !pk.includes('BEGIN PRIVATE KEY') && /^[A-Za-z0-9+/=\s]+$/.test(pk);
+  if (looksLikeBase64) {
+    try {
+      pk = Buffer.from(pk, 'base64').toString('utf8');
+    } catch (_) {
+      // ignore, fall back to raw
+    }
+  }
+  // Replace escaped newlines first (support both \n and \\\n)
+  pk = pk.replace(/\\n/g, '\n');
+  // Some hosting platforms double-quote the key; strip leading/trailing quotes
+  pk = pk.replace(/^"+|"+$/g, '');
+  // Normalize PEM header/footer hyphen counts and line placement
+  pk = pk.replace(/^-*BEGIN PRIVATE KEY-*$/m, '-----BEGIN PRIVATE KEY-----');
+  pk = pk.replace(/^-*END PRIVATE KEY-*$/m, '-----END PRIVATE KEY-----');
+  // Ensure newline after header and before footer
+  pk = pk.replace(/(-----BEGIN PRIVATE KEY-----)([^\n])/, '$1\n$2');
+  pk = pk.replace(/([^\n])(-----END PRIVATE KEY-----)/, '$1\n$2');
+  if (!pk.endsWith('\n')) pk += '\n';
+  // Ensure proper PEM boundaries if missing
+  if (!pk.includes('BEGIN PRIVATE KEY')) {
+    // Do not attempt to fabricate if structure missing
+    return pk;
+  }
+  return pk;
+}
+
+function resolveServiceAccountFromJsonString(jsonStr: string) {
+  try {
+    const parsed = JSON.parse(jsonStr);
+    if (parsed.private_key && parsed.client_email) {
+      parsed.private_key = coercePrivateKey(parsed.private_key);
+      return parsed;
+    }
+  } catch (_) {
+    // ignore
+  }
+  return null;
+}
+
 let cachedApp: App | null = null;
 let initError: Error | null = null;
 
@@ -29,10 +73,35 @@ function initializeFirebaseAdmin(): App | null {
   }
 
   try {
-    if (projectId && clientEmail && rawPrivateKey) {
-      const privateKey = rawPrivateKey.replace(/\\n/g, '\n');
+    // Option A: Full JSON credentials via FIREBASE_ADMIN_CREDENTIALS or GOOGLE_CREDENTIALS
+    const credsJson = process.env.FIREBASE_ADMIN_CREDENTIALS || process.env.GOOGLE_CREDENTIALS;
+    const credsB64 = process.env.FIREBASE_ADMIN_CREDENTIALS_BASE64 || process.env.GOOGLE_CREDENTIALS_BASE64;
+    let saFromJson: any = null;
+    if (credsJson) {
+      saFromJson = resolveServiceAccountFromJsonString(credsJson);
+    } else if (credsB64) {
+      try {
+        const decoded = Buffer.from(credsB64, 'base64').toString('utf8');
+        saFromJson = resolveServiceAccountFromJsonString(decoded);
+      } catch (_) {
+        // ignore
+      }
+    }
+
+    if (saFromJson) {
       cachedApp = initializeApp({
-        credential: cert({ projectId, clientEmail, privateKey }),
+        credential: cert(saFromJson),
+        storageBucket: bucketName,
+        projectId: saFromJson.project_id || projectId,
+      });
+      return cachedApp;
+    }
+
+    // Option B: Env triplet (projectId optional)
+    if (clientEmail && rawPrivateKey) {
+      const privateKey = coercePrivateKey(rawPrivateKey);
+      cachedApp = initializeApp({
+        credential: cert({ projectId, clientEmail, privateKey: privateKey as string }),
         storageBucket: bucketName,
         projectId,
       });
@@ -49,7 +118,7 @@ function initializeFirebaseAdmin(): App | null {
     }
 
     throw new Error(
-      'Firebase Admin credentials not found. Set FIREBASE_ADMIN_* env vars or GOOGLE_APPLICATION_CREDENTIALS.'
+      'Firebase Admin credentials not found. Provide FIREBASE_ADMIN_CREDENTIALS (JSON), FIREBASE_ADMIN_CREDENTIALS_BASE64, FIREBASE_ADMIN_* triplet, or GOOGLE_APPLICATION_CREDENTIALS.'
     );
   } catch (error: any) {
     initError = error instanceof Error ? error : new Error(String(error));
