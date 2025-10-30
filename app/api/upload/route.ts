@@ -10,6 +10,7 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB per file limit
 const ALLOWED_FONT_EXTENSIONS = ['ttf', 'otf', 'woff', 'woff2', 'eot'];
 const UNPROCESSED_FONTS_PATH = 'unprocessed_fonts'; // Target path for the Cloud Function
 const MAX_FILES_PER_REQUEST = 20;
+const firestore = admin.firestore();
 
 export async function POST(request: NextRequest) {
     // Require Firebase ID token for authenticated uploads
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
         if (!isDev || !requiredToken || providedToken !== requiredToken) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        uid = `dev-${providedToken}`;
     }
     try {
         const formData = await request.formData();
@@ -56,7 +58,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const uploadResults: Array<{ success: boolean; originalName: string; message?: string; error?: string; }>= [];
+        const uploadResults: Array<{ success: boolean; originalName: string; message?: string; error?: string; ingestId?: string; }> = [];
 
         for (const file of files) {
             if (file.size > MAX_FILE_SIZE) {
@@ -90,8 +92,43 @@ export async function POST(request: NextRequest) {
             }
 
             // Upload directly to the path monitored by the Cloud Function using Admin SDK
-            const uniqueFilename = `${uuidv4()}-${file.name}`;
+            const processingId = firestore.collection('_').doc().id;
+            const ingestRef = firestore.collection('users').doc(uid).collection('ingests').doc();
+            const ingestId = ingestRef.id;
+            const requestId = uuidv4();
+            const uniqueFilename = `${processingId}-${file.name}`;
             const destPath = `${UNPROCESSED_FONTS_PATH}/${uniqueFilename}`;
+
+            try {
+                const now = admin.firestore.FieldValue.serverTimestamp();
+                await ingestRef.set({
+                    ingestId,
+                    ownerId: uid,
+                    requestId,
+                    processingId,
+                    originalName: file.name,
+                    originalExtension: fileExtension,
+                    originalSize: file.size,
+                    status: 'uploaded',
+                    error: null,
+                    errorCode: null,
+                    unprocessedPath: destPath,
+                    uploadSource: 'web-app',
+                    contentType: file.type || null,
+                    createdAt: now,
+                    updatedAt: now,
+                    uploadedAt: now,
+                    events: [],
+                });
+            } catch (ingestError: any) {
+                console.error(`Error creating ingest document for ${file.name}:`, ingestError);
+                uploadResults.push({
+                    success: false,
+                    originalName: file.name,
+                    error: 'Failed to register upload. Please try again.'
+                });
+                continue;
+            }
 
             try {
                 const arrayBuffer = await file.arrayBuffer();
@@ -103,7 +140,11 @@ export async function POST(request: NextRequest) {
                         // No cache control for unprocessed uploads
                         metadata: {
                             originalName: file.name,
-                            ...(uid ? { ownerId: uid } : {}),
+                            ownerId: uid,
+                            ingestId,
+                            processingId,
+                            requestId,
+                            uploadSource: 'web-app',
                         },
                     },
                 });
@@ -111,11 +152,22 @@ export async function POST(request: NextRequest) {
                 uploadResults.push({
                     success: true,
                     originalName: file.name,
-                    message: 'File submitted for processing.'
+                    message: 'File submitted for processing.',
+                    ingestId,
                 });
 
             } catch (uploadError: any) {
                 console.error(`Error uploading ${file.name} to ${UNPROCESSED_FONTS_PATH}:`, uploadError);
+                try {
+                    await ingestRef.set({
+                        status: 'failed',
+                        error: uploadError?.message || 'Upload failed.',
+                        errorCode: uploadError?.code || 'upload_failed',
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    }, { merge: true });
+                } catch (updateError) {
+                    console.error(`Failed to mark ingest ${ingestId} as failed after upload error:`, updateError);
+                }
                 uploadResults.push({
                     success: false,
                     originalName: file.name,

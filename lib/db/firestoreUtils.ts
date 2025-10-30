@@ -8,7 +8,11 @@ const FAMILIES_COLLECTION = 'fontfamilies';
  * Retrieves all font families.
  * @returns An object containing the list of all font families.
  */
-export async function getAllFontFamilies(ownerId?: string): Promise<{ families: FontFamily[] }> {
+export async function getAllFontFamilies(ownerId?: string): Promise<{
+    families: FontFamily[];
+    errorCode?: string;
+    errorMessage?: string;
+}> {
     try {
         const familiesCol = collection(db, FAMILIES_COLLECTION);
         const q = ownerId
@@ -33,8 +37,14 @@ export async function getAllFontFamilies(ownerId?: string): Promise<{ families: 
         const message = typeof error?.message === 'string' ? error.message : '';
         const isIndexMissing = (error?.code === 'failed-precondition' || error?.code === 'permission-denied') && message.includes('requires an index');
         if (!isIndexMissing) {
-            console.error("Error fetching all font families:", error);
-            return { families: [] };
+            if (error?.code !== 'permission-denied') {
+                console.error("Error fetching all font families:", error);
+            }
+            return {
+                families: [],
+                errorCode: error?.code,
+                errorMessage: message || 'Unknown Firestore error',
+            };
         }
 
         try {
@@ -57,7 +67,11 @@ export async function getAllFontFamilies(ownerId?: string): Promise<{ families: 
             return { families: list };
         } catch (fallbackError) {
             console.error("Fallback fetch of font families failed:", fallbackError);
-            return { families: [] };
+            return {
+                families: [],
+                errorCode: (fallbackError as any)?.code,
+                errorMessage: (fallbackError as any)?.message || 'Unknown Firestore error',
+            };
         }
     }
 }

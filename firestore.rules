@@ -1,16 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if user is authenticated
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    // Helper function to check if user owns the document
-    function isOwner() {
-      return isAuthenticated() && 
-             resource.data.ownerId != null && 
-             resource.data.ownerId == request.auth.uid;
+
+    function userOwns(ownerId) {
+      return isAuthenticated() && ownerId != null && ownerId == request.auth.uid;
     }
     
     // Font families collection
@@ -27,9 +23,7 @@ service cloud.firestore {
     // Ingests collection (if it exists)
     match /ingests/{ingestId} {
       // Only allow users to read their own ingests
-      allow read: if isAuthenticated() && 
-                     resource.data.ownerId != null && 
-                     resource.data.ownerId == request.auth.uid;
+      allow read: if userOwns(resource.data.ownerId);
       allow write: if false;
     }
     

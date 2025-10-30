@@ -32,13 +32,17 @@ const CACHE_EXPIRATION_MS = 60 * 60 * 1000; // 1 hour
 
 export default function HomePage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [families, setFamilies] = useState<FontFamily[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shelfMode, setShelfMode] = useState<'spines' | 'covers'>('covers');
 
   const loadFamilies = useCallback(async () => {
+    if (authLoading) {
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -57,7 +61,49 @@ export default function HomePage() {
       }
 
       // Fetch from Firestore
-      const { families: newFamiliesRaw } = await getAllFontFamilies(user?.uid);
+      const {
+        families: newFamiliesRaw,
+        errorCode,
+        errorMessage,
+      } = await getAllFontFamilies(user?.uid);
+
+      if (errorCode === 'permission-denied' && !user) {
+        setFamilies([]);
+        return;
+      }
+
+      if (errorCode === 'permission-denied' && user) {
+        try {
+          const idToken = await user.getIdToken();
+          const res = await fetch('/api/families', {
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+            },
+          });
+          if (!res.ok) {
+            throw new Error(`Server fetch failed: ${res.status}`);
+          }
+          const json = await res.json();
+          const serializedFromServer = serializeFamilies(json.families ?? []);
+          setFamilies(serializedFromServer);
+          if (serializedFromServer.length > 0) {
+            localStorage.setItem(
+              cacheKey,
+              JSON.stringify({ timestamp: Date.now(), data: serializedFromServer })
+            );
+          }
+          return;
+        } catch (serverError) {
+          console.error('Server fetch of font families failed:', serverError);
+          setFamilies([]);
+          setError('Missing permissions to load your fonts. Please try again later.');
+          return;
+        }
+      }
+
+      if (errorCode) {
+        throw new Error(errorMessage || 'Failed to load font families.');
+      }
       const serializedNewFamilies = serializeFamilies(newFamiliesRaw);
 
       setFamilies(serializedNewFamilies);
@@ -74,11 +120,12 @@ export default function HomePage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.uid]);
+  }, [authLoading, user]);
 
   useEffect(() => {
+    if (authLoading) return;
     loadFamilies();
-  }, [loadFamilies]);
+  }, [authLoading, loadFamilies]);
 
   const handleFilesSelected = useCallback(
     (files: File[]) => {
