@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { getAdminStorage } from '@/lib/firebase/admin';
-import * as admin from 'firebase-admin';
+import { getAdminStorage, getAdminDb, getAdminAuth } from '@/lib/firebase/admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import type { Storage } from 'firebase-admin/storage';
 
 export const runtime = 'nodejs';
@@ -10,7 +10,6 @@ const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB per file limit
 const ALLOWED_FONT_EXTENSIONS = ['ttf', 'otf', 'woff', 'woff2', 'eot'];
 const UNPROCESSED_FONTS_PATH = 'unprocessed_fonts'; // Target path for the Cloud Function
 const MAX_FILES_PER_REQUEST = 20;
-const firestore = admin.firestore();
 
 export async function POST(request: NextRequest) {
     // Require Firebase ID token for authenticated uploads
@@ -19,7 +18,8 @@ export async function POST(request: NextRequest) {
     const bearer = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length) : '';
     if (bearer) {
         try {
-            const decoded = await admin.auth().verifyIdToken(bearer);
+            const adminAuth = getAdminAuth();
+            const decoded = await adminAuth.verifyIdToken(bearer);
             uid = decoded.uid;
         } catch (e) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
 
         const uploadResults: Array<{ success: boolean; originalName: string; message?: string; error?: string; ingestId?: string; }> = [];
 
+        const firestore = getAdminDb();
+
         for (const file of files) {
             if (file.size > MAX_FILE_SIZE) {
                 uploadResults.push({
@@ -92,7 +94,8 @@ export async function POST(request: NextRequest) {
             }
 
             // Upload directly to the path monitored by the Cloud Function using Admin SDK
-            const processingId = firestore.collection('_').doc().id;
+            const processingRef = firestore.collection('_').doc();
+            const processingId = processingRef.id;
             const ingestRef = firestore.collection('users').doc(uid).collection('ingests').doc();
             const ingestId = ingestRef.id;
             const requestId = uuidv4();
@@ -100,7 +103,7 @@ export async function POST(request: NextRequest) {
             const destPath = `${UNPROCESSED_FONTS_PATH}/${uniqueFilename}`;
 
             try {
-                const now = admin.firestore.FieldValue.serverTimestamp();
+                const now = FieldValue.serverTimestamp();
                 await ingestRef.set({
                     ingestId,
                     ownerId: uid,
@@ -163,7 +166,7 @@ export async function POST(request: NextRequest) {
                         status: 'failed',
                         error: uploadError?.message || 'Upload failed.',
                         errorCode: uploadError?.code || 'upload_failed',
-                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: FieldValue.serverTimestamp(),
                     }, { merge: true });
                 } catch (updateError) {
                     console.error(`Failed to mark ingest ${ingestId} as failed after upload error:`, updateError);

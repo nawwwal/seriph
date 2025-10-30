@@ -1,11 +1,11 @@
 import { App, getApps, initializeApp, applicationDefault, cert } from 'firebase-admin/app';
 import { Firestore, getFirestore } from 'firebase-admin/firestore';
 import { getStorage, Storage } from 'firebase-admin/storage';
+import { getAuth, Auth } from 'firebase-admin/auth';
 
 // Singleton initializer for Firebase Admin in Next.js (server-only)
 // Credentials resolution priority:
 // 1) Explicit service account envs: FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, FIREBASE_ADMIN_PRIVATE_KEY
-// 2) Application Default Credentials (GOOGLE_APPLICATION_CREDENTIALS or GCP runtime SA)
 
 const bucketName =
   process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
@@ -150,4 +150,8 @@ export function getAdminDb(): Firestore {
 
 export function getAdminStorage(): Storage {
   return getStorage(requireFirebaseAdmin());
+}
+
+export function getAdminAuth(): Auth {
+  return getAuth(requireFirebaseAdmin());
 }
