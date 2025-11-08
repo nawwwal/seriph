@@ -13,6 +13,10 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { FontFamily } from '@/models/font.models';
+
+const SEARCH_FAMILIES_COLLECTION = 'families';
+const SEARCH_STYLES_COLLECTION = 'styles';
+const SEARCH_SIGNALS_COLLECTION = 'searchSignals';
 import { IngestRecord } from '@/models/ingest.models';
 
 const FAMILIES_COLLECTION = 'fontfamilies';
@@ -200,4 +204,124 @@ export async function getUserIngests(userId?: string, max = 50): Promise<IngestR
     console.error('Error fetching ingests:', error);
     return [];
   }
+}
+
+export interface SearchStyleDoc {
+  styleId: string;
+  familyId: string;
+  styleName: string;
+  license?: string;
+  classification?: string;
+  scripts?: string[];
+  features?: string[];
+  axisTags?: string[];
+  isVariable?: boolean;
+  weight?: number;
+  width?: number;
+  updatedAt?: string;
+}
+
+export async function getSearchStylesByIds(styleIds: string[]): Promise<SearchStyleDoc[]> {
+  if (!Array.isArray(styleIds) || styleIds.length === 0) return [];
+  const unique = Array.from(new Set(styleIds));
+  const results: SearchStyleDoc[] = [];
+  for (let i = 0; i < unique.length; i += 10) {
+    const chunk = unique.slice(i, i + 10);
+    const snapshot = await getDocs(
+      query(
+        collection(db, SEARCH_STYLES_COLLECTION),
+        where('styleId', 'in', chunk)
+      )
+    );
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() as Record<string, any>;
+      results.push({
+        styleId: data.styleId ?? docSnap.id,
+        familyId: data.familyId,
+        styleName: data.styleName ?? docSnap.id,
+        license: data.license,
+        classification: data.classification,
+        scripts: data.scripts ?? [],
+        features: data.features ?? [],
+        axisTags: data.axisTags ?? data.axes?.map((axis: any) => axis?.tag).filter(Boolean) ?? [],
+        isVariable: Boolean(data.isVariable),
+        weight: typeof data.weight === 'number' ? data.weight : undefined,
+        width: typeof data.width === 'number' ? data.width : undefined,
+        updatedAt: serializeTimestampValue(data.updatedAt),
+      });
+    });
+  }
+  return results;
+}
+
+export interface SearchFamilyDoc {
+  familyId: string;
+  name: string;
+  license?: string;
+  classification?: string;
+  scripts?: string[];
+  tags?: string[];
+  popularity?: number;
+}
+
+export async function getSearchFamiliesByIds(familyIds: string[]): Promise<SearchFamilyDoc[]> {
+  if (!Array.isArray(familyIds) || familyIds.length === 0) return [];
+  const unique = Array.from(new Set(familyIds));
+  const results: SearchFamilyDoc[] = [];
+  for (let i = 0; i < unique.length; i += 10) {
+    const chunk = unique.slice(i, i + 10);
+    const snapshot = await getDocs(
+      query(
+        collection(db, SEARCH_FAMILIES_COLLECTION),
+        where('familyId', 'in', chunk)
+      )
+    );
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() as Record<string, any>;
+      results.push({
+        familyId: data.familyId ?? docSnap.id,
+        name: data.name ?? docSnap.id,
+        license: data.license,
+        classification: data.classification,
+        scripts: data.scripts ?? [],
+        tags: data.tags ?? [],
+        popularity: typeof data.popularity === 'number' ? data.popularity : undefined,
+      });
+    });
+  }
+  return results;
+}
+
+export interface SearchSignalDoc {
+  styleId: string;
+  trendingScore?: number;
+  clickThroughRate?: number;
+  saves?: number;
+  conversions?: number;
+}
+
+export async function getSearchSignals(styleIds: string[]): Promise<SearchSignalDoc[]> {
+  if (!Array.isArray(styleIds) || styleIds.length === 0) return [];
+  const unique = Array.from(new Set(styleIds));
+  const results: SearchSignalDoc[] = [];
+  for (let i = 0; i < unique.length; i += 10) {
+    const chunk = unique.slice(i, i + 10);
+    const snapshot = await getDocs(
+      query(
+        collection(db, SEARCH_SIGNALS_COLLECTION),
+        where('styleId', 'in', chunk)
+      )
+    );
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() as Record<string, any>;
+      results.push({
+        styleId: data.styleId ?? docSnap.id,
+        trendingScore: typeof data.trendingScore === 'number' ? data.trendingScore : undefined,
+        clickThroughRate: typeof data.clickThroughRate === 'number' ? data.clickThroughRate : undefined,
+        saves: typeof data.saves === 'number' ? data.saves : undefined,
+        conversions: typeof data.conversions === 'number' ? data.conversions : undefined,
+      });
+    });
+  }
+  return results;
 }
