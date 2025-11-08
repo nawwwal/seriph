@@ -6,7 +6,7 @@ import { validateAnalysisResult } from './validation';
 
 const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || 'seriph';
 const LOCATION_ID = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
-const TARGET_MODEL_NAME = 'gemini-2.5-flash-preview-05-20';
+const TARGET_MODEL_NAME = 'gemini-2.5-flash';
 const FALLBACK_MODEL_NAME = process.env.GEMINI_FALLBACK_MODEL || 'gemini-2.0-flash-exp';
 const WEB_SEARCH_ENABLED = process.env.GEMINI_WEB_SEARCH_ENABLED === 'true';
 
@@ -21,6 +21,7 @@ const generationConfig: GenerationConfig = {
     temperature: 0.6,
     topP: 0.9,
     topK: 40,
+    responseMimeType: "application/json", // Ensure JSON responses
 };
 
 const safetySettings: SafetySetting[] = [{
@@ -177,7 +178,9 @@ export async function performEnrichedAnalysis(
         const jsonString = candidate.content.parts[0].text.trim();
         let jsonData: any;
         try {
-            const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+            // With responseMimeType: "application/json", the response should be valid JSON
+            // Still clean markdown code blocks if present (for backward compatibility)
+            const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
             jsonData = JSON.parse(cleanedJsonString);
         } catch (e: any) {
             functions.logger.error(`Failed to parse JSON from enriched analysis for ${familyName}. Error: ${e.message}`, { jsonString });
@@ -208,6 +211,9 @@ export async function performEnrichedAnalysis(
         functions.logger.error(`Error in enriched analysis for ${familyName}:`, {
             message: error.message,
             stack: error.stack,
+            code: error.code,
+            status: error.status,
+            details: error.details,
         });
         // Try fallback if not already using it
         if (!useFallback) {

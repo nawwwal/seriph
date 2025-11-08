@@ -24,6 +24,25 @@ export default function FontFamilyCard({ family }: FontFamilyCardProps) {
           {family.metadata?.foundry && (
             <p className="text-sm text-gray-500">By {family.metadata.foundry}</p>
           )}
+          {family.metadata?.people && family.metadata.people.length > 0 && (
+            <p className="text-xs text-gray-400 mt-1">
+              {family.metadata.people.filter(p => p.role === 'designer').map(p => p.name).join(', ')}
+            </p>
+          )}
+          {((family.metadata?.moods?.length ?? 0) > 0 || (family.metadata?.useCases?.length ?? 0) > 0) && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {family.metadata?.moods?.slice(0, 2).map((mood, idx) => (
+                <span key={idx} className="text-xs px-2 py-0.5 bg-gray-100 rounded text-gray-600">
+                  {mood}
+                </span>
+              ))}
+              {family.metadata?.useCases?.slice(0, 1).map((useCase, idx) => (
+                <span key={idx} className="text-xs px-2 py-0.5 bg-blue-100 rounded text-blue-600">
+                  {useCase}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         <div

@@ -6,7 +6,7 @@ import { validateAnalysisResult } from './validation';
 
 const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || 'seriph';
 const LOCATION_ID = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
-const TARGET_MODEL_NAME = 'gemini-2.5-flash-preview-05-20';
+const TARGET_MODEL_NAME = 'gemini-2.5-flash';
 
 const genAI = new GoogleGenAI({
     vertexai: true,
@@ -19,6 +19,7 @@ const generationConfig: GenerationConfig = {
     temperature: 0.6,
     topP: 0.9,
     topK: 40,
+    responseMimeType: "application/json", // Ensure JSON responses
 };
 
 const safetySettings: SafetySetting[] = [{
@@ -111,7 +112,7 @@ export async function performVisualAnalysis(
     ];
 
     try {
-        const request = {
+        const request: any = {
             model: TARGET_MODEL_NAME,
             contents: [{ role: 'user', parts: promptParts }],
             generationConfig: generationConfig,
@@ -139,7 +140,9 @@ export async function performVisualAnalysis(
         const jsonString = candidate.content.parts[0].text.trim();
         let jsonData: any;
         try {
-            const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+            // With responseMimeType: "application/json", the response should be valid JSON
+            // Still clean markdown code blocks if present (for backward compatibility)
+            const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
             jsonData = JSON.parse(cleanedJsonString);
         } catch (e: any) {
             functions.logger.error(`Failed to parse JSON from visual analysis for ${familyName}. Error: ${e.message}`, { jsonString });
@@ -165,6 +168,9 @@ export async function performVisualAnalysis(
         functions.logger.error(`Error in visual analysis for ${familyName}:`, {
             message: error.message,
             stack: error.stack,
+            code: error.code,
+            status: error.status,
+            details: error.details,
         });
         return null;
     }

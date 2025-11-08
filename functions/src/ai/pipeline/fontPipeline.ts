@@ -4,6 +4,7 @@ import { serverParseFontFile } from '../../parser/fontParser';
 import { computeVisualMetrics } from '../../parser/visualMetrics';
 import { performVisualAnalysis } from './visualAnalysis';
 import { performEnrichedAnalysis } from './enrichedAnalysis';
+import { enrichFontFromWeb } from './webEnricher';
 import { validateAnalysisResult, applySanityRules, calculateConfidence } from './validation';
 import { buildSummaryPrompt } from '../prompts/promptTemplates';
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold, GenerationConfig, SafetySetting } from '@google/genai';
@@ -11,7 +12,7 @@ import type { DataProvenance } from '../../models/font.models';
 
 const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || 'seriph';
 const LOCATION_ID = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
-const TARGET_MODEL_NAME = 'gemini-2.5-flash-preview-05-20';
+const TARGET_MODEL_NAME = 'gemini-2.5-flash';
 
 const genAI = new GoogleGenAI({
     vertexai: true,
@@ -24,6 +25,7 @@ const generationConfig: GenerationConfig = {
     temperature: 0.7,
     topP: 0.9,
     topK: 40,
+    responseMimeType: "application/json", // Ensure JSON responses for summary
 };
 
 const safetySettings: SafetySetting[] = [{
@@ -97,22 +99,55 @@ export async function runFontPipeline(
             result.warnings.push('Visual analysis failed, proceeding with basic classification');
         }
 
-        // Step 4: Enriched analysis (with web search if enabled)
-        functions.logger.info(`[${filename}] Step 4: Performing enriched analysis...`);
+        // Step 4: Web enrichment (if enabled)
+        functions.logger.info(`[${filename}] Step 4: Performing web enrichment...`);
+        const webEnrichmentEnabled = process.env.GEMINI_WEB_SEARCH_ENABLED === 'true';
+        let webEnrichment = null;
+        if (webEnrichmentEnabled) {
+            webEnrichment = await enrichFontFromWeb(parsedData, true);
+            if (webEnrichment) {
+                // Merge web enrichment data into parsedData for use in enriched analysis
+                if (webEnrichment.foundry && !parsedData.foundry) {
+                    parsedData.foundry = webEnrichment.foundry.name;
+                }
+                if (webEnrichment.designer && !parsedData.designer) {
+                    parsedData.designer = webEnrichment.designer.name;
+                }
+                if (webEnrichment.historical_context) {
+                    parsedData.historical_context = webEnrichment.historical_context;
+                }
+                if (webEnrichment.license) {
+                    parsedData.licenseType = webEnrichment.license.type;
+                    parsedData.licenseUrl = webEnrichment.license.url;
+                }
+            }
+        }
+
+        // Step 5: Enriched analysis (with web search if enabled)
+        functions.logger.info(`[${filename}] Step 5: Performing enriched analysis...`);
         const enrichedAnalysis = await performEnrichedAnalysis(parsedData, visualMetrics, visualAnalysis);
         if (enrichedAnalysis) {
+            // Merge web enrichment into enriched analysis if available
+            if (webEnrichment) {
+                if (webEnrichment.people) {
+                    enrichedAnalysis.people = webEnrichment.people;
+                }
+                if (webEnrichment.historical_context) {
+                    enrichedAnalysis.historical_context = webEnrichment.historical_context;
+                }
+            }
             result.enrichedAnalysis = enrichedAnalysis;
         } else {
             result.warnings.push('Enriched analysis failed, using visual analysis only');
         }
 
-        // Step 5: Generate summary description
-        functions.logger.info(`[${filename}] Step 5: Generating description...`);
+        // Step 6: Generate summary description
+        functions.logger.info(`[${filename}] Step 6: Generating description...`);
         const analysisForSummary = enrichedAnalysis || visualAnalysis || {};
         if (analysisForSummary.style_primary) {
             try {
                 const summaryPrompt = buildSummaryPrompt(parsedData, analysisForSummary);
-                const summaryRequest = {
+                const summaryRequest: any = {
                     model: TARGET_MODEL_NAME,
                     contents: [{ role: 'user', parts: [{ text: summaryPrompt }] }],
                     generationConfig: generationConfig,
@@ -123,9 +158,12 @@ export async function runFontPipeline(
                 if (summaryResult?.candidates?.[0]?.content?.parts?.[0]?.text) {
                     const summaryText = summaryResult.candidates[0].content.parts[0].text.trim();
                     try {
-                        const summaryJson = JSON.parse(summaryText.replace(/^```json\n?/, '').replace(/\n?```$/, ''));
+                        // With responseMimeType: "application/json", try parsing as JSON first
+                        const cleanedText = summaryText.replace(/^```json\n?/, '').replace(/\n?```$/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
+                        const summaryJson = JSON.parse(cleanedText);
                         result.description = summaryJson.description || summaryText;
                     } catch {
+                        // If not JSON, use the text directly
                         result.description = summaryText;
                     }
                 }
@@ -135,8 +173,8 @@ export async function runFontPipeline(
             }
         }
 
-        // Step 6: Validation and sanity checks
-        functions.logger.info(`[${filename}] Step 6: Validating results...`);
+        // Step 7: Validation and sanity checks
+        functions.logger.info(`[${filename}] Step 7: Validating results...`);
         const finalAnalysis = enrichedAnalysis || visualAnalysis;
         if (finalAnalysis) {
             const validation = validateAnalysisResult(finalAnalysis);

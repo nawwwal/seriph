@@ -6,7 +6,7 @@ const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || 'seriph';
 const LOCATION_ID = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
 // Ensure GOOGLE_GENAI_USE_VERTEXAI=True is set in the function's environment variables for this to target Vertex.
 
-const TARGET_MODEL_NAME = 'gemini-2.5-flash-preview-05-20'; // Your chosen Gemini model
+const TARGET_MODEL_NAME = 'gemini-2.5-flash'; // Your chosen Gemini model
 
 // Initialize the GoogleGenAI client
 const genAI = new GoogleGenAI({
@@ -21,7 +21,7 @@ const generationConfig: GenerationConfig = {
     temperature: 0.6,
     topP: 0.9,
     topK: 40,
-    // responseMimeType: "application/json", // If you find this is supported for @google/genai
+    responseMimeType: "application/json", // Ensure JSON responses
 };
 
 const safetySettings: SafetySetting[] = [{
@@ -111,7 +111,7 @@ export async function getFontAnalysisVertexAI(
     functions.logger.info(`@google/genai Prompt for ${familyName} (first 500 chars): ${fullPromptForLogging.substring(0, 500)}...`);
 
     try {
-        const request = {
+        const request: any = {
             model: TARGET_MODEL_NAME,
             contents: [{ role: 'user', parts: promptPartsForModel }],
             generationConfig: generationConfig,
@@ -141,7 +141,9 @@ export async function getFontAnalysisVertexAI(
 
         let jsonData: any;
         try {
-            const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+            // With responseMimeType: "application/json", the response should be valid JSON
+            // Still clean markdown code blocks if present (for backward compatibility)
+            const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
             jsonData = JSON.parse(cleanedJsonString);
         } catch (e: any) {
             functions.logger.error(`Failed to parse JSON from @google/genai for ${familyName}. Error: ${e.message}`, { jsonString });
@@ -175,6 +177,8 @@ export async function getFontAnalysisVertexAI(
         functions.logger.error(`Error calling @google/genai for ${familyName}:`, {
             message: error.message,
             stack: error.stack,
+            code: error.code,
+            status: error.status,
             details: error.details || error,
         });
         return null;

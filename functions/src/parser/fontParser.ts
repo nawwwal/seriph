@@ -223,29 +223,73 @@ export async function serverParseFontFile(
   let characterSetCoverage: string[] = [];
   let languageSupport: string[] = [];
 
+  // Collect Unicode code points from glyphs
+  const codePoints = new Set<number>();
+
   if ('glyphs' in font && font.glyphs) {
-    glyphCount = (font.glyphs as any).length || 0;
+    const glyphs = font.glyphs as any;
+    glyphCount = Array.isArray(glyphs) ? glyphs.length : Object.keys(glyphs).length;
+    
+    // Extract Unicode code points from glyphs
+    const glyphArray = Array.isArray(glyphs) ? glyphs : Object.values(glyphs);
+    glyphArray.forEach((glyph: any) => {
+      // Fontkit glyphs have 'unicode' property
+      if (glyph && typeof glyph.unicode === 'number' && glyph.unicode >= 0) {
+        codePoints.add(glyph.unicode);
+      }
+      // Some glyphs have 'codePoints' array
+      else if (glyph && Array.isArray(glyph.codePoints)) {
+        glyph.codePoints.forEach((cp: number) => {
+          if (cp >= 0) codePoints.add(cp);
+        });
+      }
+      // Opentype.js glyphs have 'unicode' property
+      else if (glyph && glyph.unicode !== undefined && typeof glyph.unicode === 'number' && glyph.unicode >= 0) {
+        codePoints.add(glyph.unicode);
+      }
+    });
   } else if ('characterSet' in font && font.characterSet) {
-    glyphCount = (font.characterSet as any).length || 0;
-    // Extract Unicode ranges from character set
     const chars = font.characterSet as any;
+    glyphCount = Array.isArray(chars) ? chars.length : 0;
+    // Extract Unicode ranges from character set
     if (Array.isArray(chars)) {
-        const ranges: string[] = [];
-        let start = -1;
-        for (let i = 0; i < chars.length; i++) {
-            const code = typeof chars[i] === 'number' ? chars[i] : chars[i].codePointAt(0);
-            if (start === -1) start = code;
-            if (i === chars.length - 1 || (typeof chars[i + 1] === 'number' ? chars[i + 1] : chars[i + 1].codePointAt(0)) !== code + 1) {
-                if (start === code) {
-                    ranges.push(`U+${start.toString(16).toUpperCase().padStart(4, '0')}`);
-                } else {
-                    ranges.push(`U+${start.toString(16).toUpperCase().padStart(4, '0')}-U+${code.toString(16).toUpperCase().padStart(4, '0')}`);
-                }
-                start = -1;
-            }
+      chars.forEach((char: any) => {
+        const code = typeof char === 'number' ? char : (typeof char === 'string' ? char.codePointAt(0) : null);
+        if (code !== null && code !== undefined && code >= 0) {
+          codePoints.add(code);
         }
-        characterSetCoverage = ranges;
+      });
     }
+  }
+
+  // Convert code points to Unicode ranges
+  if (codePoints.size > 0) {
+    const sortedCodes = Array.from(codePoints).sort((a, b) => a - b);
+    const ranges: string[] = [];
+    let start = sortedCodes[0];
+    let end = start;
+
+    for (let i = 1; i < sortedCodes.length; i++) {
+      if (sortedCodes[i] === end + 1) {
+        end = sortedCodes[i];
+      } else {
+        // End current range and start new one
+        if (start === end) {
+          ranges.push(`U+${start.toString(16).toUpperCase().padStart(4, '0')}`);
+        } else {
+          ranges.push(`U+${start.toString(16).toUpperCase().padStart(4, '0')}-U+${end.toString(16).toUpperCase().padStart(4, '0')}`);
+        }
+        start = sortedCodes[i];
+        end = start;
+      }
+    }
+    // Add final range
+    if (start === end) {
+      ranges.push(`U+${start.toString(16).toUpperCase().padStart(4, '0')}`);
+    } else {
+      ranges.push(`U+${start.toString(16).toUpperCase().padStart(4, '0')}-U+${end.toString(16).toUpperCase().padStart(4, '0')}`);
+    }
+    characterSetCoverage = ranges;
   }
 
   // Extract language support from name table language IDs
