@@ -162,7 +162,7 @@ export const processUploadedFontStorage = onObjectFinalized(
         tPipeline = Date.now() - tPipeStart;
 
         // Update to enriching if web enrichment is enabled (RC)
-        const webEnrichmentEnabled = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, RC_DEFAULTS[RC_KEYS.webEnrichmentEnabled] === "true");
+        const webEnrichmentEnabled = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, false);
         if (webEnrichmentEnabled && pipelineResult) {
           await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'enriching' as any);
         }

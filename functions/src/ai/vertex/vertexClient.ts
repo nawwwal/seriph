@@ -50,7 +50,7 @@ export function getGenerativeModelFromRC(modelKey: string, responseMimeType: str
 }
 
 export function isVertexEnabled(): boolean {
-	return getConfigBoolean(RC_KEYS.isVertexEnabled, RC_DEFAULTS[RC_KEYS.isVertexEnabled] === "true");
+	return getConfigBoolean(RC_KEYS.isVertexEnabled, false);
 }
 
 export function logUsageMetadata(prefix: string, response: any) {

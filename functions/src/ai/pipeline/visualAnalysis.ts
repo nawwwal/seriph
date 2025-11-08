@@ -144,11 +144,12 @@ function deriveFoundationalFacts(parsedData: any): FoundationalFacts {
 	const facts: FoundationalFacts = {};
 	// Feature tags from parser (uppercase, dedup, sort)
 	if (Array.isArray(parsedData?.openTypeFeatures)) {
-		const tags = parsedData.openTypeFeatures
-			.map((t: string) => String(t || '').trim())
-			.filter(Boolean)
-			.map((t: string) => t.toUpperCase());
-		const unique = Array.from(new Set(tags));
+		const features: unknown[] = parsedData.openTypeFeatures as unknown[];
+		const tags: string[] = features
+			.map((t) => String((t as any) ?? '').trim())
+			.filter((s) => s.length > 0)
+			.map((s) => s.toUpperCase());
+		const unique: string[] = Array.from(new Set<string>(tags));
 		unique.sort();
 		facts.feature_tags = unique;
 	}

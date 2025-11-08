@@ -7,7 +7,7 @@ import { RC_KEYS, RC_DEFAULTS } from '../../config/rcKeys';
 import { generateStrictJSON, isVertexEnabled } from '../vertex/vertexClient';
 import { getConfidenceBandThresholds } from '../../config/remoteConfig';
 
-const WEB_SEARCH_ENABLED = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, RC_DEFAULTS[RC_KEYS.webEnrichmentEnabled] === 'true');
+const WEB_SEARCH_ENABLED = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, false);
 
 // Schema for enriched analysis (includes web-sourced fields)
 const enrichedAnalysisSchema = {
