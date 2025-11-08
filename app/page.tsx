@@ -13,6 +13,7 @@ import WelcomeState from '@/components/home/WelcomeState';
 import ShelfState from '@/components/home/ShelfState';
 import Stat from '@/components/ui/Stat';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import BatchHUD from '@/components/font/BatchHUD';
 import { storePendingFonts } from '@/utils/pendingFonts';
 
 const serializeFamilies = (families: any[]): FontFamily[] => {
@@ -192,6 +193,17 @@ export default function HomePage() {
                 ing.uploadedAt?.toDate?.() ? ing.uploadedAt.toDate().toISOString() : ing.uploadedAt ?? null,
               updatedAt:
                 ing.updatedAt?.toDate?.() ? ing.updatedAt.toDate().toISOString() : ing.updatedAt ?? null,
+              // New fields for two-lane status model
+              analysisState: ing.analysisState ?? 'not_started',
+              uploadState: ing.uploadState ?? 'pending',
+              quarantined: ing.quarantined ?? false,
+              contentHash: ing.contentHash ?? null,
+              quickHash: ing.quickHash ?? null,
+              previewFamilyKey: ing.previewFamilyKey ?? null,
+              canonicalFamilyId: ing.canonicalFamilyId ?? null,
+              normalizationSpecVersion: ing.normalizationSpecVersion ?? null,
+              conflictResolution: ing.conflictResolution ?? null,
+              resumeMetadata: ing.resumeMetadata ?? null,
             }));
           setPendingIngests(visible);
 
@@ -352,15 +364,26 @@ export default function HomePage() {
           </section>
         )}
 
+        {/* ARIA live region for status announcements */}
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
+          id="status-announcements"
+        />
+
         {isEmpty ? (
           <WelcomeState onFilesSelected={handleFilesSelected} />
         ) : (
-          <ShelfState
-            families={families}
-            pendingIngests={pendingIngests}
-            shelfMode={shelfMode}
-            onAddFonts={handleAddFonts}
-          />
+          <>
+            <ShelfState
+              families={families}
+              pendingIngests={pendingIngests}
+              shelfMode={shelfMode}
+              onAddFonts={handleAddFonts}
+            />
+            {pendingIngests.length > 0 && <BatchHUD ingests={pendingIngests} />}
+          </>
         )}
 
         <footer className="mt-8 sm:mt-10 md:mt-12 rule-t pt-4 sm:pt-5 md:pt-6 text-sm sm:text-base">

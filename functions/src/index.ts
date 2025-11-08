@@ -22,6 +22,44 @@ const UNPROCESSED_BUCKET_PATH = "unprocessed_fonts";
 const PROCESSED_BUCKET_PATH = "processed_fonts";
 const FAILED_BUCKET_PATH = "failed_processing";
 
+/**
+ * Update ingest record analysis state
+ */
+async function updateIngestAnalysisState(
+  processingId: string,
+  ownerId: string | null,
+  analysisState: 'queued' | 'analyzing' | 'enriching' | 'complete' | 'error' | 'quarantined',
+  error?: string
+): Promise<void> {
+  if (!ownerId) {
+    logger.warn(`Cannot update ingest record: no ownerId for processingId ${processingId}`);
+    return;
+  }
+
+  try {
+    // Find ingest record by processingId
+    const ingestsRef = firestoreDb.collection('users').doc(ownerId).collection('ingests');
+    const querySnapshot = await ingestsRef.where('processingId', '==', processingId).limit(1).get();
+
+    if (querySnapshot.empty) {
+      logger.warn(`No ingest record found for processingId ${processingId}`);
+      return;
+    }
+
+    const ingestDoc = querySnapshot.docs[0];
+    await ingestDoc.ref.update({
+      analysisState,
+      error: error || admin.firestore.FieldValue.delete(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    logger.info(`Updated ingest ${ingestDoc.id} analysisState to ${analysisState}`);
+  } catch (error: any) {
+    logger.error(`Failed to update ingest analysisState for ${processingId}:`, error);
+    // Non-fatal: continue processing even if state update fails
+  }
+}
+
 export const processUploadedFontStorage = onObjectFinalized(
   {
     bucket: admin.storage().bucket().name, // Uses the default bucket associated with the Firebase project
@@ -61,7 +99,17 @@ export const processUploadedFontStorage = onObjectFinalized(
 
     const bucket = appStorage.bucket(fileBucket);
     const unprocessedFile = bucket.file(filePath);
-    const processingId = admin.firestore().collection('_').doc().id;
+    
+    // Extract processingId from filename (format: {processingId}-{originalFileName})
+    const processingIdMatch = originalFileName.match(/^([^-]+)-(.+)$/);
+    const processingId = processingIdMatch ? processingIdMatch[1] : admin.firestore().collection('_').doc().id;
+    const actualFileName = processingIdMatch ? processingIdMatch[2] : originalFileName;
+    
+    // Get ownerId from file metadata (metadata is flat, not nested)
+    const ownerIdFromMetadata = event.data.metadata?.ownerId || null;
+    
+    // Update analysis state to queued
+    await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'queued');
 
     try {
       const [fileBuffer] = await unprocessedFile.download();
@@ -71,24 +119,34 @@ export const processUploadedFontStorage = onObjectFinalized(
       const parsedFontData = await serverParseFontFile(fileBuffer, originalFileName);
 
       if (!parsedFontData) {
-        logger.error(`[${originalFileName}] Failed to parse font.`);
-        const failedFilePath = `${FAILED_BUCKET_PATH}/${processingId}-${originalFileName}`;
+        logger.error(`[${actualFileName}] Failed to parse font.`);
+        await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error', 'Failed to parse font file');
+        const failedFilePath = `${FAILED_BUCKET_PATH}/${processingId}-${actualFileName}`;
         await unprocessedFile.move(failedFilePath);
-        logger.info(`[${originalFileName}] Moved to ${failedFilePath}.`);
+        logger.info(`[${actualFileName}] Moved to ${failedFilePath}.`);
         return null;
       }
-      logger.info(`[${originalFileName}] Parsed font successfully. Family: ${parsedFontData.familyName}, Subfamily: ${parsedFontData.subfamilyName}, Foundry: ${parsedFontData.foundry || 'N/A'}`);
+      logger.info(`[${actualFileName}] Parsed font successfully. Family: ${parsedFontData.familyName}, Subfamily: ${parsedFontData.subfamilyName}, Foundry: ${parsedFontData.foundry || 'N/A'}`);
+
+      // Update analysis state to analyzing
+      await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'analyzing');
 
       // Run enhanced AI pipeline with rate limiting
-      logger.info(`[${originalFileName}] Starting enhanced AI pipeline for: ${parsedFontData.familyName}`);
+      logger.info(`[${actualFileName}] Starting enhanced AI pipeline for: ${parsedFontData.familyName}`);
       let pipelineResult = null;
       let aiAnalysisResult = null;
 
       try {
         pipelineResult = await withRateLimit(
-          () => runFontPipeline(fileBuffer, originalFileName),
-          `Font pipeline for ${originalFileName}`
+          () => runFontPipeline(fileBuffer, actualFileName),
+          `Font pipeline for ${actualFileName}`
         );
+
+        // Update to enriching if web enrichment is enabled
+        const webEnrichmentEnabled = process.env.GEMINI_WEB_SEARCH_ENABLED === 'true';
+        if (webEnrichmentEnabled && pipelineResult) {
+          await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'enriching');
+        }
 
         if (pipelineResult && pipelineResult.isValid) {
           // Convert pipeline result to legacy format for compatibility
@@ -110,31 +168,36 @@ export const processUploadedFontStorage = onObjectFinalized(
                 provenance: pipelineResult.parsedData?.provenance,
               },
             };
-            logger.info(`[${originalFileName}] Enhanced AI pipeline completed successfully. Confidence: ${pipelineResult.confidence.toFixed(2)}`);
+            logger.info(`[${actualFileName}] Enhanced AI pipeline completed successfully. Confidence: ${pipelineResult.confidence.toFixed(2)}`);
           }
         } else {
-          logger.warn(`[${originalFileName}] Enhanced AI pipeline failed or returned invalid results. Falling back to legacy analysis.`);
+          logger.warn(`[${actualFileName}] Enhanced AI pipeline failed or returned invalid results. Falling back to legacy analysis.`);
           // Fallback to legacy analysis
           aiAnalysisResult = await getFontAnalysisVertexAI(parsedFontData);
         }
       } catch (pipelineError: any) {
-        logger.error(`[${originalFileName}] Enhanced pipeline error:`, pipelineError);
+        logger.error(`[${actualFileName}] Enhanced pipeline error:`, pipelineError);
+        // Update to error state
+        await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error', pipelineError.message);
         // Fallback to legacy analysis
-        logger.info(`[${originalFileName}] Falling back to legacy AI analysis.`);
-        aiAnalysisResult = await getFontAnalysisVertexAI(parsedFontData);
+        logger.info(`[${actualFileName}] Falling back to legacy AI analysis.`);
+        try {
+          aiAnalysisResult = await getFontAnalysisVertexAI(parsedFontData);
+        } catch (legacyError: any) {
+          logger.error(`[${actualFileName}] Legacy analysis also failed:`, legacyError);
+          await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error', legacyError.message);
+        }
       }
 
       if (!aiAnalysisResult) {
-        logger.warn(`[${originalFileName}] AI analysis failed or returned no data. Proceeding with basic data.`);
+        logger.warn(`[${actualFileName}] AI analysis failed or returned no data. Proceeding with basic data.`);
+        await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error', 'AI analysis failed');
       } else {
-        logger.info(`[${originalFileName}] AI analysis completed for ${parsedFontData.familyName}.`);
+        logger.info(`[${actualFileName}] AI analysis completed for ${parsedFontData.familyName}.`);
       }
 
-      const processedFileName = `${processingId}-${originalFileName}`;
+      const processedFileName = `${processingId}-${actualFileName}`;
       const processedFileRef = bucket.file(`${PROCESSED_BUCKET_PATH}/${processedFileName}`);
-
-      // Read ownerId (if present) from unprocessed file's custom metadata
-      const ownerIdFromMetadata = (event.data.metadata && (event.data.metadata as any).metadata && (event.data.metadata as any).metadata.ownerId) || null;
 
       await processedFileRef.save(fileBuffer, {
         resumable: false,
@@ -172,39 +235,63 @@ export const processUploadedFontStorage = onObjectFinalized(
       const familyResult = await serverAddFontToFamilyAdmin(enhancedParsedData, fontFileDetails, aiAnalysisResult, ownerIdFromMetadata || undefined);
 
       if (!familyResult) {
-        logger.error(`[${originalFileName}] Failed to add font to family in Firestore. Attempting to move processed file to failed folder.`);
+        logger.error(`[${actualFileName}] Failed to add font to family in Firestore. Attempting to move processed file to failed folder.`);
+        await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error', 'Failed to add font to family');
         const failedFilePath = `${FAILED_BUCKET_PATH}/${processedFileName}`;
         try {
           await processedFileRef.move(failedFilePath);
-          logger.info(`[${originalFileName}] Moved processed file from ${processedFileRef.name} to ${failedFilePath} after DB error.`);
+          logger.info(`[${actualFileName}] Moved processed file from ${processedFileRef.name} to ${failedFilePath} after DB error.`);
         } catch (moveError: any) {
-          logger.error(`[${originalFileName}] Failed to move processed file ${processedFileRef.name} to failed folder. Manual cleanup may be needed.`, { error: moveError.message });
+          logger.error(`[${actualFileName}] Failed to move processed file ${processedFileRef.name} to failed folder. Manual cleanup may be needed.`, { error: moveError.message });
         }
         try {
             await unprocessedFile.delete({ ignoreNotFound: true });
-            logger.info(`[${originalFileName}] Deleted original unprocessed file after DB error and moving processed to failed.`);
+            logger.info(`[${actualFileName}] Deleted original unprocessed file after DB error and moving processed to failed.`);
         } catch (delError: any) {
-            logger.warn(`[${originalFileName}] Could not delete original unprocessed file. It might have been deleted already.`, {error: delError.message});
+            logger.warn(`[${actualFileName}] Could not delete original unprocessed file. It might have been deleted already.`, {error: delError.message});
         }
         return null;
       }
-      logger.info(`[${originalFileName}] Successfully added font to family: ${familyResult.name} (ID: ${familyResult.id}) in Firestore.`);
+      logger.info(`[${actualFileName}] Successfully added font to family: ${familyResult.name} (ID: ${familyResult.id}) in Firestore.`);
+
+      // Update analysis state to complete
+      await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'complete');
+
+      // Update ingest record with familyId and mark as completed
+      try {
+        const ingestsRef = firestoreDb.collection('users').doc(ownerIdFromMetadata!).collection('ingests');
+        const querySnapshot = await ingestsRef.where('processingId', '==', processingId).limit(1).get();
+        if (!querySnapshot.empty) {
+          const ingestDoc = querySnapshot.docs[0];
+          await ingestDoc.ref.update({
+            status: 'completed',
+            familyId: familyResult.id,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      } catch (updateError: any) {
+        logger.warn(`[${actualFileName}] Failed to update ingest record with familyId:`, updateError);
+      }
 
       await unprocessedFile.delete();
-      logger.info(`[${originalFileName}] Successfully processed. Original file ${filePath} deleted.`);
+      logger.info(`[${actualFileName}] Successfully processed. Original file ${filePath} deleted.`);
 
     } catch (error: any) {
-      logger.error(`[${originalFileName}] Unhandled error in processUploadedFontStorage:`, {
+      logger.error(`[${actualFileName}] Unhandled error in processUploadedFontStorage:`, {
         message: error.message,
         stack: error.stack,
         filePath: filePath
       });
+      
+      // Update ingest record to error state (reuse ownerIdFromMetadata from outer scope)
+      await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error', error.message);
+      
       try {
-        const failedFilePath = `${FAILED_BUCKET_PATH}/${processingId}-${originalFileName}`;
+        const failedFilePath = `${FAILED_BUCKET_PATH}/${processingId}-${actualFileName}`;
         await unprocessedFile.move(failedFilePath);
-        logger.info(`[${originalFileName}] Moved original unprocessed file to ${failedFilePath} after unhandled error.`);
+        logger.info(`[${actualFileName}] Moved original unprocessed file to ${failedFilePath} after unhandled error.`);
       } catch (moveError: any) {
-        logger.error(`[${originalFileName}] CRITICAL: Failed to move original unprocessed file to ${FAILED_BUCKET_PATH} after unhandled error. File may be stuck in ${UNPROCESSED_BUCKET_PATH}.`, { moveError: moveError.message });
+        logger.error(`[${actualFileName}] CRITICAL: Failed to move original unprocessed file to ${FAILED_BUCKET_PATH} after unhandled error. File may be stuck in ${UNPROCESSED_BUCKET_PATH}.`, { moveError: moveError.message });
       }
     }
     return null;
