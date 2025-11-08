@@ -92,7 +92,6 @@ Provide a structured JSON response with the following schema:
 			modelKey: RC_KEYS.webEnricherModelName,
 			promptParts: [searchPrompt],
 			opName: 'webEnricher',
-			tools: [{ googleSearchRetrieval: {} as any }],
 		});
 		if (!data) {
 			functions.logger.warn(`Web search returned no JSON for ${familyName}; raw=${rawText ? rawText.slice(0, 120) : 'null'}`);

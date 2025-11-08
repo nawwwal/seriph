@@ -224,6 +224,13 @@ function initializeFirebaseAdminApp(): void {
 
 initializeFirebaseAdminApp();
 
+// Ensure Firestore drops undefined fields on write (global)
+try {
+  getFirestore().settings({ ignoreUndefinedProperties: true });
+} catch (_) {
+  // If settings already applied or Firestore not ready, ignore; subsequent getFirestore calls will still work.
+}
+
 const firestoreDb = getFirestore(); // Renamed to avoid conflict if 'firestore' is used as a module
 const appStorage = getStorage(); // Renamed to avoid conflict
 

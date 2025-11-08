@@ -74,16 +74,41 @@ export async function generateStrictJSON<T = any>(opts: {
 	opName: string;
 	tools?: any[];
 }): Promise<{ data: T | null; rawText: string | null; response: any | null }> {
-	const { modelKey, promptParts, opName, tools } = opts;
+	const { modelKey, promptParts, opName } = opts;
 	const model = getGenerativeModelFromRC(modelKey, "application/json");
-	const payload = {
-		contents: [{ role: 'user', parts: promptParts.map((text) => ({ text })) }],
-		...(Array.isArray(tools) && tools.length > 0 ? { tools } : {}),
-	};
-	const result = await withRetry(opName, async () => {
+	const webSearchEnabled = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, false);
+	const defaultTools = webSearchEnabled ? [{ google_search: {} }] : undefined;
+
+	async function callOnce(useTools: boolean) {
+		const payload = {
+			contents: [{ role: 'user', parts: promptParts.map((text) => ({ text })) }],
+			...(useTools && Array.isArray(defaultTools) ? { tools: defaultTools } : {}),
+		};
 		return await model.generateContent(payload as any);
-	});
-	const response = (result as any)?.response;
+	}
+
+	let response: any = null;
+	try {
+		// First try with tools (if enabled)
+		const result = await withRetry(opName, async () => {
+			return await callOnce(Boolean(defaultTools));
+		});
+		response = (result as any)?.response;
+	} catch (err: any) {
+		const msg = String(err?.message || '');
+		const status = err?.status || err?.code;
+		const toolArgError = (status === 400) && /INVALID_ARGUMENT|google_search/i.test(msg);
+		if (toolArgError) {
+			functions.logger.warn(`${opName} tools rejected (google_search). Retrying without tools.`);
+			const resultNoTools = await withRetry(opName, async () => {
+				return await callOnce(false);
+			});
+			response = (resultNoTools as any)?.response;
+		} else {
+			throw err;
+		}
+	}
+
 	logUsageMetadata(opName, response);
 	const text = response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim?.() || null;
 	if (!text) return { data: null, rawText: null, response };

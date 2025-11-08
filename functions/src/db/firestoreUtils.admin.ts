@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { FontFamily, Font, FamilyMetadata, Classification } from '../models/font.models';
 import { normalizeName } from '../utils/normalize';
 import * as functions from 'firebase-functions';
+import { deepStripUndefined } from '../utils/sanitize';
 
 const FAMILIES_COLLECTION = 'fontfamilies';
 
@@ -160,7 +161,8 @@ export async function serverAddFontToFamilyAdmin(
                 familyDataToSet.classification = familyDataToSet.classification || 'Sans Serif';
             }
 
-            transaction.set(familyRef, familyDataToSet, { merge: true });
+            const sanitized = deepStripUndefined(familyDataToSet);
+            transaction.set(familyRef, sanitized, { merge: true });
             return familyDataToSet; // Return the data that was set in the transaction
         });
 

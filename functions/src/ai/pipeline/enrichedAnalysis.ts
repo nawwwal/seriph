@@ -129,12 +129,10 @@ export async function performEnrichedAnalysis(
     ];
 
     try {
-		const tools = WEB_SEARCH_ENABLED ? [{ googleSearchRetrieval: {} as any }] : undefined;
 		const { data: jsonData, rawText } = await generateStrictJSON<any>({
 			modelKey: modelNameKey,
 			promptParts,
 			opName: 'enrichedAnalysis',
-			tools,
 		});
 		if (!jsonData) {
 			functions.logger.warn(`Enriched analysis for ${familyName} returned no JSON; raw=${rawText ? rawText.slice(0, 120) : 'null'}`);
