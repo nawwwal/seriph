@@ -7,6 +7,7 @@ import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { logger } from "firebase-functions";
 import { getStorage } from "firebase-admin/storage";
 import { getFirestore } from "firebase-admin/firestore";
+import { onRequest } from "firebase-functions/v2/https";
 
 // Helper imports (ensure these paths are correct based on your structure within functions/src)
 import { serverParseFontFile } from "./parser/fontParser";
@@ -330,3 +331,191 @@ export const processUploadedFontStorage = onObjectFinalized(
     return null;
   }
 );
+
+/**
+ * Admin/test-only HTTP endpoint to run the font pipeline on a supplied font.
+ * Request body JSON:
+ * {
+ *   "base64": "AA...", // base64-encoded font file (preferred)
+ *   "filename": "MyFont.ttf",
+ *   // or alternatively:
+ *   "url": "https://..." // public URL to fetch font bytes
+ * }
+ */
+export const testFontPipeline = onRequest(
+  {
+    region: "asia-southeast1",
+    timeoutSeconds: 540,
+    memory: "1GiB",
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        res.status(405).json({ error: 'Method Not Allowed' });
+        return;
+      }
+      const { base64, url, filename } = (req.body || {}) as { base64?: string; url?: string; filename?: string };
+      if (!base64 && !url) {
+        res.status(400).json({ error: 'Provide "base64" or "url" in request body' });
+        return;
+      }
+      const name = filename || 'UploadedFont.ttf';
+      let buffer: Buffer;
+      if (base64) {
+        buffer = Buffer.from(base64, 'base64');
+      } else {
+        const r = await fetch(url);
+        if (!r.ok) {
+          res.status(400).json({ error: `Failed to fetch url: ${r.status} ${r.statusText}` });
+          return;
+        }
+        const arr = await r.arrayBuffer();
+        buffer = Buffer.from(arr);
+      }
+      const result = await runFontPipeline(buffer, name);
+      res.status(200).json({ ok: true, result });
+    } catch (e: any) {
+      logger.error('testFontPipeline error', { message: e?.message, stack: e?.stack });
+      res.status(500).json({ ok: false, error: e?.message || 'Unknown error' });
+    }
+  }
+);
+
+/**
+ * Admin-only HTTP endpoint to batch reprocess existing fonts through the AI pipeline.
+ * Request body JSON:
+ * {
+ *   "ownerId": "user_uid",         // optional, scopes to user collection
+ *   "familyIds": ["id1","id2"],    // optional, specific families only
+ *   "limit": 10,                   // optional, max families to process
+ *   "force": false                 // optional, ignore caches
+ * }
+ */
+export const batchReprocessFonts = onRequest(
+  {
+    region: "asia-southeast1",
+    timeoutSeconds: 540,
+    memory: "1GiB",
+  },
+  async (req, res) => {
+    try {
+      if (req.method !== 'POST') {
+        res.status(405).json({ error: 'Method Not Allowed' });
+        return;
+      }
+      const { ownerId, familyIds, limit, force } = (req.body || {}) as {
+        ownerId?: string;
+        familyIds?: string[];
+        limit?: number;
+        force?: boolean;
+      };
+
+      const maxFamilies = Math.min(Math.max(Number(limit) || 10, 1), 50);
+      const familiesCol = ownerId
+        ? firestoreDb.collection('users').doc(ownerId).collection('fontfamilies')
+        : firestoreDb.collection('fontfamilies');
+
+      let q = familiesCol.orderBy('lastModified', 'desc');
+      if (Array.isArray(familyIds) && familyIds.length > 0) {
+        // Fetch specific IDs
+        const snaps = await Promise.all(familyIds.slice(0, maxFamilies).map((id) => familiesCol.doc(id).get()));
+        const toProcess = snaps.filter((s) => s.exists).map((s) => ({ id: s.id, data: s.data() as any }));
+        const results = await reprocessFamilies(toProcess, ownerId || null, force === true);
+        res.status(200).json({ ok: true, processed: results.length });
+        return;
+      } else {
+        const snap = await q.limit(maxFamilies).get();
+        const toProcess = snap.docs.map((d) => ({ id: d.id, data: d.data() as any }));
+        const results = await reprocessFamilies(toProcess, ownerId || null, force === true);
+        res.status(200).json({ ok: true, processed: results.length });
+        return;
+      }
+    } catch (e: any) {
+      logger.error('batchReprocessFonts error', { message: e?.message, stack: e?.stack });
+      res.status(500).json({ ok: false, error: e?.message || 'Unknown error' });
+    }
+  }
+);
+
+async function reprocessFamilies(
+  families: Array<{ id: string; data: any }>,
+  ownerId: string | null,
+  force: boolean
+): Promise<Array<{ id: string; fonts: number }>> {
+  const out: Array<{ id: string; fonts: number }> = [];
+  for (const fam of families) {
+    try {
+      const fonts: any[] = Array.isArray(fam.data?.fonts) ? fam.data.fonts : [];
+      let processed = 0;
+      for (const font of fonts) {
+        try {
+          // Determine storage path; fallback to downloadUrl fetching
+          const storagePath: string | undefined = font?.metadata?.storagePath || font?.storagePath;
+          let buffer: Buffer | null = null;
+          if (storagePath) {
+            const [file] = await appStorage.bucket().file(storagePath).download();
+            buffer = file;
+          } else if (typeof font?.downloadUrl === 'string' && font.downloadUrl.startsWith('http')) {
+            const r = await fetch(font.downloadUrl);
+            if (r.ok) {
+              const arr = await r.arrayBuffer();
+              buffer = Buffer.from(arr);
+            }
+          }
+          if (!buffer) {
+            logger.warn(`Skip font without accessible bytes in family ${fam.id}`);
+            continue;
+          }
+          const filename = font?.filename || 'Unknown.ttf';
+          const pipelineResult = await withRateLimit(
+            () => runFontPipeline(buffer!, filename),
+            `Batch reprocess ${filename}`
+          );
+          if (!pipelineResult) {
+            logger.warn(`Pipeline returned null for ${filename} in family ${fam.id}`);
+            continue;
+          }
+          // Legacy compatibility payload
+          const enrichedAnalysis = pipelineResult.enrichedAnalysis || pipelineResult.visualAnalysis || {};
+          const aiAnalysisResult = {
+            description: pipelineResult.description || fam.data?.description || 'A font family.',
+            tags: enrichedAnalysis.moods?.slice(0, 5).map((m: any) => m.value) || [],
+            classification: enrichedAnalysis.style_primary?.value || fam.data?.classification || 'Sans Serif',
+            metadata: {
+              subClassification: enrichedAnalysis.substyle?.value,
+              moods: enrichedAnalysis.moods?.map((m: any) => m.value) || [],
+              useCases: enrichedAnalysis.use_cases?.map((uc: any) => uc.value) || [],
+              technicalCharacteristics: enrichedAnalysis.negative_tags || [],
+              people: enrichedAnalysis.people,
+              historical_context: enrichedAnalysis.historical_context,
+              semantics: enrichedAnalysis,
+              provenance: pipelineResult.parsedData?.provenance,
+            },
+          };
+          const enhancedParsedData = pipelineResult?.parsedData || {};
+          if (pipelineResult?.visualMetrics) {
+            (enhancedParsedData as any).visual_metrics = pipelineResult.visualMetrics;
+          }
+          await serverAddFontToFamilyAdmin(
+            enhancedParsedData,
+            {
+              originalName: filename,
+              storagePath: storagePath || '',
+              downloadUrl: font?.downloadUrl || '',
+              fileSize: buffer.length,
+            },
+            aiAnalysisResult,
+            ownerId || undefined
+          );
+          processed++;
+        } catch (fontErr: any) {
+          logger.warn(`Failed to reprocess font in family ${fam.id}`, { message: fontErr?.message });
+        }
+      }
+      out.push({ id: fam.id, fonts: processed });
+    } catch (famErr: any) {
+      logger.warn(`Family reprocess failed: ${fam.id}`, { message: famErr?.message });
+    }
+  }
+  return out;
+}

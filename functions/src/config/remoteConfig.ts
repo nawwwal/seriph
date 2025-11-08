@@ -133,7 +133,18 @@ export function getConfigValue(key: string, defaultValue: string): string {
         return defaultValue;
     }
 
-    const parameter = templateCache.template.parameters[key];
+    // Check top-level parameters first, then parameter groups
+    let parameter = templateCache.template.parameters[key];
+    
+    // If not found in top-level, check parameter groups
+    if (!parameter && templateCache.template.parameterGroups) {
+        for (const group of Object.values(templateCache.template.parameterGroups)) {
+            if (group.parameters && group.parameters[key]) {
+                parameter = group.parameters[key];
+                break;
+            }
+        }
+    }
     
     // Parameter doesn't exist
     if (!parameter) {

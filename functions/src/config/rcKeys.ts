@@ -29,6 +29,8 @@ export const RC_KEYS = {
 	unprocessedBucketPath: "unprocessed_bucket_path",
 	processedBucketPath: "processed_bucket_path",
 	failedBucketPath: "failed_bucket_path",
+	// Caching
+	webEnrichmentCacheTtlDays: "web_enrichment_cache_ttl_days",
 } as const;
 
 export const RC_DEFAULTS = {
@@ -56,6 +58,7 @@ export const RC_DEFAULTS = {
 	[RC_KEYS.unprocessedBucketPath]: "unprocessed_fonts",
 	[RC_KEYS.processedBucketPath]: "processed_fonts",
 	[RC_KEYS.failedBucketPath]: "failed_processing",
+	[RC_KEYS.webEnrichmentCacheTtlDays]: "30",
 } as const;
 
 

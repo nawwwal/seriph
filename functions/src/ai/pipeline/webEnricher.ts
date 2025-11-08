@@ -1,7 +1,9 @@
 import * as functions from 'firebase-functions';
+import * as admin from 'firebase-admin';
 import type { DataProvenance } from '../../models/font.models';
 import { generateStrictJSON } from '../vertex/vertexClient';
 import { RC_KEYS } from '../../config/rcKeys';
+import { getConfigNumber } from '../../config/remoteConfig';
 import type { ProvenanceInfo, LicenseFlag, ProvenanceSourceType, DistributionChannel, FoundryType } from '../../models/contracts';
 
 export interface WebEnrichmentResult {
@@ -217,6 +219,10 @@ export async function enrichFontFromWeb(
     enableWebSearch: boolean = true
 ): Promise<Partial<WebEnrichmentResult> | null> {
     const familyName = parsedData.familyName || 'Unknown Family';
+    const db = admin.firestore();
+    const CACHE_COLLECTION = '_web_enrichment_cache';
+    const ttlDays = getConfigNumber(RC_KEYS.webEnrichmentCacheTtlDays, 30);
+    const ttlMs = ttlDays * 24 * 60 * 60 * 1000;
     
     // Skip web enrichment if disabled or if we already have comprehensive data
     if (!enableWebSearch) {
@@ -235,6 +241,21 @@ export async function enrichFontFromWeb(
 
     try {
         const fingerprint = generateFingerprint(parsedData);
+        // Try cache
+        try {
+            const cacheRef = db.collection(CACHE_COLLECTION).doc(fingerprint);
+            const snap = await cacheRef.get();
+            if (snap.exists) {
+                const data = snap.data() as any;
+                const createdAt = (data?.createdAt as admin.firestore.Timestamp | undefined)?.toMillis?.() ?? 0;
+                if (Date.now() - createdAt < ttlMs && data?.result) {
+                    functions.logger.info(`Web enrichment cache hit for ${familyName}`);
+                    return data.result as Partial<WebEnrichmentResult>;
+                }
+            }
+        } catch (cacheErr: any) {
+            functions.logger.warn(`Web enrichment cache read failed for ${familyName}`, { message: cacheErr?.message });
+        }
         const webData = await searchFontInfo(familyName, fingerprint, parsedData);
 
         if (!webData) {
@@ -247,6 +268,20 @@ export async function enrichFontFromWeb(
 		(reconciled as any)._provenance_info = prov;
 
         functions.logger.info(`Web enrichment completed for ${familyName}`);
+        // Save cache
+        try {
+            const cacheRef = db.collection(CACHE_COLLECTION).doc(fingerprint);
+            await cacheRef.set(
+                {
+                    result: reconciled,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    ttlDays,
+                },
+                { merge: true }
+            );
+        } catch (cacheWriteErr: any) {
+            functions.logger.warn(`Web enrichment cache write failed for ${familyName}`, { message: cacheWriteErr?.message });
+        }
         return reconciled;
 
     } catch (error: any) {

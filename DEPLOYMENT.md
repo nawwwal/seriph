@@ -237,6 +237,17 @@ firebase functions:log --only processUploadedFontStorage
 **Cost monitoring:**
 - Google Cloud Console → Billing → Set budget alerts for Vertex AI
 
+### Billing Alerts (Vertex AI)
+1. Open Google Cloud Console → Billing → Budgets & alerts.
+2. Create budget:
+   - Scope: This project
+   - Products: Vertex AI
+   - Amount: Choose monthly budget threshold (e.g., $50)
+3. Alerts:
+   - Add thresholds (e.g., 50%, 90%, 100%)
+   - Notification channel: Email and/or Slack (via Pub/Sub → Cloud Function → Slack webhook)
+4. Save. Confirm emails are received when crossing thresholds.
+
 ---
 
 ## Production Checklist
@@ -248,6 +259,34 @@ firebase functions:log --only processUploadedFontStorage
 - [ ] Test upload works end-to-end
 - [ ] Logs show pipeline execution
 - [ ] Monitoring/alerts configured
+
+---
+
+## Staged Rollout with Remote Config
+
+Use Firebase Remote Config conditions to enable the AI pipeline for a subset of users before full rollout.
+
+1. Define conditions:
+   - Condition A: `is_test_user` (user property or email domain)
+   - Condition B: `rollout_10`, `rollout_50` (percent audiences)
+2. Parameters:
+   - `is_vertex_enabled`:
+     - Default: `false` (kill switch)
+     - Condition A: `true` (enable for test users)
+     - Condition B: `true` (enable for 10% → 50% → 100%)
+   - `web_enrichment_enabled`:
+     - Default: `false`
+     - Enable only after stability is confirmed
+3. Rollout Phases:
+   - Phase 1: Test users only
+   - Phase 2: 10% audience
+   - Phase 3: 50% audience
+   - Phase 4: 100%
+4. Monitoring:
+   - Check `metrics_ai/{processingId}` timings
+   - Track error logs (visual/enriched analysis validation failures)
+   - Monitor Vertex AI budget alerts
+
 
 ---
 

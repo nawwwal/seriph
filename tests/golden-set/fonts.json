@@ -1,0 +1,38 @@
+[
+  {
+    "familyName": "Roboto",
+    "expectedStylePrimary": "sans",
+    "expectedSubstyle": "neo_grotesque",
+    "expectedMoods": ["neutral", "friendly", "minimalist"],
+    "expectedUseCases": ["ui", "body_text", "headlines"]
+  },
+  {
+    "familyName": "Times New Roman",
+    "expectedStylePrimary": "serif",
+    "expectedSubstyle": "transitional",
+    "expectedMoods": ["classic", "authoritative", "serious"],
+    "expectedUseCases": ["editorial", "body_text", "print"]
+  },
+  {
+    "familyName": "Helvetica",
+    "expectedStylePrimary": "sans",
+    "expectedSubstyle": "neo_grotesque",
+    "expectedMoods": ["neutral", "refined", "minimalist"],
+    "expectedUseCases": ["branding", "headlines", "ui"]
+  },
+  {
+    "familyName": "Garamond",
+    "expectedStylePrimary": "serif",
+    "expectedSubstyle": "oldstyle",
+    "expectedMoods": ["elegant", "classic", "refined"],
+    "expectedUseCases": ["editorial", "print", "body_text"]
+  },
+  {
+    "familyName": "Fira Code",
+    "expectedStylePrimary": "mono",
+    "expectedSubstyle": "unknown",
+    "expectedMoods": ["technical", "serious"],
+    "expectedUseCases": ["code", "ui"]
+  }
+]
+

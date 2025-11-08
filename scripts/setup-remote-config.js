@@ -122,9 +122,24 @@ async function setupRemoteConfig(projectId) {
       }
     }
 
-    // Add/update all parameters
-    console.log('Adding/updating parameters...');
+    // Initialize parameterGroups if not present
+    if (!template.parameterGroups) {
+      template.parameterGroups = {};
+    }
+
+    // Initialize Server parameter group if not present
+    if (!template.parameterGroups['Server']) {
+      template.parameterGroups['Server'] = {
+        description: 'Server-side configuration parameters for Cloud Functions',
+        parameters: {},
+      };
+    }
+
+    // Add/update all parameters in the Server group
+    // Note: Parameters in a group are stored in the group's parameters map, not top-level
+    console.log('Adding/updating parameters in Server group...');
     let updated = 0;
+    
     for (const [paramKey, defaultValue] of Object.entries(RC_DEFAULTS)) {
       // Determine value type
       let valueType = 'STRING';
@@ -135,9 +150,14 @@ async function setupRemoteConfig(projectId) {
         valueType = 'NUMBER';
       }
 
-      // Add or update parameter
-      if (!template.parameters[paramKey]) {
-        template.parameters[paramKey] = {
+      // Remove from top-level parameters if it exists there (moving to group)
+      if (template.parameters[paramKey]) {
+        delete template.parameters[paramKey];
+      }
+
+      // Add or update parameter in Server group
+      if (!template.parameterGroups['Server'].parameters[paramKey]) {
+        template.parameterGroups['Server'].parameters[paramKey] = {
           defaultValue: {
             value: valueStr,
           },
@@ -147,12 +167,14 @@ async function setupRemoteConfig(projectId) {
         updated++;
       } else {
         // Update existing
-        template.parameters[paramKey].defaultValue.value = valueStr;
-        template.parameters[paramKey].valueType = valueType;
+        template.parameterGroups['Server'].parameters[paramKey].defaultValue.value = valueStr;
+        template.parameterGroups['Server'].parameters[paramKey].valueType = valueType;
         console.log(`  ↻ Updated: ${paramKey} = ${valueStr} (${valueType})`);
         updated++;
       }
     }
+
+    console.log(`\n✓ Server parameter group contains ${Object.keys(template.parameterGroups['Server'].parameters).length} parameters`);
 
     // Validate template (optional but recommended)
     let validatedTemplate;
@@ -191,6 +213,12 @@ async function setupRemoteConfig(projectId) {
       console.log(`\n✓ Successfully published Remote Config template!`);
       console.log(`  Version: ${publishedTemplate.version.versionNumber}`);
       console.log(`  Updated: ${publishedTemplate.version.updateTime}`);
+      console.log(`\n📋 IMPORTANT: To view these configs in Firebase Console:`);
+      console.log(`   1. Go to: https://console.firebase.google.com/project/${projectId}/config`);
+      console.log(`   2. If Remote Config isn't enabled, click "Get Started" or "Enable Remote Config"`);
+      console.log(`   3. The ${Object.keys(RC_DEFAULTS).length} parameters will appear after enabling`);
+      console.log(`\n   You can also verify via CLI:`);
+      console.log(`   firebase remoteconfig:get --project ${projectId}`);
     } else {
       console.error('\n✗ Cannot proceed with publishing');
       process.exit(1);
