@@ -25,6 +25,7 @@
         "uuid": "latest"
     },
     "devDependencies": {
+        "@types/opentype.js": "latest",
         "firebase-functions-test": "latest",
         "typescript": "latest",
         "vitest": "latest"
