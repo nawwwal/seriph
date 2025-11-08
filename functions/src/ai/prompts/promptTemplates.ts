@@ -1,4 +1,5 @@
-import { MOODS, USE_CASES, CRAFT_DETAILS, getValidSubtypes } from '../taxonomies';
+import { MOODS, USE_CASES } from '../../models/contracts';
+import { getValidSubtypes } from '../taxonomies';
 import type { Classification } from '../../models/font.models';
 
 export const ANALYSIS_STAGES = {
@@ -45,12 +46,11 @@ Variable Axes:
 ${parsedData.variableAxes.map((axis: any) => `  - ${axis.tag} (${axis.name}): ${axis.minValue} to ${axis.maxValue}, default ${axis.defaultValue}`).join('\n')}
 ` : ''}
 
-Controlled Vocabulary:
-- Moods: ${MOODS.join(', ')}
-- Use Cases: ${USE_CASES.join(', ')}
-- Craft Details: ${CRAFT_DETAILS.join(', ')}
-
-Provide classification with evidence references to the metrics above.`;
+  Controlled Vocabulary:
+  - Moods: ${MOODS.join(', ')}
+  - Use Cases: ${USE_CASES.join(', ')}
+  
+  Provide classification with evidence references to the metrics above.`;
 }
 
 /**

@@ -364,6 +364,10 @@ export const testFontPipeline = onRequest(
       if (base64) {
         buffer = Buffer.from(base64, 'base64');
       } else {
+        if (!url) {
+          res.status(400).json({ error: 'Provide "url" in request body' });
+          return;
+        }
         const r = await fetch(url);
         if (!r.ok) {
           res.status(400).json({ error: `Failed to fetch url: ${r.status} ${r.statusText}` });
