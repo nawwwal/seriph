@@ -12,6 +12,8 @@ import { getFirestore } from "firebase-admin/firestore";
 import { serverParseFontFile } from "./parser/fontParser";
 import { serverAddFontToFamilyAdmin } from "./db/firestoreUtils.admin";
 import { getFontAnalysisVertexAI } from "./ai/vertexAIHelper";
+import { runFontPipeline } from "./ai/pipeline/fontPipeline";
+import { withRateLimit } from "./utils/rateLimiter";
 
 const firestoreDb = getFirestore(); // Renamed to avoid conflict if 'firestore' is used as a module
 const appStorage = getStorage(); // Renamed to avoid conflict
@@ -77,13 +79,55 @@ export const processUploadedFontStorage = onObjectFinalized(
       }
       logger.info(`[${originalFileName}] Parsed font successfully. Family: ${parsedFontData.familyName}, Subfamily: ${parsedFontData.subfamilyName}, Foundry: ${parsedFontData.foundry || 'N/A'}`);
 
-      logger.info(`[${originalFileName}] Starting AI analysis for: ${parsedFontData.familyName} using Vertex AI client.`);
-      const aiAnalysisResult = await getFontAnalysisVertexAI(parsedFontData);
+      // Run enhanced AI pipeline with rate limiting
+      logger.info(`[${originalFileName}] Starting enhanced AI pipeline for: ${parsedFontData.familyName}`);
+      let pipelineResult = null;
+      let aiAnalysisResult = null;
+
+      try {
+        pipelineResult = await withRateLimit(
+          () => runFontPipeline(fileBuffer, originalFileName),
+          `Font pipeline for ${originalFileName}`
+        );
+
+        if (pipelineResult && pipelineResult.isValid) {
+          // Convert pipeline result to legacy format for compatibility
+          const enrichedAnalysis = pipelineResult.enrichedAnalysis || pipelineResult.visualAnalysis;
+          if (enrichedAnalysis) {
+            aiAnalysisResult = {
+              description: pipelineResult.description || 'A well-designed font family.',
+              tags: enrichedAnalysis.moods?.slice(0, 5).map((m: any) => m.value) || [],
+              classification: enrichedAnalysis.style_primary?.value || parsedFontData.classification || 'Sans Serif',
+              metadata: {
+                subClassification: enrichedAnalysis.substyle?.value,
+                moods: enrichedAnalysis.moods?.map((m: any) => m.value) || [],
+                useCases: enrichedAnalysis.use_cases?.map((uc: any) => uc.value) || [],
+                technicalCharacteristics: enrichedAnalysis.negative_tags || [],
+                // Enhanced fields
+                people: enrichedAnalysis.people,
+                historical_context: enrichedAnalysis.historical_context,
+                semantics: enrichedAnalysis,
+                provenance: pipelineResult.parsedData?.provenance,
+              },
+            };
+            logger.info(`[${originalFileName}] Enhanced AI pipeline completed successfully. Confidence: ${pipelineResult.confidence.toFixed(2)}`);
+          }
+        } else {
+          logger.warn(`[${originalFileName}] Enhanced AI pipeline failed or returned invalid results. Falling back to legacy analysis.`);
+          // Fallback to legacy analysis
+          aiAnalysisResult = await getFontAnalysisVertexAI(parsedFontData);
+        }
+      } catch (pipelineError: any) {
+        logger.error(`[${originalFileName}] Enhanced pipeline error:`, pipelineError);
+        // Fallback to legacy analysis
+        logger.info(`[${originalFileName}] Falling back to legacy AI analysis.`);
+        aiAnalysisResult = await getFontAnalysisVertexAI(parsedFontData);
+      }
 
       if (!aiAnalysisResult) {
-        logger.warn(`[${originalFileName}] AI analysis (Vertex AI) failed or returned no data. Proceeding with basic data.`);
+        logger.warn(`[${originalFileName}] AI analysis failed or returned no data. Proceeding with basic data.`);
       } else {
-        logger.info(`[${originalFileName}] AI analysis (Vertex AI) completed for ${parsedFontData.familyName}.`);
+        logger.info(`[${originalFileName}] AI analysis completed for ${parsedFontData.familyName}.`);
       }
 
       const processedFileName = `${processingId}-${originalFileName}`;
@@ -119,7 +163,13 @@ export const processUploadedFontStorage = onObjectFinalized(
         fileSize: fileBuffer.byteLength,
       };
 
-      const familyResult = await serverAddFontToFamilyAdmin(parsedFontData, fontFileDetails, aiAnalysisResult, ownerIdFromMetadata || undefined);
+      // Merge pipeline result data into parsedFontData if available
+      const enhancedParsedData = pipelineResult?.parsedData || parsedFontData;
+      if (pipelineResult?.visualMetrics) {
+        enhancedParsedData.visual_metrics = pipelineResult.visualMetrics;
+      }
+
+      const familyResult = await serverAddFontToFamilyAdmin(enhancedParsedData, fontFileDetails, aiAnalysisResult, ownerIdFromMetadata || undefined);
 
       if (!familyResult) {
         logger.error(`[${originalFileName}] Failed to add font to family in Firestore. Attempting to move processed file to failed folder.`);

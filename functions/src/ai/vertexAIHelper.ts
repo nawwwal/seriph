@@ -71,6 +71,10 @@ export interface VertexAIFullFontAnalysisResult {
     metadata: Partial<FamilyMetadata>;
 }
 
+/**
+ * Legacy function - maintained for backward compatibility
+ * New code should use the pipeline from ai/pipeline/fontPipeline.ts
+ */
 export async function getFontAnalysisVertexAI(
     parsedFontData: any
 ): Promise<VertexAIFullFontAnalysisResult | null> {

@@ -51,6 +51,12 @@ export async function serverAddFontToFamilyAdmin(
                     metadata: {
                         foundry: parsedFontData.foundry || aiAnalysisResult?.metadata?.foundry || '',
                         ...(aiAnalysisResult?.metadata || {}),
+                        // Enhanced fields
+                        people: aiAnalysisResult?.metadata?.people,
+                        historical_context: aiAnalysisResult?.metadata?.historical_context,
+                        semantics: aiAnalysisResult?.metadata?.semantics,
+                        license: aiAnalysisResult?.metadata?.license,
+                        provenance: aiAnalysisResult?.metadata?.provenance || parsedFontData.provenance,
                     } as FamilyMetadata,
                 };
                 functions.logger.info(`Creating new family: ${familyName} (ID: ${familyDocId})`);
@@ -70,11 +76,35 @@ export async function serverAddFontToFamilyAdmin(
                     familyDataToSet.description = aiAnalysisResult.description || existingData.description;
                     familyDataToSet.tags = aiAnalysisResult.tags && aiAnalysisResult.tags.length > 0 ? aiAnalysisResult.tags : existingData.tags;
                     familyDataToSet.classification = aiAnalysisResult.classification || existingData.classification;
-                    familyDataToSet.metadata = {
+                    
+                    // Merge enhanced metadata, preserving existing and adding new fields
+                    const enhancedMetadata: any = {
                         ...(existingData.metadata || {}),
                         ...(aiAnalysisResult.metadata || {}),
                         foundry: parsedFontData.foundry || aiAnalysisResult?.metadata?.foundry || existingData.metadata?.foundry || '',
-                    } as FamilyMetadata;
+                    };
+                    
+                    // Preserve enhanced fields if they exist
+                    if (aiAnalysisResult.metadata?.people) {
+                        enhancedMetadata.people = aiAnalysisResult.metadata.people;
+                    }
+                    if (aiAnalysisResult.metadata?.historical_context) {
+                        enhancedMetadata.historical_context = aiAnalysisResult.metadata.historical_context;
+                    }
+                    if (aiAnalysisResult.metadata?.semantics) {
+                        enhancedMetadata.semantics = aiAnalysisResult.metadata.semantics;
+                    }
+                    if (aiAnalysisResult.metadata?.provenance) {
+                        enhancedMetadata.provenance = {
+                            ...(existingData.metadata?.provenance || {}),
+                            ...(aiAnalysisResult.metadata.provenance || {}),
+                        };
+                    }
+                    if (aiAnalysisResult.metadata?.license) {
+                        enhancedMetadata.license = aiAnalysisResult.metadata.license;
+                    }
+                    
+                    familyDataToSet.metadata = enhancedMetadata as FamilyMetadata;
                 } else {
                     functions.logger.info(`Updating existing family ${familyName} without new AI data.`);
                 }
@@ -99,11 +129,19 @@ export async function serverAddFontToFamilyAdmin(
                     postScriptName: parsedFontData.postScriptName || null,
                     version: parsedFontData.version || null,
                     copyright: parsedFontData.copyright || null,
-                    license: parsedFontData.license || null,
+                    license: parsedFontData.licenseDescription || parsedFontData.license || null,
+                    licenseUrl: parsedFontData.licenseUrl || null,
                     characterSetCoverage: parsedFontData.characterSetCoverage || [],
                     openTypeFeatures: parsedFontData.openTypeFeatures || [],
                     glyphCount: parsedFontData.glyphCount || null,
                     languageSupport: parsedFontData.languageSupport || [],
+                    // Enhanced fields
+                    fingerprint: parsedFontData.fingerprint || null,
+                    visual_metrics: parsedFontData.visual_metrics || null,
+                    scripts: parsedFontData.scripts || null,
+                    color: parsedFontData.color || null,
+                    kerningPairDensity: parsedFontData.kerningPairCount || null,
+                    provenance: parsedFontData.provenance || null,
                 },
             };
 
