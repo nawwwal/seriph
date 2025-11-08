@@ -6,100 +6,8 @@ import { getConfigValue, getConfigBoolean } from '../../config/remoteConfig';
 import { RC_KEYS, RC_DEFAULTS } from '../../config/rcKeys';
 import { generateStrictJSON, isVertexEnabled } from '../vertex/vertexClient';
 import { getConfidenceBandThresholds } from '../../config/remoteConfig';
-import { STYLE_PRIMARY, SUBSTYLE, MOODS, USE_CASES } from '../../models/contracts';
-
-// Schema for enriched analysis (includes web-sourced fields)
-const enrichedAnalysisSchema = {
-    type: 'object',
-    properties: {
-		style_primary: {
-			type: 'object',
-			properties: {
-				value: {
-					type: 'string',
-					enum: [...STYLE_PRIMARY],
-				},
-				confidence: { type: 'number', minimum: 0, maximum: 1 },
-				evidence_keys: {
-					type: 'array',
-					items: { type: 'string' },
-				},
-				sources: {
-					type: 'array',
-					items: {
-						type: 'object',
-						properties: {
-							source_type: { type: 'string', enum: ['extracted', 'web', 'inferred'] },
-							source_ref: { type: 'string' },
-							confidence: { type: 'number' },
-						},
-					},
-				},
-			},
-			required: ['value', 'confidence'],
-		},
-		substyle: {
-			type: 'object',
-			properties: {
-				value: { type: 'string', enum: [...SUBSTYLE] },
-				confidence: { type: 'number', minimum: 0, maximum: 1 },
-				evidence_keys: { type: 'array', items: { type: 'string' } },
-				sources: { type: 'array', items: { type: 'object' } },
-			},
-		},
-		moods: {
-			type: 'array',
-			items: {
-				type: 'object',
-				properties: {
-					value: { type: 'string', enum: [...MOODS] },
-					confidence: { type: 'number', minimum: 0, maximum: 1 },
-					evidence_keys: { type: 'array', items: { type: 'string' } },
-					sources: { type: 'array', items: { type: 'object' } },
-				},
-				required: ['value', 'confidence'],
-			},
-		},
-		use_cases: {
-			type: 'array',
-			items: {
-				type: 'object',
-				properties: {
-					value: { type: 'string', enum: [...USE_CASES] },
-					confidence: { type: 'number', minimum: 0, maximum: 1 },
-				},
-				required: ['value', 'confidence'],
-			},
-		},
-        people: {
-            type: 'array',
-            items: {
-                type: 'object',
-                properties: {
-                    role: { type: 'string', enum: ['designer', 'foundry', 'contributor'] },
-                    name: { type: 'string' },
-                    source: { type: 'string', enum: ['extracted', 'web'] },
-                    confidence: { type: 'number', minimum: 0, maximum: 1 },
-                    source_url: { type: 'string' }
-                },
-                required: ['role', 'name', 'source', 'confidence']
-            }
-        },
-        historical_context: {
-            type: 'object',
-            properties: {
-                period: { type: 'string' },
-                cultural_influence: { type: 'array', items: { type: 'string' } },
-                notable_usage: { type: 'array', items: { type: 'string' } }
-            }
-        },
-        negative_tags: {
-            type: 'array',
-            items: { type: 'string' }
-        }
-    },
-    required: ['style_primary', 'moods', 'use_cases']
-};
+import { getPromptContents } from '../prompts/promptRegistry';
+import { enrichedAnalysisSchema } from '../schemas/enrichedAnalysisSchema';
 
 export async function performEnrichedAnalysis(
     parsedData: any,
@@ -119,20 +27,63 @@ export async function performEnrichedAnalysis(
     const userPrompt = buildEnrichedAnalysisPrompt(parsedData, visualMetrics, visualAnalysisResult);
     const systemPrompt = ENRICHED_ANALYSIS_SYSTEM_PROMPT;
 
-    const promptParts = [
-        systemPrompt,
-        '\n\n',
-        userPrompt,
-        '\n\nYour response MUST be a valid JSON object adhering to the following schema:\n',
-        JSON.stringify(enrichedAnalysisSchema, null, 2),
-        '\n\nGenerate ONLY the JSON output, no markdown formatting.'
-    ];
+	const SYSTEM_TOKEN = '{{SYSTEM_PROMPT}}';
+	const INPUT_TOKEN = '{{ENRICHED_ANALYSIS_INPUT}}';
+
+	let registryContents: Array<{ role: string; parts: Array<{ text: string }> }> | null = null;
+	const promptId = getConfigValue(RC_KEYS.enrichedAnalysisPromptId, RC_DEFAULTS[RC_KEYS.enrichedAnalysisPromptId]).trim();
+	if (promptId) {
+		try {
+			registryContents = await getPromptContents(promptId);
+			if (registryContents) {
+				functions.logger.info(`Using Prompt Registry prompt ${promptId} for enriched analysis.`);
+			}
+		} catch (err: any) {
+			functions.logger.warn(`Failed to fetch prompt ${promptId} from Prompt Registry. Falling back to inline prompt.`, {
+				message: err?.message,
+			});
+		}
+	}
+
+	const promptParts = [
+		systemPrompt,
+		'\n\n',
+		userPrompt,
+		'\n\nRespond with JSON only; the response schema is enforced by the request.',
+	];
+
+	let replacedSystemPrompt = false;
+	let replacedUserPrompt = false;
+
+	const substitutedContents =
+		registryContents?.map((message) => ({
+			...message,
+			parts: message.parts.map((part) => {
+				if (!part?.text) return part;
+				let text = part.text;
+				if (text.includes(SYSTEM_TOKEN)) {
+					text = text.split(SYSTEM_TOKEN).join(systemPrompt);
+					replacedSystemPrompt = true;
+				}
+				if (text.includes(INPUT_TOKEN)) {
+					text = text.split(INPUT_TOKEN).join(userPrompt);
+					replacedUserPrompt = true;
+				}
+				return { ...part, text };
+			}),
+		})) || null;
+
+	const contentsAreUsable =
+		substitutedContents &&
+		substitutedContents.length > 0 &&
+		replacedUserPrompt;
 
     try {
 		const { data: jsonData, rawText } = await generateStrictJSON<any>({
 			modelKey: modelNameKey,
-			promptParts,
 			opName: 'enrichedAnalysis',
+			responseSchema: enrichedAnalysisSchema as any,
+			...(contentsAreUsable ? { contents: substitutedContents! } : { promptParts }),
 		});
 		if (!jsonData) {
 			functions.logger.warn(`Enriched analysis for ${familyName} returned no JSON; raw=${rawText ? rawText.slice(0, 120) : 'null'}`);

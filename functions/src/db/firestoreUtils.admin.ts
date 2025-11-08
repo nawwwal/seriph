@@ -4,6 +4,67 @@ import type { FontFamily, Font, FamilyMetadata, Classification } from '../models
 import { normalizeName } from '../utils/normalize';
 import * as functions from 'firebase-functions';
 import { deepStripUndefined } from '../utils/sanitize';
+function mergeAiMetadata(existing: FamilyMetadata | undefined, aiAnalysisResult: any): FamilyMetadata {
+	const base: FamilyMetadata = { ...(existing || {}) };
+	const aiMeta = (aiAnalysisResult?.metadata ?? {}) as Record<string, any>;
+
+	if (typeof aiMeta.subClassification === 'string' && aiMeta.subClassification.trim()) {
+		base.subClassification = aiMeta.subClassification.trim();
+	}
+
+	if (Array.isArray(aiMeta.moods)) {
+		const moods = aiMeta.moods.filter((m: any) => typeof m === 'string' && m.trim().length > 0);
+		if (moods.length > 0) {
+			base.moods = moods;
+		}
+	}
+
+	if (Array.isArray(aiMeta.useCases)) {
+		const useCases = aiMeta.useCases.filter((v: any) => typeof v === 'string' && v.trim().length > 0);
+		if (useCases.length > 0) {
+			base.useCases = useCases;
+		}
+	}
+
+	if (Array.isArray(aiMeta.technicalCharacteristics)) {
+		const tech = aiMeta.technicalCharacteristics.filter((v: any) => typeof v === 'string' && v.trim().length > 0);
+		if (tech.length > 0) {
+			base.technicalCharacteristics = tech;
+		}
+	}
+
+	if (Array.isArray(aiMeta.people) && aiMeta.people.length > 0) {
+		base.people = aiMeta.people as FamilyMetadata['people'];
+	}
+
+	if (aiMeta.historical_context) {
+		base.historical_context = {
+			...(base.historical_context || {}),
+			...(aiMeta.historical_context as Record<string, any>),
+		} as any;
+	}
+
+	if (aiMeta.license) {
+		base.license = {
+			...(base.license || {}),
+			...aiMeta.license,
+		} as any;
+	}
+
+	if (aiMeta.semantics) {
+		base.semantics = aiMeta.semantics;
+	}
+
+	if (aiMeta.provenance) {
+		base.provenance = {
+			...(base.provenance || {}),
+			...aiMeta.provenance,
+		};
+	}
+
+	return deepStripUndefined(base);
+}
+
 
 const FAMILIES_COLLECTION = 'fontfamilies';
 
@@ -154,6 +215,10 @@ export async function serverAddFontToFamilyAdmin(
                 functions.logger.info(`Font '${newFont.filename}' (ID: ${fontId}) already exists in family ${familyName}. Skipping add.`);
             }
             familyDataToSet.fonts = existingFonts;
+
+			if (aiAnalysisResult) {
+				familyDataToSet.metadata = mergeAiMetadata(familyDataToSet.metadata as FamilyMetadata | undefined, aiAnalysisResult);
+			}
 
             if (isNewFamily && !aiAnalysisResult) {
                 familyDataToSet.description = familyDataToSet.description || 'Description pending AI analysis.';

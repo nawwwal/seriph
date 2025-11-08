@@ -44,6 +44,90 @@ export interface WebEnrichmentResult {
     provenance: DataProvenance[];
 }
 
+const webEnrichmentSchema = {
+	type: 'object',
+	additionalProperties: false,
+	properties: {
+		foundry: {
+			type: 'object',
+			properties: {
+				name: { type: 'string' },
+				url: { type: 'string' },
+				confidence: { type: 'number' },
+				source_url: { type: 'string' },
+			},
+		},
+		designer: {
+			type: 'object',
+			properties: {
+				name: { type: 'string' },
+				bio: { type: 'string' },
+				url: { type: 'string' },
+				confidence: { type: 'number' },
+				source_url: { type: 'string' },
+			},
+		},
+		people: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					role: { type: 'string' },
+					name: { type: 'string' },
+					source: { type: 'string' },
+					confidence: { type: 'number' },
+					source_url: { type: 'string' },
+				},
+			},
+		},
+		historical_context: {
+			type: 'object',
+			properties: {
+				period: { type: 'string' },
+				cultural_influence: {
+					type: 'array',
+					items: { type: 'string' },
+				},
+				notable_usage: {
+					type: 'array',
+					items: { type: 'string' },
+				},
+				source_url: { type: 'string' },
+			},
+		},
+		license: {
+			type: 'object',
+			properties: {
+				type: { type: 'string' },
+				url: { type: 'string' },
+				confidence: { type: 'number' },
+				source_url: { type: 'string' },
+			},
+		},
+		alternate_names: {
+			type: 'array',
+			items: { type: 'string' },
+		},
+		language_targets: {
+			type: 'array',
+			items: { type: 'string' },
+		},
+		provenance: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					source_type: { type: 'string' },
+					source_ref: { type: 'string' },
+					timestamp: { type: 'string' },
+					method: { type: 'string' },
+					confidence: { type: 'number' },
+				},
+			},
+		},
+	},
+};
+
 /**
  * Generate a font fingerprint for disambiguation
  */
@@ -92,6 +176,7 @@ Provide a structured JSON response with the following schema:
 			modelKey: RC_KEYS.webEnricherModelName,
 			promptParts: [searchPrompt],
 			opName: 'webEnricher',
+			responseSchema: webEnrichmentSchema as any,
 		});
 		if (!data) {
 			functions.logger.warn(`Web search returned no JSON for ${familyName}; raw=${rawText ? rawText.slice(0, 120) : 'null'}`);

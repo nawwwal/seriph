@@ -17,6 +17,8 @@ import { runFontPipeline } from "./ai/pipeline/fontPipeline";
 import { withRateLimit } from "./utils/rateLimiter";
 import { initializeRemoteConfig, getConfigValue, getConfigBoolean } from "./config/remoteConfig";
 import { RC_KEYS, RC_DEFAULTS } from "./config/rcKeys";
+import { upsertPrompt, extractPromptId } from "./ai/prompts/promptRegistry";
+import { enrichedAnalysisSchema } from "./ai/schemas/enrichedAnalysisSchema";
 import { searchFonts as executeSearch } from "./ai/pipeline/searchOrchestrator";
 
 type ServiceAccountConfig = admin.ServiceAccount & {
@@ -680,6 +682,79 @@ export const batchReprocessFonts = onRequest(
     } catch (e: any) {
       logger.error('batchReprocessFonts error', { message: e?.message, stack: e?.stack });
       res.status(500).json({ ok: false, error: e?.message || 'Unknown error' });
+    }
+  }
+);
+
+export const createOrUpdateEnrichedPrompt = onRequest(
+  {
+    region: "asia-southeast1",
+    timeoutSeconds: 300,
+    memory: "512MiB",
+  },
+  async (req, res) => {
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method Not Allowed' });
+      return;
+    }
+
+    try {
+      const rawBody = req.body ?? {};
+      const body =
+        typeof rawBody === 'string'
+          ? JSON.parse(rawBody || '{}')
+          : (rawBody as Record<string, unknown>);
+
+      const providedContents = Array.isArray((body as any).contents)
+        ? ((body as any).contents as Array<{ role: string; parts: Array<{ text: string }> }>)
+        : null;
+
+      const defaultContents = [
+        {
+          role: 'system',
+          parts: [{ text: '{{SYSTEM_PROMPT}}' }],
+        },
+        {
+          role: 'user',
+          parts: [
+            { text: '{{ENRICHED_ANALYSIS_INPUT}}' },
+            { text: '\nRespond strictly with valid JSON complying with the enforced schema.' },
+          ],
+        },
+      ];
+
+      const contents = providedContents && providedContents.length > 0 ? providedContents : defaultContents;
+
+      const displayNameRaw = typeof (body as any).displayName === 'string' ? (body as any).displayName : '';
+      const displayName = displayNameRaw.trim() || 'Enriched Analysis Prompt';
+      const description = typeof (body as any).description === 'string' ? (body as any).description : 'Prompt for enriched font analysis.';
+      const promptId = typeof (body as any).promptId === 'string' ? (body as any).promptId.trim() || undefined : undefined;
+      const modelOverride = typeof (body as any).model === 'string' ? (body as any).model.trim() : '';
+      const model =
+        modelOverride ||
+        getConfigValue(RC_KEYS.enrichedAnalysisModelName, RC_DEFAULTS[RC_KEYS.enrichedAnalysisModelName]);
+
+      const promptResource = await upsertPrompt({
+        promptId,
+        displayName,
+        description,
+        model,
+        contents,
+        responseSchema: enrichedAnalysisSchema as any,
+      });
+
+      const newPromptId = extractPromptId(promptResource);
+      res.status(200).json({
+        ok: true,
+        promptId: newPromptId,
+        prompt: promptResource,
+      });
+    } catch (error: any) {
+      logger.error('createOrUpdateEnrichedPrompt error', {
+        message: error?.message,
+        stack: error?.stack,
+      });
+      res.status(500).json({ ok: false, error: error?.message || 'Unknown error' });
     }
   }
 );

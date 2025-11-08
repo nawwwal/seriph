@@ -24,13 +24,20 @@ export interface ModelOptions {
 	topKKey?: string;
 }
 
-export function getGenerativeModelFromRC(modelKey: string, responseMimeType: string = "application/json") {
+export interface GenerativeModelOptions {
+	responseMimeType?: string;
+	responseSchema?: Record<string, unknown>;
+}
+
+export function getGenerativeModelFromRC(modelKey: string, opts: GenerativeModelOptions = {}) {
 	const client = ensureClient();
 	const modelName = getConfigValue(modelKey, RC_DEFAULTS[modelKey as keyof typeof RC_DEFAULTS] as string);
 	const maxOutputTokens = getConfigNumber(RC_KEYS.maxOutputTokens, Number(RC_DEFAULTS[RC_KEYS.maxOutputTokens]));
 	const temperature = getConfigNumber(RC_KEYS.temperature, Number(RC_DEFAULTS[RC_KEYS.temperature]));
 	const topP = getConfigNumber(RC_KEYS.topP, Number(RC_DEFAULTS[RC_KEYS.topP]));
 	const topK = getConfigNumber(RC_KEYS.topK, Number(RC_DEFAULTS[RC_KEYS.topK]));
+	const responseMimeType = opts.responseMimeType ?? "application/json";
+	const responseSchema = opts.responseSchema;
 	return client.getGenerativeModel({
 		model: modelName,
 		generationConfig: {
@@ -39,6 +46,7 @@ export function getGenerativeModelFromRC(modelKey: string, responseMimeType: str
 			topP,
 			topK,
 			responseMimeType,
+			...(responseSchema ? { responseSchema } : {}),
 		},
 		safetySettings: [
 			{
@@ -70,19 +78,37 @@ export function logUsageMetadata(prefix: string, response: any) {
  */
 export async function generateStrictJSON<T = any>(opts: {
 	modelKey: string;
-	promptParts: string[];
+	promptParts?: string[];
+	contents?: Array<{ role: string; parts: Array<{ text: string }> }>;
 	opName: string;
 	tools?: any[];
+	responseSchema?: Record<string, unknown>;
 }): Promise<{ data: T | null; rawText: string | null; response: any | null }> {
-	const { modelKey, promptParts, opName } = opts;
-	const model = getGenerativeModelFromRC(modelKey, "application/json");
+	const { modelKey, promptParts = [], contents, opName, responseSchema, tools: explicitTools } = opts;
+	const model = getGenerativeModelFromRC(modelKey, { responseMimeType: "application/json", responseSchema });
 	const webSearchEnabled = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, false);
 	const defaultTools = webSearchEnabled ? [{ google_search: {} }] : undefined;
+	const toolsToUse = Array.isArray(explicitTools) ? explicitTools : defaultTools;
+
+	let payloadContents: Array<{ role: string; parts: Array<{ text: string }> }>;
+	if (Array.isArray(contents) && contents.length > 0) {
+		payloadContents = contents;
+	} else {
+		if (!Array.isArray(promptParts) || promptParts.length === 0) {
+			throw new Error(`${opName} requires promptParts or contents`);
+		}
+		payloadContents = [
+			{
+				role: 'user',
+				parts: promptParts.map((text) => ({ text })),
+			},
+		];
+	}
 
 	async function callOnce(useTools: boolean) {
 		const payload = {
-			contents: [{ role: 'user', parts: promptParts.map((text) => ({ text })) }],
-			...(useTools && Array.isArray(defaultTools) ? { tools: defaultTools } : {}),
+			contents: payloadContents,
+			...(useTools && Array.isArray(toolsToUse) ? { tools: toolsToUse } : {}),
 		};
 		return await model.generateContent(payload as any);
 	}
@@ -91,7 +117,7 @@ export async function generateStrictJSON<T = any>(opts: {
 	try {
 		// First try with tools (if enabled)
 		const result = await withRetry(opName, async () => {
-			return await callOnce(Boolean(defaultTools));
+			return await callOnce(Boolean(toolsToUse));
 		});
 		response = (result as any)?.response;
 	} catch (err: any) {
