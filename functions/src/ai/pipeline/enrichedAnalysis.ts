@@ -6,6 +6,7 @@ import { getConfigValue, getConfigBoolean } from '../../config/remoteConfig';
 import { RC_KEYS, RC_DEFAULTS } from '../../config/rcKeys';
 import { generateStrictJSON, isVertexEnabled } from '../vertex/vertexClient';
 import { getConfidenceBandThresholds } from '../../config/remoteConfig';
+import { STYLE_PRIMARY, SUBSTYLE, MOODS, USE_CASES } from '../../models/contracts';
 
 const WEB_SEARCH_ENABLED = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, false);
 
@@ -13,65 +14,65 @@ const WEB_SEARCH_ENABLED = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, false)
 const enrichedAnalysisSchema = {
     type: 'object',
     properties: {
-        style_primary: {
-            type: 'object',
-            properties: {
-                value: {
-                    type: 'string',
-                    enum: ['Serif', 'Sans Serif', 'Script & Handwriting', 'Monospace', 'Display & Decorative', 'Symbol & Icon']
-                },
-                confidence: { type: 'number', minimum: 0, maximum: 1 },
-                evidence: {
-                    type: 'array',
-                    items: { type: 'string' }
-                },
-                sources: {
-                    type: 'array',
-                    items: {
-                        type: 'object',
-                        properties: {
-                            source_type: { type: 'string', enum: ['extracted', 'web', 'inferred'] },
-                            source_ref: { type: 'string' },
-                            confidence: { type: 'number' }
-                        }
-                    }
-                }
-            },
-            required: ['value', 'confidence', 'evidence']
-        },
-        substyle: {
-            type: 'object',
-            properties: {
-                value: { type: 'string' },
-                confidence: { type: 'number', minimum: 0, maximum: 1 },
-                evidence: { type: 'array', items: { type: 'string' } },
-                sources: { type: 'array', items: { type: 'object' } }
-            }
-        },
-        moods: {
-            type: 'array',
-            items: {
-                type: 'object',
-                properties: {
-                    value: { type: 'string' },
-                    confidence: { type: 'number', minimum: 0, maximum: 1 },
-                    evidence: { type: 'array', items: { type: 'string' } },
-                    sources: { type: 'array', items: { type: 'object' } }
-                },
-                required: ['value', 'confidence', 'evidence']
-            }
-        },
-        use_cases: {
-            type: 'array',
-            items: {
-                type: 'object',
-                properties: {
-                    value: { type: 'string' },
-                    confidence: { type: 'number', minimum: 0, maximum: 1 }
-                },
-                required: ['value', 'confidence']
-            }
-        },
+		style_primary: {
+			type: 'object',
+			properties: {
+				value: {
+					type: 'string',
+					enum: [...STYLE_PRIMARY],
+				},
+				confidence: { type: 'number', minimum: 0, maximum: 1 },
+				evidence_keys: {
+					type: 'array',
+					items: { type: 'string' },
+				},
+				sources: {
+					type: 'array',
+					items: {
+						type: 'object',
+						properties: {
+							source_type: { type: 'string', enum: ['extracted', 'web', 'inferred'] },
+							source_ref: { type: 'string' },
+							confidence: { type: 'number' },
+						},
+					},
+				},
+			},
+			required: ['value', 'confidence'],
+		},
+		substyle: {
+			type: 'object',
+			properties: {
+				value: { type: 'string', enum: [...SUBSTYLE] },
+				confidence: { type: 'number', minimum: 0, maximum: 1 },
+				evidence_keys: { type: 'array', items: { type: 'string' } },
+				sources: { type: 'array', items: { type: 'object' } },
+			},
+		},
+		moods: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					value: { type: 'string', enum: [...MOODS] },
+					confidence: { type: 'number', minimum: 0, maximum: 1 },
+					evidence_keys: { type: 'array', items: { type: 'string' } },
+					sources: { type: 'array', items: { type: 'object' } },
+				},
+				required: ['value', 'confidence'],
+			},
+		},
+		use_cases: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					value: { type: 'string', enum: [...USE_CASES] },
+					confidence: { type: 'number', minimum: 0, maximum: 1 },
+				},
+				required: ['value', 'confidence'],
+			},
+		},
         people: {
             type: 'array',
             items: {

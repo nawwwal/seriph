@@ -11,34 +11,45 @@ export interface ParseOptions {
 }
 
 let workerInstance: Worker | null = null;
-let workerInitializing = false;
+let workerInitPromise: Promise<Worker> | null = null;
 
 /**
  * Get or create the font parser worker instance
  */
-function getWorker(): Worker | null {
+async function getWorker(): Promise<Worker> {
   if (workerInstance) {
     return workerInstance;
   }
 
-  if (workerInitializing) {
-    return null;
+  if (!workerInitPromise) {
+    workerInitPromise = new Promise<Worker>((resolve, reject) => {
+      try {
+        const worker = new Worker(
+          new URL('../workers/font-parser.worker.ts', import.meta.url),
+          { type: 'module' }
+        );
+
+        worker.addEventListener('error', (event) => {
+          console.error('Font parser worker error:', event);
+          workerInstance = null;
+          workerInitPromise = null;
+        });
+
+        workerInstance = worker;
+        resolve(worker);
+      } catch (error) {
+        console.error('Failed to create font parser worker:', error);
+        workerInstance = null;
+        workerInitPromise = null;
+        reject(error);
+      }
+    }).catch((error) => {
+      workerInitPromise = null;
+      throw error;
+    });
   }
 
-  try {
-    workerInitializing = true;
-    // Dynamic module worker import
-    workerInstance = new Worker(
-      new URL('../workers/font-parser.worker.ts', import.meta.url),
-      { type: 'module' }
-    );
-    workerInitializing = false;
-    return workerInstance;
-  } catch (error) {
-    console.error('Failed to create font parser worker:', error);
-    workerInitializing = false;
-    return null;
-  }
+  return workerInitPromise;
 }
 
 /**
@@ -49,9 +60,11 @@ export function useFontParserWorker() {
 
   const parseFile = useCallback(
     async (file: File, options?: ParseOptions): Promise<ParseResult> => {
-      return new Promise((resolve, reject) => {
-        const worker = getWorker();
-        if (!worker) {
+      return new Promise(async (resolve, reject) => {
+        let worker: Worker;
+        try {
+          worker = await getWorker();
+        } catch (error) {
           reject(new Error('Worker not available'));
           return;
         }
@@ -109,9 +122,11 @@ export function useFontParserWorker() {
 
   const parseBatch = useCallback(
     async (files: File[], options?: ParseOptions): Promise<ParseResult[]> => {
-      return new Promise((resolve, reject) => {
-        const worker = getWorker();
-        if (!worker) {
+      return new Promise(async (resolve, reject) => {
+        let worker: Worker;
+        try {
+          worker = await getWorker();
+        } catch (error) {
           reject(new Error('Worker not available'));
           return;
         }

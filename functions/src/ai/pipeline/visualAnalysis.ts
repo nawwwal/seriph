@@ -5,71 +5,113 @@ import { validateAnalysisResult } from './validation';
 import { generateStrictJSON, isVertexEnabled } from '../vertex/vertexClient';
 import { RC_KEYS } from '../../config/rcKeys';
 import { getOpticalRangePtThresholds } from '../../config/remoteConfig';
-import type { FoundationalFacts, AxisRole, OpticalRangeInfo, ColorFontFormat, RenderingEngineProfile } from '../../models/contracts';
+import type {
+ FoundationalFacts,
+ AxisRole,
+ OpticalRangeInfo,
+ ColorFontFormat,
+ RenderingEngineProfile,
+} from '../../models/contracts';
+import {
+ STYLE_PRIMARY,
+ SUBSTYLE,
+ MOODS,
+ USE_CASES,
+ WARNINGS,
+ SERIF_TYPE,
+ SCRIPT_TAGS,
+} from '../../models/contracts';
 
 // Schema for visual analysis
 const visualAnalysisSchema = {
-    type: 'object',
-    properties: {
-        style_primary: {
-            type: 'object',
-            properties: {
-                value: {
-                    type: 'string',
-                    enum: ['Serif', 'Sans Serif', 'Script & Handwriting', 'Monospace', 'Display & Decorative', 'Symbol & Icon']
-                },
-                confidence: { type: 'number', minimum: 0, maximum: 1 },
-                evidence: {
-                    type: 'array',
-                    items: { type: 'string' }
-                }
-            },
-            required: ['value', 'confidence', 'evidence']
-        },
-        substyle: {
-            type: 'object',
-            properties: {
-                value: { type: 'string' },
-                confidence: { type: 'number', minimum: 0, maximum: 1 },
-                evidence: {
-                    type: 'array',
-                    items: { type: 'string' }
-                }
-            },
-            required: ['value', 'confidence', 'evidence']
-        },
-        moods: {
-            type: 'array',
-            items: {
-                type: 'object',
-                properties: {
-                    value: { type: 'string' },
-                    confidence: { type: 'number', minimum: 0, maximum: 1 },
-                    evidence: {
-                        type: 'array',
-                        items: { type: 'string' }
-                    }
-                },
-                required: ['value', 'confidence', 'evidence']
-            }
-        },
-        use_cases: {
-            type: 'array',
-            items: {
-                type: 'object',
-                properties: {
-                    value: { type: 'string' },
-                    confidence: { type: 'number', minimum: 0, maximum: 1 }
-                },
-                required: ['value', 'confidence']
-            }
-        },
-        negative_tags: {
-            type: 'array',
-            items: { type: 'string' }
-        }
-    },
-    required: ['style_primary', 'moods', 'use_cases']
+	type: 'object',
+	properties: {
+		style_primary: {
+			type: 'object',
+			properties: {
+				value: { type: 'string', enum: [...STYLE_PRIMARY] },
+				confidence: { type: 'number', minimum: 0, maximum: 1 },
+				evidence_keys: {
+					type: 'array',
+					items: { type: 'string' },
+				},
+			},
+			required: ['value', 'confidence'],
+		},
+		substyle: {
+			type: 'object',
+			properties: {
+				value: { type: 'string', enum: [...SUBSTYLE] },
+				confidence: { type: 'number', minimum: 0, maximum: 1 },
+				evidence_keys: {
+					type: 'array',
+					items: { type: 'string' },
+				},
+			},
+			required: ['value', 'confidence'],
+		},
+		moods: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					value: { type: 'string', enum: [...MOODS] },
+					confidence: { type: 'number', minimum: 0, maximum: 1 },
+					evidence_keys: {
+						type: 'array',
+						items: { type: 'string' },
+					},
+				},
+				required: ['value', 'confidence'],
+			},
+		},
+		use_cases: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					value: { type: 'string', enum: [...USE_CASES] },
+					confidence: { type: 'number', minimum: 0, maximum: 1 },
+					evidence_keys: {
+						type: 'array',
+						items: { type: 'string' },
+					},
+				},
+				required: ['value', 'confidence'],
+			},
+		},
+		warnings: {
+			type: 'array',
+			items: { type: 'string', enum: [...WARNINGS] },
+		},
+		serif_type: {
+			type: 'object',
+			properties: {
+				value: { type: 'string', enum: [...SERIF_TYPE] },
+				confidence: { type: 'number', minimum: 0, maximum: 1 },
+				evidence_keys: {
+					type: 'array',
+					items: { type: 'string' },
+				},
+			},
+		},
+		script_primary: {
+			type: 'object',
+			properties: {
+				value: { type: 'string', enum: [...SCRIPT_TAGS] },
+				confidence: { type: 'number', minimum: 0, maximum: 1 },
+				evidence_keys: {
+					type: 'array',
+					items: { type: 'string' },
+				},
+			},
+		},
+		negative_tags: {
+			type: 'array',
+			items: { type: 'string' },
+		},
+	},
+	required: ['style_primary', 'moods', 'use_cases'],
 };
 
 export async function performVisualAnalysis(

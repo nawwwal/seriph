@@ -324,96 +324,94 @@ export default function ModalUploadForm({ onUploadComplete }: ModalUploadFormPro
         throw new Error(registration.error || 'Failed to register upload');
       }
 
-      // Step 2: Upload file to Storage using resumable upload
-      const uploadResult = uploadFileResumable(fileToProcess.file, registration.storagePath, {
-        onProgress: (progress) => {
-          setFilesToUpload(prev =>
-            prev.map(f =>
-              f.id === fileToProcess.id
-                ? {
-                    ...f,
-                    progress: Math.round(progress),
-                    lastProgressTime: new Date().toISOString(),
-                  }
-                : f
-            )
-          );
-        },
-        onPause: () => {
-          setFilesToUpload(prev =>
-            prev.map(f =>
-              f.id === fileToProcess.id ? { ...f, status: 'paused' as UploadClientStatus } : f
-            )
-          );
-        },
-        onResume: () => {
-          setFilesToUpload(prev =>
-            prev.map(f =>
-              f.id === fileToProcess.id ? { ...f, status: 'submitting' as UploadClientStatus } : f
-            )
-          );
-        },
-        onError: (error) => {
-          const retryCount = (fileToProcess.retryCount || 0) + 1;
-          if (retryCount < 8) {
-            // Retry with exponential backoff
-            const delay = getRetryDelay(retryCount - 1);
-            setTimeout(() => {
-              uploadSingleFileResumable(fileToProcess, retryCount).catch(() => {
-                setFilesToUpload(prev =>
-                  prev.map(f =>
-                    f.id === fileToProcess.id
-                      ? { ...f, status: 'error', error: `Upload failed after ${retryCount} attempts.` }
-                      : f
-                  )
-                );
-              });
-            }, delay);
-            setFilesToUpload(prev =>
-              prev.map(f =>
-                f.id === fileToProcess.id
-                  ? { ...f, status: 'retrying' as UploadClientStatus, retryCount }
-                  : f
-              )
-            );
-          } else {
+      const startResumableUpload = (uploadAttempt: number) => {
+        const uploadResult = uploadFileResumable(fileToProcess.file, registration.storagePath, {
+          onProgress: (progress) => {
             setFilesToUpload(prev =>
               prev.map(f =>
                 f.id === fileToProcess.id
                   ? {
                       ...f,
-                      status: 'error',
-                      error: `Upload failed after ${retryCount} attempts: ${error.message}`,
+                      progress: Math.round(progress),
+                      lastProgressTime: new Date().toISOString(),
                     }
                   : f
               )
             );
-          }
-        },
-        onComplete: () => {
-          setFilesToUpload(prev =>
-            prev.map(f =>
-              f.id === fileToProcess.id
-                ? {
-                    ...f,
-                    status: 'processed_by_api',
-                    progress: 100,
-                    apiResponseMessage: 'File submitted for server processing.',
-                    ingestId: registration.ingestId,
-                  }
-                : f
-            )
-          );
-        },
-      });
+          },
+          onPause: () => {
+            setFilesToUpload(prev =>
+              prev.map(f =>
+                f.id === fileToProcess.id ? { ...f, status: 'paused' as UploadClientStatus } : f
+              )
+            );
+          },
+          onResume: () => {
+            setFilesToUpload(prev =>
+              prev.map(f =>
+                f.id === fileToProcess.id ? { ...f, status: 'submitting' as UploadClientStatus } : f
+              )
+            );
+          },
+          onError: (error) => {
+            const nextAttempt = uploadAttempt + 1;
+            if (nextAttempt < 8) {
+              const delay = getRetryDelay(uploadAttempt);
+              setFilesToUpload(prev =>
+                prev.map(f =>
+                  f.id === fileToProcess.id
+                    ? {
+                        ...f,
+                        status: 'retrying' as UploadClientStatus,
+                        retryCount: nextAttempt,
+                        error: `Retrying... (attempt ${nextAttempt})`,
+                      }
+                    : f
+                )
+              );
+              setTimeout(() => startResumableUpload(nextAttempt), delay);
+            } else {
+              setFilesToUpload(prev =>
+                prev.map(f =>
+                  f.id === fileToProcess.id
+                    ? {
+                        ...f,
+                        status: 'error',
+                        error: `Upload failed after ${nextAttempt} attempts: ${error.message}`,
+                      }
+                    : f
+                )
+              );
+            }
+          },
+          onComplete: () => {
+            setFilesToUpload(prev =>
+              prev.map(f =>
+                f.id === fileToProcess.id
+                  ? {
+                      ...f,
+                      status: 'processed_by_api',
+                      progress: 100,
+                      apiResponseMessage: 'File submitted for server processing.',
+                      ingestId: registration.ingestId,
+                    }
+                  : f
+              )
+            );
+          },
+        });
 
-      // Store upload task for pause/resume
-      uploadTasksRef.current.set(fileToProcess.id, uploadResult.task);
-      setFilesToUpload(prev =>
-        prev.map(f =>
-          f.id === fileToProcess.id ? { ...f, uploadTask: uploadResult.task } : f
-        )
-      );
+        uploadTasksRef.current.set(fileToProcess.id, uploadResult.task);
+        setFilesToUpload(prev =>
+          prev.map(f =>
+            f.id === fileToProcess.id
+              ? { ...f, uploadTask: uploadResult.task, retryCount: uploadAttempt, error: undefined }
+              : f
+          )
+        );
+      };
+
+      startResumableUpload(fileToProcess.retryCount || 0);
     } catch (error: any) {
       const retryCount = (fileToProcess.retryCount || 0) + 1;
       if (retryCount < 8 && (error.message?.includes('network') || error.message?.includes('Failed to fetch'))) {

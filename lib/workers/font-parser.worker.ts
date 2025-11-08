@@ -159,7 +159,7 @@ async function parseFont(request: ParseRequest): Promise<ParseResult> {
     // Parse font with opentype.js
     let font: opentype.Font;
     try {
-      font = opentype.parse(file.buffer);
+      font = opentype.parse(file);
     } catch (parseError: any) {
       result.errors?.push(`Failed to parse font: ${parseError.message}`);
       result.success = false;

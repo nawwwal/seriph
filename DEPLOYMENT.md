@@ -30,7 +30,31 @@ cd .. && firebase deploy --only functions
 
 ### Remote Config (Required)
 
-All AI pipeline settings are controlled via Firebase Remote Config. Set these in **Firebase Console → Remote Config**:
+All AI pipeline settings are controlled via Firebase Remote Config. 
+
+**Option 1: CLI (Recommended)**
+```bash
+# First, authenticate (choose one):
+# Option A: Use gcloud (recommended)
+gcloud auth application-default login
+
+# Option B: Use Firebase CLI
+firebase login
+
+# Option C: Use service account
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+
+# Then set up all parameters at once
+node scripts/setup-remote-config.js YOUR_PROJECT_ID
+
+# Or use Firebase CLI to download/edit/publish manually
+firebase remoteconfig:get --project YOUR_PROJECT_ID > remote-config.json
+# Edit remote-config.json, then:
+firebase remoteconfig:publish --project YOUR_PROJECT_ID remote-config.json
+```
+
+**Option 2: Firebase Console**
+Set these in **Firebase Console → Remote Config**:
 
 | Parameter | Type | Default | Notes |
 |-----------|------|---------|-------|
