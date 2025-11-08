@@ -117,10 +117,8 @@ export function normalizeFamilyName(name: string): string {
     const part = parts[i].trim();
     if (!part) continue;
     
-    // Check if this is a style token
-    const isStyleToken = STYLE_TOKENS.some(token => 
-      part === token || part.startsWith(token) || part.endsWith(token)
-    );
+    // Check if this is a style token (exact match only to avoid false positives like "ultracompact")
+    const isStyleToken = STYLE_TOKENS.some(token => part === token);
     
     // Keep non-style tokens, but skip if it's at the end and matches a style token
     if (!isStyleToken || i < parts.length - 1) {
