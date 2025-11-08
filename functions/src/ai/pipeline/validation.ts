@@ -76,13 +76,14 @@ export function validateAnalysisResult(result: any): ValidationResult {
     warnings.push('style_primary missing evidence array');
   }
 
-  if (result.warnings && Array.isArray(result.warnings)) {
-    result.warnings.forEach((warning: string) => {
-      if (!WARNINGS.includes(warning)) {
-        warnings.push(`Unknown warning tag: ${warning}`);
-      }
-    });
-  }
+	if (result.warnings && Array.isArray(result.warnings)) {
+		result.warnings.forEach((warning: string) => {
+			const warningTag = warning as typeof WARNINGS[number];
+			if (!WARNINGS.includes(warningTag)) {
+				warnings.push(`Unknown warning tag: ${warning}`);
+			}
+		});
+	}
 
   const isValid = errors.length === 0;
   return { isValid, errors, warnings };

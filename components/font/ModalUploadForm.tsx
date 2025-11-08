@@ -411,30 +411,34 @@ export default function ModalUploadForm({ onUploadComplete }: ModalUploadFormPro
         );
       };
 
-      startResumableUpload(fileToProcess.retryCount || 0);
+      startResumableUpload(0);
     } catch (error: any) {
-      const retryCount = (fileToProcess.retryCount || 0) + 1;
-      if (retryCount < 8 && (error.message?.includes('network') || error.message?.includes('Failed to fetch'))) {
-        // Retry on network errors
-        const delay = getRetryDelay(retryCount - 1);
+      const nextRegisterAttempt = retryAttempt + 1;
+      if (nextRegisterAttempt < 4 && (error.message?.includes('network') || error.message?.includes('Failed to fetch'))) {
+        const delay = getRetryDelay(nextRegisterAttempt - 1);
+        setFilesToUpload(prev =>
+          prev.map(f =>
+            f.id === fileToProcess.id
+              ? {
+                  ...f,
+                  status: 'retrying' as UploadClientStatus,
+                  retryCount: nextRegisterAttempt,
+                  error: `Retrying register... (attempt ${nextRegisterAttempt})`,
+                }
+              : f
+          )
+        );
         setTimeout(() => {
-          uploadSingleFileResumable(fileToProcess, retryCount).catch(() => {
+          uploadSingleFileResumable(fileToProcess, nextRegisterAttempt).catch(() => {
             setFilesToUpload(prev =>
               prev.map(f =>
                 f.id === fileToProcess.id
-                  ? { ...f, status: 'error', error: `Upload failed after ${retryCount} attempts.` }
+                  ? { ...f, status: 'error', error: `Upload failed after ${nextRegisterAttempt} attempts.` }
                   : f
               )
             );
           });
         }, delay);
-        setFilesToUpload(prev =>
-          prev.map(f =>
-            f.id === fileToProcess.id
-              ? { ...f, status: 'retrying' as UploadClientStatus, retryCount, error: `Retrying... (attempt ${retryCount})` }
-              : f
-          )
-        );
       } else {
         setFilesToUpload(prev =>
           prev.map(f =>
