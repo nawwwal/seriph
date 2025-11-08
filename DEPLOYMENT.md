@@ -103,7 +103,10 @@ GOOGLE_APPLICATION_CREDENTIALS="/absolute/path/to/your-service-account.json"
 # ============================================
 # VERTEX AI CONFIGURATION (Optional - Have Defaults)
 # ============================================
-GOOGLE_CLOUD_PROJECT="your-project-id"
+# CRITICAL: DO NOT include GOOGLE_CLOUD_PROJECT here!
+# Firebase automatically sets GOOGLE_CLOUD_PROJECT during deployment
+# Including it will cause: "Error Key GOOGLE_CLOUD_PROJECT is reserved for internal use"
+# The code uses process.env.GOOGLE_CLOUD_PROJECT || 'seriph' as fallback
 GOOGLE_CLOUD_LOCATION="us-central1"
 
 # ============================================
@@ -150,15 +153,18 @@ NEXT_PUBLIC_ENABLE_REACT_GRAB
 Set these in **Firebase Console → Functions → Configuration → Environment Variables**:
 
 ```bash
+# CRITICAL: DO NOT set GOOGLE_CLOUD_PROJECT here!
+# Firebase automatically sets GOOGLE_CLOUD_PROJECT based on the project being deployed to
+# Setting it manually will cause: "Error Key GOOGLE_CLOUD_PROJECT is reserved for internal use"
+
 # Optional (have defaults, but recommended to set explicitly)
-GOOGLE_CLOUD_PROJECT="your-project-id"  # Auto-detected, but can override
 GOOGLE_CLOUD_LOCATION="us-central1"     # Defaults to 'us-central1'
 GEMINI_WEB_SEARCH_ENABLED="true"        # Defaults to false
 GEMINI_FALLBACK_MODEL="gemini-2.5-pro"  # Has default
 MAX_CONCURRENT_AI_OPS="5"               # Defaults to 5
 ```
 
-**Important:** Cloud Functions automatically get `GOOGLE_CLOUD_PROJECT` from the Firebase project, but you can override it if needed.
+**Important:** Cloud Functions automatically get `GOOGLE_CLOUD_PROJECT` from the Firebase project. **Do NOT set it manually** - it will cause deployment errors.
 
 **Setting via Firebase CLI:**
 
@@ -181,7 +187,7 @@ firebase functions:config:set \
 - ❌ `IS_VERTEX_ENABLED` - Vertex AI is always enabled (hardcoded)
 - ❌ `VERTEX_MODEL_NAME` - Model name is hardcoded in code (`gemini-2.5-flash`)
 - ❌ `VERTEX_LOCATION` - Use `GOOGLE_CLOUD_LOCATION` instead
-- ❌ `GOOGLE_CLOUD_PROJECT_ID` - Wrong name, use `GOOGLE_CLOUD_PROJECT`
+- ❌ `GOOGLE_CLOUD_PROJECT_ID` - Wrong name, and `GOOGLE_CLOUD_PROJECT` is automatically set by Firebase (don't set manually)
 - ❌ `FIREBASE_PROJECT_ID` - Not used (you have `NEXT_PUBLIC_FIREBASE_PROJECT_ID`)
 
 ## Step 3: Configure IAM Permissions
@@ -307,6 +313,17 @@ rm -rf lib node_modules
 npm install
 npm run build
 ```
+
+### Deployment Errors
+
+1. **"Error Key GOOGLE_CLOUD_PROJECT is reserved for internal use":**
+   - **Cause:** `GOOGLE_CLOUD_PROJECT` is set in `.env.<project-id>` file or via Firebase Console
+   - **Fix:** Remove `GOOGLE_CLOUD_PROJECT` from:
+     - `functions/.env.local`
+     - `functions/.env.<project-id>` (e.g., `functions/.env.seriph`)
+     - Firebase Console → Functions → Configuration → Environment Variables
+   - **Why:** Firebase automatically sets `GOOGLE_CLOUD_PROJECT` based on the project being deployed to
+   - **Note:** The code uses `process.env.GOOGLE_CLOUD_PROJECT || 'seriph'` as a fallback, so it will work without explicit setting
 
 ### Runtime Errors
 
