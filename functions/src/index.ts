@@ -267,7 +267,6 @@ async function updateIngestAnalysisState(
 
 export const processUploadedFontStorage = onObjectFinalized(
   {
-    bucket: admin.storage().bucket().name, // Uses the default bucket associated with the Firebase project
     region: "asia-southeast1", // Align with Vertex regional choice
     memory: "1GiB",        // Specify memory allocation
     timeoutSeconds: 540,   // Specify timeout

@@ -8,8 +8,6 @@ import { generateStrictJSON, isVertexEnabled } from '../vertex/vertexClient';
 import { getConfidenceBandThresholds } from '../../config/remoteConfig';
 import { STYLE_PRIMARY, SUBSTYLE, MOODS, USE_CASES } from '../../models/contracts';
 
-const WEB_SEARCH_ENABLED = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, false);
-
 // Schema for enriched analysis (includes web-sourced fields)
 const enrichedAnalysisSchema = {
     type: 'object',
@@ -113,6 +111,7 @@ export async function performEnrichedAnalysis(
         functions.logger.info(`Vertex AI disabled via RC. Skipping enriched analysis.`);
         return null;
     }
+    const WEB_SEARCH_ENABLED = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, false);
     const familyName = parsedData.familyName || 'Unknown Family';
     const modelNameKey = useFallback ? RC_KEYS.enrichedAnalysisFallbackModelName : RC_KEYS.enrichedAnalysisModelName;
     functions.logger.info(`Starting enriched analysis for: ${familyName} (${useFallback ? 'fallback' : 'primary'})${WEB_SEARCH_ENABLED ? ' with web search' : ''}`);
