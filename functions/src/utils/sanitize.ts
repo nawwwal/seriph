@@ -16,4 +16,3 @@ export function deepStripUndefined<T>(value: T): T {
 	return output as T;
 }
 
-
