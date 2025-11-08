@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions';
 import * as admin from 'firebase-admin';
+import { RC_KEYS, RC_DEFAULTS } from './rcKeys';
 
 // Template cache with TTL
 interface TemplateCache {
@@ -193,4 +194,31 @@ export function isRemoteConfigAvailable(): boolean {
     }
     const age = Date.now() - templateCache.fetchedAt;
     return age < TEMPLATE_TTL_MS;
+}
+
+// ---- Helpers for parsing CSV numeric threshold lists ----
+function parseCsvNumbers(raw: string, fallback: number[]): number[] {
+	const parts = (raw || "").split(",").map((s) => Number(s.trim())).filter((n) => Number.isFinite(n));
+	if (parts.length !== fallback.length) return fallback;
+	return parts as number[];
+}
+
+/**
+ * Returns confidence band thresholds [low, high, veryHigh] for mapping 0..1 values.
+ * Values <= low => 'low', <= high => 'medium', <= veryHigh => 'high', else 'very_high'.
+ */
+export function getConfidenceBandThresholds(): [number, number, number] {
+	const raw = getConfigValue(RC_KEYS.confidenceBandThresholds, RC_DEFAULTS[RC_KEYS.confidenceBandThresholds]);
+	const [low, high, veryHigh] = parseCsvNumbers(raw, [0.2, 0.6, 0.85]);
+	return [low, high, veryHigh];
+}
+
+/**
+ * Returns optical range point thresholds [textMin, subheadMin, displayMin].
+ * caption: < textMin; text: < subheadMin; subhead: < displayMin; else display.
+ */
+export function getOpticalRangePtThresholds(): [number, number, number] {
+	const raw = getConfigValue(RC_KEYS.opticalRangePtThresholds, RC_DEFAULTS[RC_KEYS.opticalRangePtThresholds]);
+	const [textMin, subheadMin, displayMin] = parseCsvNumbers(raw, [9, 18, 36]);
+	return [textMin, subheadMin, displayMin];
 }

@@ -5,6 +5,9 @@ export const RC_KEYS = {
 	aiCacheEnabled: "ai_cache_enabled",
 	aiCountTokensEnabled: "ai_count_tokens_enabled",
 	vertexLocationId: "vertex_location_id",
+	// Thresholds and derivations
+	confidenceBandThresholds: "ai_confidence_band_thresholds", // CSV "0.2,0.6,0.85"
+	opticalRangePtThresholds: "optical_range_pt_thresholds", // CSV "9,18,36"
 	// Per-stage model names
 	classifierModelName: "classifier_model_name",
 	summaryModelName: "summary_model_name",
@@ -34,6 +37,8 @@ export const RC_DEFAULTS = {
 	[RC_KEYS.aiCacheEnabled]: "true",
 	[RC_KEYS.aiCountTokensEnabled]: "false",
 	[RC_KEYS.vertexLocationId]: "asia-southeast1",
+	[RC_KEYS.confidenceBandThresholds]: "0.2,0.6,0.85",
+	[RC_KEYS.opticalRangePtThresholds]: "9,18,36",
 	[RC_KEYS.classifierModelName]: "gemini-2.5-flash",
 	[RC_KEYS.summaryModelName]: "gemini-2.5-flash",
 	[RC_KEYS.visualAnalysisModelName]: "gemini-2.5-flash",

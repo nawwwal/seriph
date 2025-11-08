@@ -1,22 +1,8 @@
 import * as functions from 'firebase-functions';
-import { VertexAI } from '@google-cloud/vertexai';
 import type { DataProvenance } from '../../models/font.models';
-import { getConfigValue } from '../../config/remoteConfig';
-
-const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || 'seriph';
-const LOCATION_ID = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
-
-const vertexAI = new VertexAI({
-    project: PROJECT_ID,
-    location: LOCATION_ID,
-});
-
-const getGenerativeModel = () => {
-    const modelName = getConfigValue('web_enricher_model_name', 'gemini-2.5-flash');
-    return vertexAI.getGenerativeModel({
-        model: modelName,
-    });
-};
+import { generateStrictJSON } from '../vertex/vertexClient';
+import { RC_KEYS } from '../../config/rcKeys';
+import type { ProvenanceInfo, LicenseFlag, ProvenanceSourceType, DistributionChannel, FoundryType } from '../../models/contracts';
 
 export interface WebEnrichmentResult {
     foundry?: {
@@ -99,24 +85,18 @@ Provide a structured JSON response with the following schema:
 }
 `;
 
-    try {
-        const generativeModel = getGenerativeModel();
-        const result = await generativeModel.generateContent({
-            contents: [{ role: 'user', parts: [{ text: searchPrompt }] }],
-            generationConfig: {
-                maxOutputTokens: 2048,
-                temperature: 0.3, // Lower temperature for factual information
-                responseMimeType: "application/json",
-            },
-        });
-
-        const response = result.response;
-        if (response?.candidates?.[0]?.content?.parts?.[0]?.text) {
-            const jsonString = response.candidates[0].content.parts[0].text.trim();
-            const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
-            return JSON.parse(cleanedJsonString);
-        }
-        return null;
+	try {
+		const { data, rawText } = await generateStrictJSON<any>({
+			modelKey: RC_KEYS.webEnricherModelName,
+			promptParts: [searchPrompt],
+			opName: 'webEnricher',
+			tools: [{ googleSearchRetrieval: {} as any }],
+		});
+		if (!data) {
+			functions.logger.warn(`Web search returned no JSON for ${familyName}; raw=${rawText ? rawText.slice(0, 120) : 'null'}`);
+			return null;
+		}
+		return data;
     } catch (error: any) {
         functions.logger.error(`Web search error for ${familyName}:`, {
             message: error.message,
@@ -194,6 +174,40 @@ function reconcileData(extracted: any, web: Partial<WebEnrichmentResult>): Parti
     return reconciled;
 }
 
+function deriveProvenance(reconciled: Partial<WebEnrichmentResult>): Partial<ProvenanceInfo> & { license_flags?: LicenseFlag[] } {
+	const out: Partial<ProvenanceInfo> & { license_flags?: LicenseFlag[] } = {};
+	// source_type heuristic
+	const url = reconciled.foundry?.url || reconciled.designer?.url || reconciled.historical_context?.source_url || reconciled.license?.url || '';
+	const u = url.toLowerCase();
+	let sourceType: ProvenanceSourceType = "unknown";
+	if (u.includes('fonts.google.com')) sourceType = "gf";
+	else if (u.includes('github.com')) sourceType = "repo";
+	else if (u.includes('/docs') || u.includes('wikipedia.org')) sourceType = "docs";
+	else if (u) sourceType = "foundry_site";
+	out.source_type = sourceType;
+	// foundry_type heuristic
+	let fType: FoundryType = "unknown";
+	if (u.includes('github.com') || u.includes('gitlab.com')) fType = "open_source";
+	else if (u.includes('adobe.com') || u.includes('google.com') || u.includes('microsoft.com')) fType = "corp";
+	out.foundry_type = fType;
+	// distribution_channel heuristic
+	let channel: DistributionChannel = "other";
+	if (u.includes('github.com')) channel = "github";
+	else if (u.includes('fonts.google.com')) channel = "marketplace";
+	else if (u.includes('npmjs.com') || u.includes('pypi.org')) channel = "package_manager";
+	else if (sourceType === 'foundry_site') channel = "foundry";
+	out.distribution_channel = channel;
+	// license flags
+	const flags: LicenseFlag[] = [];
+	const licenseType = reconciled.license?.type || '';
+	if (licenseType.toUpperCase().includes('OFL')) flags.push('open_source');
+	if (reconciled.license?.url) flags.push('web_embedded');
+	out.license_flags = flags;
+	// source rank (simple)
+	out.source_rank = u ? (u.includes('fonts.google.com') ? 0.9 : u.includes('github.com') ? 0.8 : 0.6) : 0.5;
+	return out;
+}
+
 /**
  * Main web enrichment function
  * Searches for missing metadata and enriches the font data
@@ -228,7 +242,9 @@ export async function enrichFontFromWeb(
             return null;
         }
 
-        const reconciled = reconcileData(parsedData, webData);
+		const reconciled = reconcileData(parsedData, webData);
+		const prov = deriveProvenance(reconciled);
+		(reconciled as any)._provenance_info = prov;
 
         functions.logger.info(`Web enrichment completed for ${familyName}`);
         return reconciled;

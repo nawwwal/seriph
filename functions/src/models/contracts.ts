@@ -4,6 +4,7 @@
 export const TAXONOMY_VERSION = "1.0.0";
 
 // ---- Enumerations (frozen) ----
+// Primary and core enums (previously shipped)
 export const STYLE_PRIMARY = [
 	"serif",
 	"sans",
@@ -200,6 +201,186 @@ export type AnalysisState = (typeof ANALYSIS_STATE)[number];
 // Examples: "metrics.contrast_index", "metrics.x_height_ratio", "shaping.Devanagari.pass", "features.liga"
 export type EvidenceKey = string;
 
+// ---- New v1 Enumerations (optional fields default to "unknown") ----
+export const SERIF_PRESENCE = ["none", "partial", "full", "unknown"] as const;
+export type SerifPresence = (typeof SERIF_PRESENCE)[number];
+
+export const AXIS_ROLE = [
+	"weight",
+	"width",
+	"optical_size",
+	"italic",
+	"slant",
+	"grade",
+	"custom",
+	"unknown",
+] as const;
+export type AxisRole = (typeof AXIS_ROLE)[number];
+
+export const COLOR_FONT_FORMAT = [
+	"COLRv0",
+	"COLRv1",
+	"CBDT",
+	"SBIX",
+	"SVG",
+	"unknown",
+] as const;
+export type ColorFontFormat = (typeof COLOR_FONT_FORMAT)[number];
+
+export const RENDERING_ENGINE_PROFILE = [
+	"ttf_hinting",
+	"cff1",
+	"cff2",
+	"var_gx",
+	"var_cff2",
+	"bitmap",
+	"svg",
+	"sbix",
+	"colrv0",
+	"colrv1",
+	"unknown",
+] as const;
+export type RenderingEngineProfile = (typeof RENDERING_ENGINE_PROFILE)[number];
+
+export const CONFIDENCE_BAND = ["low", "medium", "high", "very_high", "unknown"] as const;
+export type ConfidenceBand = (typeof CONFIDENCE_BAND)[number];
+
+export interface ConfidenceInfo {
+	value?: number; // 0..1
+	band: ConfidenceBand; // derived via RC thresholds
+}
+
+export const VOX_ATYPI_CLASS = [
+	"humanist",
+	"garalde",
+	"transitional",
+	"didone",
+	"mechanistic",
+	"lineal_humanist",
+	"lineal_grotesque",
+	"lineal_neo_grotesque",
+	"lineal_geometric",
+	"glyphic",
+	"scripts",
+	"blackletter",
+	"decorative",
+	"unknown",
+] as const;
+export type VoxATypiClass = (typeof VOX_ATYPI_CLASS)[number];
+
+// In v1, historical_model aliases vox_atypi_class to avoid taxonomy drift
+export const HISTORICAL_MODEL = [...VOX_ATYPI_CLASS] as const;
+export type HistoricalModel = (typeof HISTORICAL_MODEL)[number];
+
+export const HISTORICAL_ERA = [
+	"renaissance",
+	"baroque",
+	"enlightenment",
+	"victorian",
+	"modernist",
+	"digital",
+	"postmodern",
+	"contemporary",
+	"unknown",
+] as const;
+export type HistoricalEra = (typeof HISTORICAL_ERA)[number];
+
+export const PROVENANCE_SOURCE_TYPE = [
+	"foundry_site",
+	"retailer",
+	"repo",
+	"docs",
+	"gf",
+	"other",
+	"unknown",
+] as const;
+export type ProvenanceSourceType = (typeof PROVENANCE_SOURCE_TYPE)[number];
+
+export const FOUNDRY_TYPE = [
+	"independent",
+	"corp",
+	"collective",
+	"open_source",
+	"unknown",
+] as const;
+export type FoundryType = (typeof FOUNDRY_TYPE)[number];
+
+export const DISTRIBUTION_CHANNEL = [
+	"foundry",
+	"marketplace",
+	"github",
+	"package_manager",
+	"system",
+	"other",
+	"unknown",
+] as const;
+export type DistributionChannel = (typeof DISTRIBUTION_CHANNEL)[number];
+
+export const EMBEDDING_TYPE = ["text", "vision", "multimodal_fusion", "unknown"] as const;
+export type EmbeddingType = (typeof EMBEDDING_TYPE)[number];
+
+export const PAIRING_TYPE = ["contrast", "complement", "harmonic", "genre_mix", "unknown"] as const;
+export type PairingType = (typeof PAIRING_TYPE)[number];
+
+export const NORMALIZATION_CHANGE_REASON = [
+	"naming_canonicalization",
+	"weight_normalization",
+	"axis_alias",
+	"metadata_fix",
+	"duplicate_merge",
+	"license_correction",
+] as const;
+export type NormalizationChangeReason = (typeof NORMALIZATION_CHANGE_REASON)[number];
+
+export const UPLOAD_STATE = [
+	"queued",
+	"parsing",
+	"parsed",
+	"ai_classifying",
+	"ai_retrying",
+	"web_enriching",
+	"enriched",
+	"indexed",
+	"quarantined",
+	"failed",
+	"completed",
+] as const;
+export type UploadState = (typeof UPLOAD_STATE)[number];
+
+export const JOB_OUTCOME = ["success", "partial", "failed", "skipped_duplicate"] as const;
+export type JobOutcome = (typeof JOB_OUTCOME)[number];
+
+export const DUPLICATE_RESOLUTION = [
+	"hash_dedupe",
+	"name_version_conflict",
+	"foundry_alias",
+	"manual_override",
+] as const;
+export type DuplicateResolution = (typeof DUPLICATE_RESOLUTION)[number];
+
+export const SIMILARITY_METHOD = [
+	"vision_embedding_cosine",
+	"semantic_embedding_cosine",
+	"hybrid_ranker",
+	"manual_curation",
+] as const;
+export type SimilarityMethod = (typeof SIMILARITY_METHOD)[number];
+
+// License policy flags are free-form labels in v1
+export type LicenseFlag =
+	| "web_embedded"
+	| "desktop"
+	| "app_embed"
+	| "open_source"
+	| "requires_attribution"
+	| "redistribution_restricted"
+	| "seat_based"
+	| "pageview_based"
+	| "trial_only";
+
+// Feature tags are OpenType feature tags (registered) or custom prefixed 'cust_'
+export type FeatureTag = string; // e.g., 'liga', 'kern', 'ss01', 'cust_alt'
+
 // ---- AI Output Contracts ----
 export interface ClassificationItem {
 	value: string;
@@ -216,6 +397,9 @@ export interface VisualClassification {
 	warnings?: WarningTag[];
 	serif_type?: ClassificationItem & { value: SerifType };
 	script_primary?: ClassificationItem & { value: ScriptTag };
+	vox_atypi_class?: ClassificationItem & { value: VoxATypiClass };
+	historical_model?: ClassificationItem & { value: HistoricalModel }; // alias v1
+	historical_era?: ClassificationItem & { value: HistoricalEra };
 }
 
 export interface SummaryOutput {
@@ -229,6 +413,8 @@ export interface AIOutputEnvelope {
 	prompt_version: string;
 	classification?: VisualClassification;
 	summary?: SummaryOutput;
+	// Overall classification confidence (optional)
+	confidence?: ConfidenceInfo;
 }
 
 // ---- Minimal JSON Schemas (for function calling / validation) ----
@@ -294,6 +480,30 @@ export const ClassificationSchema = {
 				evidence_keys: { type: "array", items: { type: "string" } },
 			},
 		},
+		vox_atypi_class: {
+			type: "object",
+			properties: {
+				value: { type: "string", enum: [...VOX_ATYPI_CLASS] },
+				confidence: { type: "number", minimum: 0, maximum: 1 },
+				evidence_keys: { type: "array", items: { type: "string" } },
+			},
+		},
+		historical_model: {
+			type: "object",
+			properties: {
+				value: { type: "string", enum: [...HISTORICAL_MODEL] },
+				confidence: { type: "number", minimum: 0, maximum: 1 },
+				evidence_keys: { type: "array", items: { type: "string" } },
+			},
+		},
+		historical_era: {
+			type: "object",
+			properties: {
+				value: { type: "string", enum: [...HISTORICAL_ERA] },
+				confidence: { type: "number", minimum: 0, maximum: 1 },
+				evidence_keys: { type: "array", items: { type: "string" } },
+			},
+		},
 	},
 	required: ["style_primary"],
 } as const;
@@ -306,5 +516,48 @@ export const SummarySchema = {
 	},
 	required: ["description"],
 } as const;
+
+// ---- Foundational (Stage‑1) outputs & provenance (Stage‑4) ----
+export interface OpticalRangeInfo {
+	numeric?: {
+		minPt?: number;
+		maxPt?: number;
+	};
+	bucket: "caption" | "text" | "subhead" | "display" | "unknown";
+}
+
+export interface FoundationalFacts {
+	feature_tags?: FeatureTag[]; // OT tags uppercase (or 'cust_*'); deduped & sorted
+	serif_presence?: SerifPresence; // CV detection; default 'unknown'
+	axis_roles?: Record<string, AxisRole>; // axis tag -> role
+	color_font_format?: ColorFontFormat;
+	rendering_engine_profile?: RenderingEngineProfile;
+	optical_range?: OpticalRangeInfo; // numeric + derived bucket
+}
+
+export interface ProvenanceInfo {
+	source_type?: ProvenanceSourceType; // domain classification
+	foundry_type?: FoundryType;
+	distribution_channel?: DistributionChannel;
+	license_type?: LicenseType;
+	license_flags?: LicenseFlag[];
+	source_rank?: number; // 0..1
+}
+
+export interface OrchestrationState {
+	upload_state?: UploadState;
+	job_outcome?: JobOutcome;
+	duplicate_resolution?: DuplicateResolution;
+	normalization_change_reason?: NormalizationChangeReason;
+}
+
+// Convenience guard helpers (lightweight; not exhaustive schema validation)
+export function clamp01(value: number | undefined): number | undefined {
+	if (value == null) return undefined;
+	if (Number.isNaN(value)) return undefined;
+	if (value < 0) return 0;
+	if (value > 1) return 1;
+	return value;
+}
 
 

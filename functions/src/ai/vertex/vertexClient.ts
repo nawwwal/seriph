@@ -2,6 +2,7 @@ import { VertexAI, HarmCategory, HarmBlockThreshold } from '@google-cloud/vertex
 import * as functions from 'firebase-functions';
 import { getConfigBoolean, getConfigNumber, getConfigValue } from '../../config/remoteConfig';
 import { RC_KEYS, RC_DEFAULTS } from '../../config/rcKeys';
+import { withRetry } from '../utils/retry';
 
 let vertexClient: VertexAI | null = null;
 
@@ -60,6 +61,39 @@ export function logUsageMetadata(prefix: string, response: any) {
 		}
 	} catch {
 		// noop
+	}
+}
+
+/**
+ * Generate strict JSON with retries and built-in parsing.
+ * Returns { data, rawResponseText }.
+ */
+export async function generateStrictJSON<T = any>(opts: {
+	modelKey: string;
+	promptParts: string[];
+	opName: string;
+	tools?: any[];
+}): Promise<{ data: T | null; rawText: string | null; response: any | null }> {
+	const { modelKey, promptParts, opName, tools } = opts;
+	const model = getGenerativeModelFromRC(modelKey, "application/json");
+	const payload = {
+		contents: [{ role: 'user', parts: promptParts.map((text) => ({ text })) }],
+		...(Array.isArray(tools) && tools.length > 0 ? { tools } : {}),
+	};
+	const result = await withRetry(opName, async () => {
+		return await model.generateContent(payload as any);
+	});
+	const response = (result as any)?.response;
+	logUsageMetadata(opName, response);
+	const text = response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim?.() || null;
+	if (!text) return { data: null, rawText: null, response };
+	try {
+		const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
+		const json = JSON.parse(cleaned);
+		return { data: json as T, rawText: text, response };
+	} catch (e: any) {
+		functions.logger.warn(`${opName} returned non-JSON or malformed JSON`);
+		return { data: null, rawText: text, response };
 	}
 }
 

@@ -11,7 +11,6 @@ import { getFirestore } from "firebase-admin/firestore";
 // Helper imports (ensure these paths are correct based on your structure within functions/src)
 import { serverParseFontFile } from "./parser/fontParser";
 import { serverAddFontToFamilyAdmin } from "./db/firestoreUtils.admin";
-import { getFontAnalysisVertexAI } from "./ai/vertexAIHelper";
 import { runFontPipeline } from "./ai/pipeline/fontPipeline";
 import { withRateLimit } from "./utils/rateLimiter";
 import { initializeRemoteConfig, getConfigValue, getConfigBoolean } from "./config/remoteConfig";
@@ -191,28 +190,13 @@ export const processUploadedFontStorage = onObjectFinalized(
             logger.info(`[${actualFileName}] Enhanced AI pipeline completed successfully. Confidence: ${pipelineResult.confidence.toFixed(2)}`);
           }
         } else {
-          logger.warn(`[${actualFileName}] Enhanced AI pipeline failed or returned invalid results. Falling back to legacy analysis.`);
-          // Fallback to legacy analysis
-          aiAnalysisResult = await withRateLimit(
-            () => getFontAnalysisVertexAI(parsedFontData),
-            `Legacy AI analysis for ${actualFileName}`
-          );
+          logger.warn(`[${actualFileName}] Enhanced AI pipeline failed or returned invalid results.`);
         }
       } catch (pipelineError: any) {
         logger.error(`[${actualFileName}] Enhanced pipeline error:`, pipelineError);
         // Update to error state
         await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error' as any, pipelineError.message);
-        // Fallback to legacy analysis
-        logger.info(`[${actualFileName}] Falling back to legacy AI analysis.`);
-        try {
-          aiAnalysisResult = await withRateLimit(
-            () => getFontAnalysisVertexAI(parsedFontData),
-            `Legacy AI analysis for ${actualFileName}`
-          );
-        } catch (legacyError: any) {
-          logger.error(`[${actualFileName}] Legacy analysis also failed:`, legacyError);
-          await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error' as any, legacyError.message);
-        }
+        await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error' as any, pipelineError.message);
       }
 
       if (!aiAnalysisResult) {

@@ -11,6 +11,8 @@ CRITICAL RULES:
 3. You MUST provide confidence scores (0.0-1.0) for each classification
 4. You MUST NOT invent characteristics not supported by the provided metrics
 5. If metrics are missing, use lower confidence scores
+6. When uncertain, output the literal value "unknown" for that field
+7. Output must be strict JSON only; no markdown fences
 
 Your output must be valid JSON matching the provided schema exactly.`;
 
@@ -23,6 +25,8 @@ CRITICAL RULES:
 4. If web search doesn't find relevant information, proceed with inference based on visual characteristics
 5. Always reference measured metrics in your evidence arrays
 6. Use only the provided controlled vocabulary
+7. When uncertain, output the literal value "unknown" for that field
+8. Output must be strict JSON only; no markdown fences
 
 Your output must be valid JSON matching the provided schema exactly.`;
 

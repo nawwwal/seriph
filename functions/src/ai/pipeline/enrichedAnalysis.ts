@@ -4,11 +4,10 @@ import { buildEnrichedAnalysisPrompt } from '../prompts/promptTemplates';
 import { validateAnalysisResult } from './validation';
 import { getConfigValue, getConfigBoolean } from '../../config/remoteConfig';
 import { RC_KEYS, RC_DEFAULTS } from '../../config/rcKeys';
-import { getGenerativeModelFromRC, isVertexEnabled, logUsageMetadata } from '../vertex/vertexClient';
+import { generateStrictJSON, isVertexEnabled } from '../vertex/vertexClient';
+import { getConfidenceBandThresholds } from '../../config/remoteConfig';
 
 const WEB_SEARCH_ENABLED = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, RC_DEFAULTS[RC_KEYS.webEnrichmentEnabled] === 'true');
-
-const getGenerativeModel = (modelNameKey: string) => getGenerativeModelFromRC(modelNameKey);
 
 // Schema for enriched analysis (includes web-sourced fields)
 const enrichedAnalysisSchema = {
@@ -130,44 +129,17 @@ export async function performEnrichedAnalysis(
     ];
 
     try {
-        // Enable web search via tools if available
-        const generativeModel = getGenerativeModel(modelNameKey);
-
-        const result = await generativeModel.generateContent({
-            contents: [{ role: 'user', parts: promptParts.map(text => ({ text })) }],
-            // Enable Google Search grounding when allowed (optional; default off)
-            ...(WEB_SEARCH_ENABLED ? { tools: [{ googleSearchRetrieval: {} as any }] } : {}),
-        });
-        logUsageMetadata('enrichedAnalysis', result?.response);
-
-        const response = result.response;
-        if (!response || !response.candidates || response.candidates.length === 0) {
-            functions.logger.warn(`Enriched analysis for ${familyName} returned no candidates.`);
-            return null;
-        }
-
-        const candidate = response.candidates[0];
-        if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'MAX_TOKENS') {
-            functions.logger.warn(`Enriched analysis for ${familyName} finished with reason: ${candidate.finishReason}`);
-            if (candidate.finishReason === 'SAFETY') return null;
-        }
-
-        if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0 || !candidate.content.parts[0].text) {
-            functions.logger.warn(`Enriched analysis for ${familyName} has no text part.`);
-            return null;
-        }
-
-        const jsonString = candidate.content.parts[0].text.trim();
-        let jsonData: any;
-        try {
-            // With responseMimeType: "application/json", the response should be valid JSON
-            // Still clean markdown code blocks if present (for backward compatibility)
-            const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
-            jsonData = JSON.parse(cleanedJsonString);
-        } catch (e: any) {
-            functions.logger.error(`Failed to parse JSON from enriched analysis for ${familyName}. Error: ${e.message}`, { jsonString });
-            return null;
-        }
+		const tools = WEB_SEARCH_ENABLED ? [{ googleSearchRetrieval: {} as any }] : undefined;
+		const { data: jsonData, rawText } = await generateStrictJSON<any>({
+			modelKey: modelNameKey,
+			promptParts,
+			opName: 'enrichedAnalysis',
+			tools,
+		});
+		if (!jsonData) {
+			functions.logger.warn(`Enriched analysis for ${familyName} returned no JSON; raw=${rawText ? rawText.slice(0, 120) : 'null'}`);
+			return null;
+		}
 
         // Validate result
         const validation = validateAnalysisResult(jsonData);
@@ -185,6 +157,20 @@ export async function performEnrichedAnalysis(
         if (validation.warnings.length > 0) {
             functions.logger.info(`Enriched analysis warnings for ${familyName}:`, validation.warnings);
         }
+
+		// Overall confidence + band derived from style_primary when present
+		const c = Number(jsonData?.style_primary?.confidence);
+		if (Number.isFinite(c)) {
+			const [low, high, veryHigh] = getConfidenceBandThresholds();
+			let band: 'low' | 'medium' | 'high' | 'very_high';
+			if (c <= low) band = 'low';
+			else if (c <= high) band = 'medium';
+			else if (c <= veryHigh) band = 'high';
+			else band = 'very_high';
+			jsonData._confidence = { value: c, band };
+		} else {
+			jsonData._confidence = { band: 'unknown' };
+		}
 
         functions.logger.info(`Enriched analysis completed for ${familyName}.`);
         return jsonData;
