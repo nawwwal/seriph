@@ -60,6 +60,7 @@ Set these in **Firebase Console → Remote Config**:
 |-----------|------|---------|-------|
 | `is_vertex_enabled` | Boolean | `false` | Kill switch; set `true` in staging, `false` in prod until launch |
 | `web_enrichment_enabled` | Boolean | `false` | Enable Google Search grounding |
+| `web_enrichment_cache_ttl_days` | Number | `30` | Cache TTL for web enrichment results (Firestore `_web_enrichment_cache`) |
 | `vertex_location_id` | String | `asia-southeast1` | Vertex AI region |
 | `visual_analysis_model_name` | String | `gemini-2.5-flash` | Stage 1 model |
 | `enriched_analysis_model_name` | String | `gemini-2.5-flash` | Stage 2 model |
@@ -79,6 +80,7 @@ Set these in **Firebase Console → Remote Config**:
 | `unprocessed_bucket_path` | String | `unprocessed_fonts` | Storage path for uploads |
 | `processed_bucket_path` | String | `processed_fonts` | Storage path for processed fonts |
 | `failed_bucket_path` | String | `failed_processing` | Storage path for failures |
+| `ai_count_tokens_enabled` | Boolean | `false` | Log token usage metadata (use in staging only) |
 
 **Note:** Changes to Remote Config take effect immediately (no redeploy needed).
 
@@ -173,6 +175,13 @@ firebase emulators:start --only functions,firestore,storage
 # Check logs and Firestore metrics_ai/{processingId} for timings
 ```
 
+### Run Tests
+
+```bash
+cd functions
+npm test  # runs Vitest suite (parser, validation, taxonomies, integration)
+```
+
 ---
 
 ## Deploy
@@ -189,6 +198,41 @@ firebase deploy --only functions
 ```bash
 firebase functions:log --only processUploadedFontStorage
 ```
+
+### Test/Utility HTTP Functions
+
+These are intended for staging and admin-only usage.
+
+- `testFontPipeline` (POST): Run the AI pipeline on an ad-hoc font payload.
+
+Request body:
+```json
+{
+  "base64": "AA...==",
+  "filename": "MyFont.ttf"
+}
+```
+or
+```json
+{
+  "url": "https://example.com/path/to/font.ttf",
+  "filename": "font.ttf"
+}
+```
+
+- `batchReprocessFonts` (POST): Re-run pipeline for existing families.
+
+Request body:
+```json
+{
+  "ownerId": "user_uid",          // optional
+  "familyIds": ["family-id-1"],   // optional
+  "limit": 10,                    // optional, default 10, max 50
+  "force": false                  // optional
+}
+```
+
+Secure access via IAM and keep enabled only in staging environments.
 
 ---
 
@@ -233,6 +277,7 @@ firebase functions:log --only processUploadedFontStorage
 **Check metrics:**
 - Firestore: `metrics_ai/{processingId}` (per-run timings, token usage)
 - Firestore: `_rateLimits/global` (concurrency tracking)
+- Firestore: `_web_enrichment_cache/{fingerprint}` (web enrichment cache with TTL)
 
 **Cost monitoring:**
 - Google Cloud Console → Billing → Set budget alerts for Vertex AI
@@ -296,3 +341,13 @@ Use Firebase Remote Config conditions to enable the AI pipeline for a subset of 
 - **Token logging:** Use `ai_count_tokens_enabled=true` only in staging
 - **Concurrency:** Enforced via RC `ai_max_concurrent_ops`; fails closed on errors
 - **Region:** Default `asia-southeast1` supports Gemini 2.5 Flash
+
+---
+
+## Current Status (v1)
+
+- Pipeline stages implemented: extraction, visual metrics, AI visual analysis, optional web enrichment, enriched analysis, summary generation, validation, and persistence.
+- Remote Config kill switch: `is_vertex_enabled` defaults to `false` in production.
+- Web enrichment caching: enabled via Firestore with TTL (`web_enrichment_cache_ttl_days`).
+- Admin/staging utilities: `testFontPipeline`, `batchReprocessFonts` HTTP functions.
+- Tests: Unit and integration tests available under `functions/tests/` (golden set at `tests/golden-set/fonts.json`).
