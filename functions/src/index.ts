@@ -17,6 +17,7 @@ import { runFontPipeline } from "./ai/pipeline/fontPipeline";
 import { withRateLimit } from "./utils/rateLimiter";
 import { initializeRemoteConfig, getConfigValue, getConfigBoolean } from "./config/remoteConfig";
 import { RC_KEYS, RC_DEFAULTS } from "./config/rcKeys";
+import { searchFonts as executeSearch } from "./ai/pipeline/searchOrchestrator";
 
 type ServiceAccountConfig = admin.ServiceAccount & {
   project_id?: string;
@@ -542,6 +543,37 @@ export const processUploadedFontStorage = onObjectFinalized(
     return null;
   }
 );
+
+export const hybridFontSearch = onRequest({ region: "asia-southeast1", cors: true }, async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
+    return;
+  }
+
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  try {
+    await initializeRemoteConfig();
+  } catch (error: any) {
+    logger.warn("Remote Config initialization failed for search", { message: error?.message });
+  }
+
+  try {
+    const payload = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    const response = await executeSearch(payload);
+    res.status(200).json(response);
+  } catch (error: any) {
+    logger.error("hybridFontSearch failed", { message: error?.message, stack: error?.stack });
+    res.status(500).json({ error: "Search failed", details: error?.message });
+  }
+});
 
 /**
  * Admin/test-only HTTP endpoint to run the font pipeline on a supplied font.

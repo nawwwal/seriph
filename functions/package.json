@@ -21,6 +21,7 @@
         "firebase-admin": "latest",
         "firebase-functions": "latest",
         "fontkit": "latest",
+        "google-auth-library": "latest",
         "opentype.js": "latest",
         "uuid": "latest"
     },
