@@ -8,9 +8,9 @@ import { enrichFontFromWeb } from './webEnricher';
 import { validateAnalysisResult, applySanityRules, calculateConfidence } from './validation';
 import { buildSummaryPrompt } from '../prompts/promptTemplates';
 import type { DataProvenance } from '../../models/font.models';
-import { getConfigValue } from '../../config/remoteConfig';
+import { getConfigValue, getConfigBoolean } from '../../config/remoteConfig';
 import { getGenerativeModelFromRC, isVertexEnabled, logUsageMetadata } from '../vertex/vertexClient';
-import { RC_KEYS } from '../../config/rcKeys';
+import { RC_KEYS, RC_DEFAULTS } from '../../config/rcKeys';
 
 const getGenerativeModel = () => getGenerativeModelFromRC(RC_KEYS.summaryModelName);
 
@@ -90,7 +90,7 @@ export async function runFontPipeline(
 
         // Step 4: Web enrichment (if enabled)
         functions.logger.info(`[${filename}] Step 4: Performing web enrichment...`);
-        const webEnrichmentEnabled = getConfigValue('web_enrichment_enabled', 'false') === 'true';
+        const webEnrichmentEnabled = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, false);
         let webEnrichment = null;
         if (webEnrichmentEnabled) {
 			result.upload_state = "web_enriching";
