@@ -17,7 +17,6 @@ export async function serverAddFontToFamilyAdmin(
     fontFileDetails: { // Details from storage and original file
         originalName: string;
         storagePath: string;     // Path in processed_fonts
-        downloadUrl: string;
         fileSize: number;
     },
     aiAnalysisResult?: any // Result from serverGetFullFontAnalysisAdmin (optional)
@@ -87,7 +86,6 @@ export async function serverAddFontToFamilyAdmin(
                 isVariable: parsedFontData.isVariable || false,
                 variableAxes: parsedFontData.variableAxes || [],
                 fileSize: fontFileDetails.fileSize,
-                downloadUrl: fontFileDetails.downloadUrl,
                 metadata: {
                     postScriptName: parsedFontData.postScriptName || null,
                     version: parsedFontData.version || null,
@@ -97,6 +95,7 @@ export async function serverAddFontToFamilyAdmin(
                     openTypeFeatures: parsedFontData.openTypeFeatures || [],
                     glyphCount: parsedFontData.glyphCount || null,
                     languageSupport: parsedFontData.languageSupport || [],
+                    storagePath: fontFileDetails.storagePath || null,
                 },
             };
 

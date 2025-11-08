@@ -41,7 +41,7 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
 
   // Dynamically create @font-face rule
   useEffect(() => {
-    if (!isVariableFont || !font.downloadUrl) return;
+    if (!isVariableFont) return;
 
     const styleSheetId = `font-style-${uniqueFontFamilyCssName}`;
     let styleElement = document.getElementById(styleSheetId) as HTMLStyleElement | null;
@@ -51,7 +51,9 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
       document.head.appendChild(styleElement);
     }
 
-    const proxied = `/api/font/proxy?url=${encodeURIComponent(font.downloadUrl)}`;
+    const storagePath = (font as any)?.metadata?.storagePath as string | undefined;
+    if (!storagePath) return;
+    const proxied = `/api/font/gcs?path=${encodeURIComponent(storagePath)}`;
     const fontFaceRule = `
       @font-face {
         font-family: '${uniqueFontFamilyCssName}';
@@ -68,7 +70,7 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
       //   document.head.removeChild(styleElement);
       // }
     };
-  }, [font.downloadUrl, font.format, uniqueFontFamilyCssName, isVariableFont]);
+  }, [ (font as any)?.metadata?.storagePath, font.format, uniqueFontFamilyCssName, isVariableFont ]);
 
   const [previewText, setPreviewText] = useState('The quick brown fox jumps over the lazy dog.');
   const [previewFontSize, setPreviewFontSize] = useState(48);

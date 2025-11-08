@@ -11,7 +11,6 @@ export async function serverAddFontToFamilyAdmin(
     fontFileDetails: {
         originalName: string;
         storagePath: string;
-        downloadUrl: string;
         fileSize: number;
     },
     aiAnalysisResult?: any,
@@ -124,7 +123,6 @@ export async function serverAddFontToFamilyAdmin(
                 isVariable: parsedFontData.isVariable || false,
                 variableAxes: parsedFontData.variableAxes || [],
                 fileSize: fontFileDetails.fileSize,
-                downloadUrl: fontFileDetails.downloadUrl,
                 metadata: {
                     postScriptName: parsedFontData.postScriptName || null,
                     version: parsedFontData.version || null,
@@ -135,6 +133,7 @@ export async function serverAddFontToFamilyAdmin(
                     openTypeFeatures: parsedFontData.openTypeFeatures || [],
                     glyphCount: parsedFontData.glyphCount || null,
                     languageSupport: parsedFontData.languageSupport || [],
+                    storagePath: fontFileDetails.storagePath || null,
                     // Enhanced fields
                     fingerprint: parsedFontData.fingerprint || null,
                     visual_metrics: parsedFontData.visual_metrics || null,

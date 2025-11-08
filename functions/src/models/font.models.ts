@@ -103,6 +103,8 @@ export interface FontMetadata {
   glyphCount?: number;
   languageSupport?: string[];
   kerningPairDensity?: number; // Could be a number or a qualitative measure
+  // GCS object path (for private proxy streaming)
+  storagePath?: string | null;
   // Enhanced fields
   fingerprint?: string; // family + version + vendor + Panose + glyph hash subset
   visual_metrics?: VisualMetrics;
@@ -190,7 +192,6 @@ export interface Font {
   isVariable: boolean;
   variableAxes?: VariableAxis[];
   fileSize: number; // in bytes
-  downloadUrl: string;
   metadata: FontMetadata;
 }
 

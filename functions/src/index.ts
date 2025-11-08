@@ -432,15 +432,13 @@ export const processUploadedFontStorage = onObjectFinalized(
           },
         },
       });
-      await processedFileRef.makePublic();
-      const downloadUrl = processedFileRef.publicUrl();
-      logger.info(`[${originalFileName}] Font saved to ${processedFileRef.name} and made public at ${downloadUrl}`);
+      // No object ACLs under UBLA; clients will stream via proxy using storagePath.
+      logger.info(`[${originalFileName}] Font saved to ${processedFileRef.name}`);
       tPersist = Date.now() - tPersistStart;
 
       const fontFileDetails = {
         originalName: originalFileName,
         storagePath: processedFileRef.name,
-        downloadUrl: downloadUrl,
         fileSize: fileBuffer.byteLength,
       };
 
@@ -659,18 +657,12 @@ async function reprocessFamilies(
       let processed = 0;
       for (const font of fonts) {
         try {
-          // Determine storage path; fallback to downloadUrl fetching
+          // Determine storage path; skip if unavailable (legacy downloadUrl removed)
           const storagePath: string | undefined = font?.metadata?.storagePath || font?.storagePath;
           let buffer: Buffer | null = null;
           if (storagePath) {
             const [file] = await appStorage.bucket().file(storagePath).download();
             buffer = file;
-          } else if (typeof font?.downloadUrl === 'string' && font.downloadUrl.startsWith('http')) {
-            const r = await fetch(font.downloadUrl);
-            if (r.ok) {
-              const arr = await r.arrayBuffer();
-              buffer = Buffer.from(arr);
-            }
           }
           if (!buffer) {
             logger.warn(`Skip font without accessible bytes in family ${fam.id}`);
@@ -711,7 +703,6 @@ async function reprocessFamilies(
             {
               originalName: filename,
               storagePath: storagePath || '',
-              downloadUrl: font?.downloadUrl || '',
               fileSize: buffer.length,
             },
             aiAnalysisResult,

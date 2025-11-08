@@ -58,12 +58,13 @@ export function useRegisterFamilyFonts(family: FontFamily | null | undefined) {
     const rules: string[] = [];
     const seen = new Set<string>();
     for (const v of family.fonts) {
-      if (!v?.downloadUrl) continue;
+      const storagePath = v?.metadata?.storagePath || null;
+      if (!storagePath) continue;
       // Deduplicate by font id or src
-      const key = `${v.id}::${v.downloadUrl}`;
+      const key = `${v.id}::${storagePath}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const proxied = `/api/font/proxy?url=${encodeURIComponent(v.downloadUrl)}`;
+      const proxied = `/api/font/gcs?path=${encodeURIComponent(storagePath)}`;
       rules.push(buildFontFaceRule(family.name, v, proxied));
     }
 

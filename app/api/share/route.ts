@@ -5,10 +5,7 @@ import { FontFamily, Font } from '@/models/font.models';
 
 export const runtime = 'nodejs';
 
-type SanitizedFont = Omit<Font, 'downloadUrl' | 'metadata'> & {
-  downloadUrl?: string;
-  metadata?: Record<string, unknown>;
-};
+type SanitizedFont = Omit<Font, 'metadata'> & { metadata?: Record<string, unknown> };
 
 type SanitizedFamily = Omit<FontFamily, 'ownerId'> & {
   ownerId?: never;
@@ -17,15 +14,16 @@ type SanitizedFamily = Omit<FontFamily, 'ownerId'> & {
 
 function sanitizeFamily(family: FontFamily): SanitizedFamily {
   const { fonts: originalFonts } = family;
-  const safeFonts: SanitizedFont[] = (originalFonts ?? []).map((font) => ({
-    ...font,
-    downloadUrl: undefined, // strip potentially sensitive URLs
-    metadata: font.metadata
-      ? {
-          ...font.metadata,
-        }
-      : undefined,
-  }));
+  const safeFonts: SanitizedFont[] = (originalFonts ?? []).map((font) => {
+    return {
+      ...font,
+      metadata: font.metadata
+        ? {
+            ...font.metadata,
+          }
+        : undefined,
+    };
+  });
 
   const sanitized = {
     ...family,
