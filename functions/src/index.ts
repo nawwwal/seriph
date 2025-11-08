@@ -14,13 +14,11 @@ import { serverAddFontToFamilyAdmin } from "./db/firestoreUtils.admin";
 import { getFontAnalysisVertexAI } from "./ai/vertexAIHelper";
 import { runFontPipeline } from "./ai/pipeline/fontPipeline";
 import { withRateLimit } from "./utils/rateLimiter";
+import { initializeRemoteConfig, getConfigValue, getConfigBoolean } from "./config/remoteConfig";
+import { RC_KEYS, RC_DEFAULTS } from "./config/rcKeys";
 
 const firestoreDb = getFirestore(); // Renamed to avoid conflict if 'firestore' is used as a module
 const appStorage = getStorage(); // Renamed to avoid conflict
-
-const UNPROCESSED_BUCKET_PATH = "unprocessed_fonts";
-const PROCESSED_BUCKET_PATH = "processed_fonts";
-const FAILED_BUCKET_PATH = "failed_processing";
 
 /**
  * Update ingest record analysis state
@@ -63,11 +61,22 @@ async function updateIngestAnalysisState(
 export const processUploadedFontStorage = onObjectFinalized(
   {
     bucket: admin.storage().bucket().name, // Uses the default bucket associated with the Firebase project
-    region: "us-central1", // Specify the region for the function
+    region: "asia-southeast1", // Align with Vertex regional choice
     memory: "1GiB",        // Specify memory allocation
     timeoutSeconds: 540,   // Specify timeout
   },
   async (event) => {
+    // Await Remote Config to avoid cold-start defaults
+    try {
+      await initializeRemoteConfig();
+    } catch (e: any) {
+      logger.warn('Remote Config initialization failed, using defaults:', { message: e?.message });
+    }
+
+    const UNPROCESSED_BUCKET_PATH = getConfigValue(RC_KEYS.unprocessedBucketPath, RC_DEFAULTS[RC_KEYS.unprocessedBucketPath]);
+    const PROCESSED_BUCKET_PATH = getConfigValue(RC_KEYS.processedBucketPath, RC_DEFAULTS[RC_KEYS.processedBucketPath]);
+    const FAILED_BUCKET_PATH = getConfigValue(RC_KEYS.failedBucketPath, RC_DEFAULTS[RC_KEYS.failedBucketPath]);
+
     const fileBucket = event.data.bucket;
     const filePath = event.data.name;
     const contentType = event.data.contentType;
@@ -111,12 +120,21 @@ export const processUploadedFontStorage = onObjectFinalized(
     // Update analysis state to queued
     await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'queued');
 
+    // Metrics timing
+    const t0 = Date.now();
+    let tParse = 0;
+    let tPipeline = 0;
+    let tPersist = 0;
+    let limiterWaitMs = 0; // Placeholder if you add wait time tracking in rateLimiter
+
     try {
       const [fileBuffer] = await unprocessedFile.download();
       logger.info(`[${originalFileName}] Downloaded ${fileBuffer.byteLength} bytes.`);
 
       logger.info(`[${originalFileName}] Parsing font file...`);
+      const tParseStart = Date.now();
       const parsedFontData = await serverParseFontFile(fileBuffer, originalFileName);
+      tParse = Date.now() - tParseStart;
 
       if (!parsedFontData) {
         logger.error(`[${actualFileName}] Failed to parse font.`);
@@ -128,8 +146,8 @@ export const processUploadedFontStorage = onObjectFinalized(
       }
       logger.info(`[${actualFileName}] Parsed font successfully. Family: ${parsedFontData.familyName}, Subfamily: ${parsedFontData.subfamilyName}, Foundry: ${parsedFontData.foundry || 'N/A'}`);
 
-      // Update analysis state to analyzing
-      await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'analyzing');
+      // Update analysis state to ai_classifying (beginning AI path)
+      await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'ai_classifying' as any);
 
       // Run enhanced AI pipeline with rate limiting
       logger.info(`[${actualFileName}] Starting enhanced AI pipeline for: ${parsedFontData.familyName}`);
@@ -137,15 +155,17 @@ export const processUploadedFontStorage = onObjectFinalized(
       let aiAnalysisResult = null;
 
       try {
+        const tPipeStart = Date.now();
         pipelineResult = await withRateLimit(
           () => runFontPipeline(fileBuffer, actualFileName),
           `Font pipeline for ${actualFileName}`
         );
+        tPipeline = Date.now() - tPipeStart;
 
-        // Update to enriching if web enrichment is enabled
-        const webEnrichmentEnabled = process.env.GEMINI_WEB_SEARCH_ENABLED === 'true';
+        // Update to enriching if web enrichment is enabled (RC)
+        const webEnrichmentEnabled = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, RC_DEFAULTS[RC_KEYS.webEnrichmentEnabled] === "true");
         if (webEnrichmentEnabled && pipelineResult) {
-          await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'enriching');
+          await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'enriching' as any);
         }
 
         if (pipelineResult && pipelineResult.isValid) {
@@ -173,19 +193,25 @@ export const processUploadedFontStorage = onObjectFinalized(
         } else {
           logger.warn(`[${actualFileName}] Enhanced AI pipeline failed or returned invalid results. Falling back to legacy analysis.`);
           // Fallback to legacy analysis
-          aiAnalysisResult = await getFontAnalysisVertexAI(parsedFontData);
+          aiAnalysisResult = await withRateLimit(
+            () => getFontAnalysisVertexAI(parsedFontData),
+            `Legacy AI analysis for ${actualFileName}`
+          );
         }
       } catch (pipelineError: any) {
         logger.error(`[${actualFileName}] Enhanced pipeline error:`, pipelineError);
         // Update to error state
-        await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error', pipelineError.message);
+        await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error' as any, pipelineError.message);
         // Fallback to legacy analysis
         logger.info(`[${actualFileName}] Falling back to legacy AI analysis.`);
         try {
-          aiAnalysisResult = await getFontAnalysisVertexAI(parsedFontData);
+          aiAnalysisResult = await withRateLimit(
+            () => getFontAnalysisVertexAI(parsedFontData),
+            `Legacy AI analysis for ${actualFileName}`
+          );
         } catch (legacyError: any) {
           logger.error(`[${actualFileName}] Legacy analysis also failed:`, legacyError);
-          await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error', legacyError.message);
+          await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error' as any, legacyError.message);
         }
       }
 
@@ -199,6 +225,7 @@ export const processUploadedFontStorage = onObjectFinalized(
       const processedFileName = `${processingId}-${actualFileName}`;
       const processedFileRef = bucket.file(`${PROCESSED_BUCKET_PATH}/${processedFileName}`);
 
+      const tPersistStart = Date.now();
       await processedFileRef.save(fileBuffer, {
         resumable: false,
         // Set contentType at the top level per GCS SaveOptions
@@ -218,6 +245,7 @@ export const processUploadedFontStorage = onObjectFinalized(
       await processedFileRef.makePublic();
       const downloadUrl = processedFileRef.publicUrl();
       logger.info(`[${originalFileName}] Font saved to ${processedFileRef.name} and made public at ${downloadUrl}`);
+      tPersist = Date.now() - tPersistStart;
 
       const fontFileDetails = {
         originalName: originalFileName,
@@ -275,6 +303,28 @@ export const processUploadedFontStorage = onObjectFinalized(
 
       await unprocessedFile.delete();
       logger.info(`[${actualFileName}] Successfully processed. Original file ${filePath} deleted.`);
+      // Write metrics document (optional)
+      try {
+        const metricsDoc = {
+          processingId,
+          filePath,
+          bytes: event.data.size ? Number(event.data.size) : fileBuffer.byteLength,
+          durations: {
+            totalMs: Date.now() - t0,
+            parseMs: tParse,
+            pipelineMs: tPipeline,
+            persistMs: tPersist,
+            limiterWaitMs,
+          },
+          modelInfo: {
+            region: getConfigValue(RC_KEYS.vertexLocationId, RC_DEFAULTS[RC_KEYS.vertexLocationId]),
+          },
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        await firestoreDb.collection('metrics_ai').doc(processingId).set(metricsDoc, { merge: true });
+      } catch (metricsErr: any) {
+        logger.warn(`[${actualFileName}] Failed to write metrics_ai`, { message: metricsErr?.message });
+      }
 
     } catch (error: any) {
       logger.error(`[${actualFileName}] Unhandled error in processUploadedFontStorage:`, {

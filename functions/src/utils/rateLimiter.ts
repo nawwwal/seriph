@@ -1,7 +1,11 @@
 import * as admin from 'firebase-admin';
 import * as functions from 'firebase-functions';
+import { getConfigNumber } from '../config/remoteConfig';
+import { RC_KEYS, RC_DEFAULTS } from '../config/rcKeys';
 
-const MAX_CONCURRENT_OPS = parseInt(process.env.MAX_CONCURRENT_AI_OPS || '5', 10);
+function getMaxConcurrentOps(): number {
+  return getConfigNumber(RC_KEYS.maxConcurrentOps, Number(RC_DEFAULTS[RC_KEYS.maxConcurrentOps]));
+}
 const RATE_LIMIT_COLLECTION = '_rateLimits';
 const RATE_LIMIT_DOC = 'global';
 
@@ -24,8 +28,9 @@ export async function acquireAIOperationSlot(): Promise<boolean> {
       const currentState = doc.data() as RateLimitState | undefined;
       const currentCount = currentState?.activeCount || 0;
 
-      if (currentCount >= MAX_CONCURRENT_OPS) {
-        functions.logger.info(`Rate limit reached: ${currentCount}/${MAX_CONCURRENT_OPS} active operations`);
+      const limit = getMaxConcurrentOps();
+      if (currentCount >= limit) {
+        functions.logger.info(`Rate limit reached: ${currentCount}/${limit} active operations`);
         return false;
       }
 
@@ -34,13 +39,13 @@ export async function acquireAIOperationSlot(): Promise<boolean> {
         lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
-      functions.logger.info(`Acquired AI operation slot: ${currentCount + 1}/${MAX_CONCURRENT_OPS}`);
+      functions.logger.info(`Acquired AI operation slot: ${currentCount + 1}/${limit}`);
       return true;
     });
   } catch (error: any) {
-    functions.logger.error('Error acquiring AI operation slot:', error);
-    // On error, allow operation (fail open)
-    return true;
+    functions.logger.error('Error acquiring AI operation slot (fail-closed):', error);
+    // Fail-closed to avoid surprise costs
+    return false;
   }
 }
 
@@ -63,7 +68,8 @@ export async function releaseAIOperationSlot(): Promise<void> {
         lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
-      functions.logger.info(`Released AI operation slot: ${newCount}/${MAX_CONCURRENT_OPS}`);
+      const limit = getMaxConcurrentOps();
+      functions.logger.info(`Released AI operation slot: ${newCount}/${limit}`);
     });
   } catch (error: any) {
     functions.logger.error('Error releasing AI operation slot:', error);

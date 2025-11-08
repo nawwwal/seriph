@@ -74,7 +74,7 @@ export default function ShelfState({
             layoutId={shouldReduceMotion ? undefined : `ingest-${ingest.id}`}
             initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.9 }}
             animate={shouldReduceMotion ? {} : { opacity: 1, scale: 1 }}
-            exit={shouldReduceMotion ? false : { opacity: 0, scale: 0.9 }}
+            exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.9 }}
             transition={shouldReduceMotion ? {} : { type: 'spring', damping: 25, stiffness: 300 }}
             className="rule p-4 sm:p-5 md:p-6 rounded-[var(--radius)] flex flex-col justify-between gap-4 bg-[var(--surface)]"
           >
@@ -128,7 +128,7 @@ export default function ShelfState({
           layoutId={shouldReduceMotion ? undefined : `family-${family.id}`}
           initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.9 }}
           animate={shouldReduceMotion ? {} : { opacity: 1, scale: 1 }}
-          exit={shouldReduceMotion ? false : { opacity: 0, scale: 0.9 }}
+          exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.9 }}
           transition={shouldReduceMotion ? {} : { type: 'spring', damping: 25, stiffness: 300 }}
         >
           <FamilyCover family={family} mode={shelfMode} />

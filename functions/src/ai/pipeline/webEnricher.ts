@@ -1,16 +1,22 @@
 import * as functions from 'firebase-functions';
-import { GoogleGenAI } from '@google/genai';
+import { VertexAI } from '@google-cloud/vertexai';
 import type { DataProvenance } from '../../models/font.models';
+import { getConfigValue } from '../../config/remoteConfig';
 
 const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || 'seriph';
 const LOCATION_ID = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
-const TARGET_MODEL_NAME = 'gemini-2.5-flash';
 
-const genAI = new GoogleGenAI({
-    vertexai: true,
+const vertexAI = new VertexAI({
     project: PROJECT_ID,
     location: LOCATION_ID,
 });
+
+const getGenerativeModel = () => {
+    const modelName = getConfigValue('web_enricher_model_name', 'gemini-2.5-flash');
+    return vertexAI.getGenerativeModel({
+        model: modelName,
+    });
+};
 
 export interface WebEnrichmentResult {
     foundry?: {
@@ -67,7 +73,7 @@ function generateFingerprint(parsedData: any): string {
 /**
  * Search for font information using Gemini's web search capabilities
  */
-async function searchFontInfo(familyName: string, fingerprint: string, parsedData: any): Promise<string | null> {
+async function searchFontInfo(familyName: string, fingerprint: string, parsedData: any): Promise<Partial<WebEnrichmentResult> | null> {
     const searchPrompt = `Search for information about the font family "${familyName}".
 
 Font details:
@@ -84,22 +90,31 @@ Please search for:
 5. Notable usage examples
 6. Alternate names or variations
 
-Provide a structured summary with URLs to sources.`;
+Provide a structured JSON response with the following schema:
+{
+    "foundry": { "name": "...", "url": "...", "confidence": 0.0, "source_url": "..." },
+    "designer": { "name": "...", "bio": "...", "url": "...", "confidence": 0.0, "source_url": "..." },
+    "historical_context": { "period": "...", "cultural_influence": ["..."], "notable_usage": ["..."], "source_url": "..." },
+    "license": { "type": "...", "url": "...", "confidence": 0.0, "source_url": "..." }
+}
+`;
 
     try {
-        const request: any = {
-            model: TARGET_MODEL_NAME,
+        const generativeModel = getGenerativeModel();
+        const result = await generativeModel.generateContent({
             contents: [{ role: 'user', parts: [{ text: searchPrompt }] }],
             generationConfig: {
                 maxOutputTokens: 2048,
                 temperature: 0.3, // Lower temperature for factual information
-                // Note: Not using responseMimeType here as web search results are unstructured text
+                responseMimeType: "application/json",
             },
-        };
-        const result = await genAI.models.generateContent(request);
+        });
 
-        if (result?.candidates?.[0]?.content?.parts?.[0]?.text) {
-            return result.candidates[0].content.parts[0].text.trim();
+        const response = result.response;
+        if (response?.candidates?.[0]?.content?.parts?.[0]?.text) {
+            const jsonString = response.candidates[0].content.parts[0].text.trim();
+            const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
+            return JSON.parse(cleanedJsonString);
         }
         return null;
     } catch (error: any) {
@@ -111,126 +126,6 @@ Provide a structured summary with URLs to sources.`;
         });
         return null;
     }
-}
-
-/**
- * Parse web search results into structured data
- */
-function parseWebSearchResults(searchText: string, parsedData: any): Partial<WebEnrichmentResult> {
-    const result: Partial<WebEnrichmentResult> = {
-        provenance: [],
-    };
-
-    // Extract foundry information
-    const foundryMatch = searchText.match(/foundry[:\s]+([^\n]+)/i) || 
-                        searchText.match(/type foundry[:\s]+([^\n]+)/i);
-    if (foundryMatch) {
-        const foundryName = foundryMatch[1].trim().split(/[,\n]/)[0];
-        if (foundryName && foundryName.length > 2) {
-            result.foundry = {
-                name: foundryName,
-                confidence: 0.8,
-                source_url: 'web_search',
-            };
-            result.provenance!.push({
-                source_type: 'web',
-                source_ref: 'web_search',
-                timestamp: new Date().toISOString(),
-                method: 'gemini_web_search',
-                confidence: 0.8,
-            });
-        }
-    }
-
-    // Extract designer information
-    const designerMatch = searchText.match(/designer[:\s]+([^\n]+)/i) ||
-                         searchText.match(/designed by[:\s]+([^\n]+)/i);
-    if (designerMatch) {
-        const designerName = designerMatch[1].trim().split(/[,\n]/)[0];
-        if (designerName && designerName.length > 2) {
-            result.designer = {
-                name: designerName,
-                confidence: 0.8,
-                source_url: 'web_search',
-            };
-            // Also add to people array
-            if (!result.people) {
-                result.people = [];
-            }
-            result.people.push({
-                role: 'designer',
-                name: designerName,
-                source: 'web',
-                confidence: 0.8,
-                source_url: 'web_search',
-            });
-            result.provenance!.push({
-                source_type: 'web',
-                source_ref: 'web_search',
-                timestamp: new Date().toISOString(),
-                method: 'gemini_web_search',
-                confidence: 0.8,
-            });
-        }
-    }
-    
-    // Extract foundry and add to people array
-    if (result.foundry) {
-        if (!result.people) {
-            result.people = [];
-        }
-        result.people.push({
-            role: 'foundry',
-            name: result.foundry.name,
-            source: 'web',
-            confidence: result.foundry.confidence,
-            source_url: result.foundry.source_url,
-        });
-    }
-
-    // Extract license information
-    const licenseMatch = searchText.match(/(OFL|Apache|Open Font License|SIL Open Font License|Proprietary)/i);
-    if (licenseMatch) {
-        let licenseType: 'OFL' | 'Apache' | 'Proprietary' | 'Unknown' = 'Unknown';
-        const matchText = licenseMatch[1].toLowerCase();
-        if (matchText.includes('ofl') || matchText.includes('open font')) {
-            licenseType = 'OFL';
-        } else if (matchText.includes('apache')) {
-            licenseType = 'Apache';
-        } else if (matchText.includes('proprietary')) {
-            licenseType = 'Proprietary';
-        }
-        result.license = {
-            type: licenseType,
-            confidence: 0.85,
-            source_url: 'web_search',
-        };
-        result.provenance!.push({
-            source_type: 'web',
-            source_ref: 'web_search',
-            timestamp: new Date().toISOString(),
-            method: 'gemini_web_search',
-            confidence: 0.85,
-        });
-    }
-
-    // Extract historical context
-    const periodMatch = searchText.match(/(\d{4}s?|19\d{2}|20\d{2}|modernist|renaissance|baroque)/i);
-    if (periodMatch) {
-        result.historical_context = {
-            period: periodMatch[1],
-            source_url: 'web_search',
-        };
-        result.provenance!.push({
-            source_type: 'web',
-            source_ref: 'web_search',
-            timestamp: new Date().toISOString(),
-            method: 'gemini_web_search',
-            confidence: 0.7,
-        });
-    }
-
-    return result;
 }
 
 /**
@@ -326,14 +221,13 @@ export async function enrichFontFromWeb(
 
     try {
         const fingerprint = generateFingerprint(parsedData);
-        const searchResults = await searchFontInfo(familyName, fingerprint, parsedData);
+        const webData = await searchFontInfo(familyName, fingerprint, parsedData);
 
-        if (!searchResults) {
+        if (!webData) {
             functions.logger.warn(`No web search results for ${familyName}`);
             return null;
         }
 
-        const webData = parseWebSearchResults(searchResults, parsedData);
         const reconciled = reconcileData(parsedData, webData);
 
         functions.logger.info(`Web enrichment completed for ${familyName}`);

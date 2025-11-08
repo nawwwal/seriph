@@ -1,31 +1,9 @@
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold, GenerationConfig, SafetySetting } from '@google/genai';
 import * as functions from 'firebase-functions';
 import { VISUAL_ANALYSIS_SYSTEM_PROMPT } from '../prompts/systemPrompts';
 import { buildVisualAnalysisPrompt } from '../prompts/promptTemplates';
 import { validateAnalysisResult } from './validation';
-
-const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || 'seriph';
-const LOCATION_ID = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
-const TARGET_MODEL_NAME = 'gemini-2.5-flash';
-
-const genAI = new GoogleGenAI({
-    vertexai: true,
-    project: PROJECT_ID,
-    location: LOCATION_ID,
-});
-
-const generationConfig: GenerationConfig = {
-    maxOutputTokens: 2048,
-    temperature: 0.6,
-    topP: 0.9,
-    topK: 40,
-    responseMimeType: "application/json", // Ensure JSON responses
-};
-
-const safetySettings: SafetySetting[] = [{
-    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
-}];
+import { getGenerativeModelFromRC, isVertexEnabled, logUsageMetadata } from '../vertex/vertexClient';
+import { RC_KEYS } from '../../config/rcKeys';
 
 // Schema for visual analysis
 const visualAnalysisSchema = {
@@ -96,6 +74,10 @@ export async function performVisualAnalysis(
     parsedData: any,
     visualMetrics?: any
 ): Promise<any | null> {
+    if (!isVertexEnabled()) {
+        functions.logger.info(`Vertex AI disabled via RC. Skipping visual analysis.`);
+        return null;
+    }
     const familyName = parsedData.familyName || 'Unknown Family';
     functions.logger.info(`Starting visual analysis for: ${familyName}`);
 
@@ -103,30 +85,28 @@ export async function performVisualAnalysis(
     const systemPrompt = VISUAL_ANALYSIS_SYSTEM_PROMPT;
 
     const promptParts = [
-        { text: systemPrompt },
-        { text: '\n\n' },
-        { text: userPrompt },
-        { text: '\n\nYour response MUST be a valid JSON object adhering to the following schema:\n' },
-        { text: JSON.stringify(visualAnalysisSchema, null, 2) },
-        { text: '\n\nGenerate ONLY the JSON output, no markdown formatting.' }
+        systemPrompt,
+        '\n\n',
+        userPrompt,
+        '\n\nYour response MUST be a valid JSON object adhering to the following schema:\n',
+        JSON.stringify(visualAnalysisSchema, null, 2),
+        '\n\nGenerate ONLY the JSON output, no markdown formatting.'
     ];
 
     try {
-        const request: any = {
-            model: TARGET_MODEL_NAME,
-            contents: [{ role: 'user', parts: promptParts }],
-            generationConfig: generationConfig,
-            safetySettings: safetySettings,
-        };
+        const generativeModel = getGenerativeModelFromRC(RC_KEYS.visualAnalysisModelName);
+        const result = await generativeModel.generateContent({
+            contents: [{ role: 'user', parts: promptParts.map(text => ({ text })) }],
+        });
+        logUsageMetadata('visualAnalysis', result?.response);
 
-        const result = await genAI.models.generateContent(request);
-
-        if (!result || !result.candidates || result.candidates.length === 0) {
+        const response = result.response;
+        if (!response || !response.candidates || response.candidates.length === 0) {
             functions.logger.warn(`Visual analysis for ${familyName} returned no candidates.`);
             return null;
         }
 
-        const candidate = result.candidates[0];
+        const candidate = response.candidates[0];
         if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'MAX_TOKENS') {
             functions.logger.warn(`Visual analysis for ${familyName} finished with reason: ${candidate.finishReason}`);
             if (candidate.finishReason === 'SAFETY') return null;

@@ -7,31 +7,12 @@ import { performEnrichedAnalysis } from './enrichedAnalysis';
 import { enrichFontFromWeb } from './webEnricher';
 import { validateAnalysisResult, applySanityRules, calculateConfidence } from './validation';
 import { buildSummaryPrompt } from '../prompts/promptTemplates';
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold, GenerationConfig, SafetySetting } from '@google/genai';
 import type { DataProvenance } from '../../models/font.models';
+import { getConfigValue } from '../../config/remoteConfig';
+import { getGenerativeModelFromRC, isVertexEnabled, logUsageMetadata } from '../vertex/vertexClient';
+import { RC_KEYS } from '../../config/rcKeys';
 
-const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || 'seriph';
-const LOCATION_ID = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
-const TARGET_MODEL_NAME = 'gemini-2.5-flash';
-
-const genAI = new GoogleGenAI({
-    vertexai: true,
-    project: PROJECT_ID,
-    location: LOCATION_ID,
-});
-
-const generationConfig: GenerationConfig = {
-    maxOutputTokens: 512,
-    temperature: 0.7,
-    topP: 0.9,
-    topK: 40,
-    responseMimeType: "application/json", // Ensure JSON responses for summary
-};
-
-const safetySettings: SafetySetting[] = [{
-    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
-}];
+const getGenerativeModel = () => getGenerativeModelFromRC(RC_KEYS.summaryModelName);
 
 export interface PipelineResult {
     parsedData: any;
@@ -101,7 +82,7 @@ export async function runFontPipeline(
 
         // Step 4: Web enrichment (if enabled)
         functions.logger.info(`[${filename}] Step 4: Performing web enrichment...`);
-        const webEnrichmentEnabled = process.env.GEMINI_WEB_SEARCH_ENABLED === 'true';
+        const webEnrichmentEnabled = getConfigValue('web_enrichment_enabled', 'false') === 'true';
         let webEnrichment = null;
         if (webEnrichmentEnabled) {
             webEnrichment = await enrichFontFromWeb(parsedData, true);
@@ -147,16 +128,15 @@ export async function runFontPipeline(
         if (analysisForSummary.style_primary) {
             try {
                 const summaryPrompt = buildSummaryPrompt(parsedData, analysisForSummary);
-                const summaryRequest: any = {
-                    model: TARGET_MODEL_NAME,
+                const generativeModel = getGenerativeModel();
+                const summaryResult = await generativeModel.generateContent({
                     contents: [{ role: 'user', parts: [{ text: summaryPrompt }] }],
-                    generationConfig: generationConfig,
-                    safetySettings: safetySettings,
-                };
-                const summaryResult = await genAI.models.generateContent(summaryRequest);
+                });
+            logUsageMetadata('pipelineSummary', summaryResult?.response);
 
-                if (summaryResult?.candidates?.[0]?.content?.parts?.[0]?.text) {
-                    const summaryText = summaryResult.candidates[0].content.parts[0].text.trim();
+                const response = summaryResult.response;
+                if (response?.candidates?.[0]?.content?.parts?.[0]?.text) {
+                    const summaryText = response.candidates[0].content.parts[0].text.trim();
                     try {
                         // With responseMimeType: "application/json", try parsing as JSON first
                         const cleanedText = summaryText.replace(/^```json\n?/, '').replace(/\n?```$/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();

@@ -1,33 +1,7 @@
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold, GenerationConfig, SafetySetting } from '@google/genai';
 import { CLASSIFICATION_VALUES, Classification, FamilyMetadata } from '../models/font.models';
 import * as functions from 'firebase-functions';
-
-const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || 'seriph';
-const LOCATION_ID = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
-// Ensure GOOGLE_GENAI_USE_VERTEXAI=True is set in the function's environment variables for this to target Vertex.
-
-const TARGET_MODEL_NAME = 'gemini-2.5-flash'; // Your chosen Gemini model
-
-// Initialize the GoogleGenAI client
-const genAI = new GoogleGenAI({
-    vertexai: true,
-    project: PROJECT_ID,
-    location: LOCATION_ID,
-});
-
-// Define shared generation config and safety settings
-const generationConfig: GenerationConfig = {
-    maxOutputTokens: 2048,
-    temperature: 0.6,
-    topP: 0.9,
-    topK: 40,
-    responseMimeType: "application/json", // Ensure JSON responses
-};
-
-const safetySettings: SafetySetting[] = [{
-    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
-}];
+import { getGenerativeModelFromRC, isVertexEnabled, logUsageMetadata } from './vertex/vertexClient';
+import { RC_KEYS } from '../config/rcKeys';
 
 // Schema for AI analysis (remains the same)
 export const vertexAISchema = {
@@ -78,66 +52,68 @@ export interface VertexAIFullFontAnalysisResult {
 export async function getFontAnalysisVertexAI(
     parsedFontData: any
 ): Promise<VertexAIFullFontAnalysisResult | null> {
+    if (!isVertexEnabled()) {
+        functions.logger.info(`Vertex AI disabled via RC. Skipping legacy analysis.`);
+        return null;
+    }
     const familyName = parsedFontData.familyName || 'Unknown Family';
-    functions.logger.info(`Starting AI analysis for font family: ${familyName} using @google/genai (Vertex AI mode)`);
+    functions.logger.info(`Starting AI analysis for font family: ${familyName} using @google-cloud/vertexai`);
 
     let promptPartsForModel = [
-        { text: `Analyze the font family named "${familyName}".` },
-        { text: `Parsed font details are as follows:` },
-        { text: `Subfamily: ${parsedFontData.subfamilyName || 'N/A'}` },
-        { text: `PostScript Name: ${parsedFontData.postScriptName || 'N/A'}` },
-        { text: `Version: ${parsedFontData.version || 'N/A'}` },
-        { text: `Copyright: ${parsedFontData.copyright || 'N/A'}` },
-        { text: `Trademark: ${parsedFontData.trademark || 'N/A'}` },
-        { text: `Format: ${parsedFontData.format || 'N/A'}` },
-        { text: `Foundry (if known from parser): ${parsedFontData.foundry || 'N/A'}` },
-        { text: `Weight (if known): ${parsedFontData.weight || 'N/A'}` },
-        { text: `Style (if known): ${parsedFontData.style || 'N/A'}` },
-        { text: `Is Variable: ${parsedFontData.isVariable ? 'Yes' : 'No'}` },
+        `Analyze the font family named "${familyName}".`,
+        `Parsed font details are as follows:`,
+        `Subfamily: ${parsedFontData.subfamilyName || 'N/A'}`,
+        `PostScript Name: ${parsedFontData.postScriptName || 'N/A'}`,
+        `Version: ${parsedFontData.version || 'N/A'}`,
+        `Copyright: ${parsedFontData.copyright || 'N/A'}`,
+        `Trademark: ${parsedFontData.trademark || 'N/A'}`,
+        `Format: ${parsedFontData.format || 'N/A'}`,
+        `Foundry (if known from parser): ${parsedFontData.foundry || 'N/A'}`,
+        `Weight (if known): ${parsedFontData.weight || 'N/A'}`,
+        `Style (if known): ${parsedFontData.style || 'N/A'}`,
+        `Is Variable: ${parsedFontData.isVariable ? 'Yes' : 'No'}`,
     ];
 
     if (parsedFontData.isVariable && parsedFontData.variableAxes && parsedFontData.variableAxes.length > 0) {
-        promptPartsForModel.push({ text: 'Variable Axes:' });
+        promptPartsForModel.push('Variable Axes:');
         parsedFontData.variableAxes.forEach((axis: any) => {
-            promptPartsForModel.push({ text: `  - Tag: ${axis.tag}, Name: ${axis.name}, Min: ${axis.minValue}, Max: ${axis.maxValue}, Default: ${axis.defaultValue}` });
+            promptPartsForModel.push(`  - Tag: ${axis.tag}, Name: ${axis.name}, Min: ${axis.minValue}, Max: ${axis.maxValue}, Default: ${axis.defaultValue}`);
         });
     }
 
-    promptPartsForModel.push({ text: '\nProvide a comprehensive analysis. Your response MUST be a valid JSON object adhering to the following structure (do NOT include any text before or after the JSON object, including markdown backticks for the JSON block):\n' });
-    promptPartsForModel.push({ text: JSON.stringify(vertexAISchema, null, 2) });
-    promptPartsForModel.push({ text: '\nBased on the provided font details and the schema, generate ONLY the JSON output.' });
+    promptPartsForModel.push('\nProvide a comprehensive analysis. Your response MUST be a valid JSON object adhering to the following structure (do NOT include any text before or after the JSON object, including markdown backticks for the JSON block):\n');
+    promptPartsForModel.push(JSON.stringify(vertexAISchema, null, 2));
+    promptPartsForModel.push('\nBased on the provided font details and the schema, generate ONLY the JSON output.');
 
-    const fullPromptForLogging = promptPartsForModel.map(p => p.text).join('\n');
-    functions.logger.info(`@google/genai Prompt for ${familyName} (first 500 chars): ${fullPromptForLogging.substring(0, 500)}...`);
+    const fullPromptForLogging = promptPartsForModel.join('\n');
+    functions.logger.info(`@google-cloud/vertexai Prompt for ${familyName} (first 500 chars): ${fullPromptForLogging.substring(0, 500)}...`);
 
     try {
-        const request: any = {
-            model: TARGET_MODEL_NAME,
-            contents: [{ role: 'user', parts: promptPartsForModel }],
-            generationConfig: generationConfig,
-            safetySettings: safetySettings,
-        };
+        const generativeModel = getGenerativeModelFromRC(RC_KEYS.classifierModelName);
+        const result = await generativeModel.generateContent({
+            contents: [{ role: 'user', parts: promptPartsForModel.map(text => ({ text })) }],
+        });
+        logUsageMetadata('legacyClassifier', result?.response);
 
-        const result = await genAI.models.generateContent(request);
-
-        if (!result || !result.candidates || result.candidates.length === 0) {
-            functions.logger.warn(`@google/genai analysis for ${familyName} returned no candidates.`, { result });
+        const response = result.response;
+        if (!response || !response.candidates || response.candidates.length === 0) {
+            functions.logger.warn(`@google-cloud/vertexai analysis for ${familyName} returned no candidates.`, { response });
             return null;
         }
 
-        const candidate = result.candidates[0];
+        const candidate = response.candidates[0];
         if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'MAX_TOKENS') {
-             functions.logger.warn(`@google/genai analysis for ${familyName} finished with reason: ${candidate.finishReason}`, { candidate });
+             functions.logger.warn(`@google-cloud/vertexai analysis for ${familyName} finished with reason: ${candidate.finishReason}`, { candidate });
              if (candidate.finishReason === 'SAFETY') return null;
         }
 
         if (!candidate.content || !candidate.content.parts || candidate.content.parts.length === 0 || !candidate.content.parts[0].text) {
-            functions.logger.warn(`@google/genai prediction for ${familyName} has no text part.`, { candidate });
+            functions.logger.warn(`@google-cloud/vertexai prediction for ${familyName} has no text part.`, { candidate });
             return null;
         }
 
         const jsonString = candidate.content.parts[0].text.trim();
-        functions.logger.info(`Raw JSON from @google/genai for ${familyName} (first 500): ${jsonString.substring(0, 500)}...`);
+        functions.logger.info(`Raw JSON from @google-cloud/vertexai for ${familyName} (first 500): ${jsonString.substring(0, 500)}...`);
 
         let jsonData: any;
         try {
@@ -146,21 +122,21 @@ export async function getFontAnalysisVertexAI(
             const cleanedJsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '').replace(/^```\n?/, '').replace(/\n?```$/, '').trim();
             jsonData = JSON.parse(cleanedJsonString);
         } catch (e: any) {
-            functions.logger.error(`Failed to parse JSON from @google/genai for ${familyName}. Error: ${e.message}`, { jsonString });
+            functions.logger.error(`Failed to parse JSON from @google-cloud/vertexai for ${familyName}. Error: ${e.message}`, { jsonString });
             return null;
         }
 
         if (!jsonData || !jsonData.description || !jsonData.tags || !jsonData.classification) {
-            functions.logger.warn(`@google/genai analysis for ${familyName} missing core fields.`, { jsonData });
+            functions.logger.warn(`@google-cloud/vertexai analysis for ${familyName} missing core fields.`, { jsonData });
             return null;
         }
 
         if (!CLASSIFICATION_VALUES.includes(jsonData.classification as Classification)) {
-            functions.logger.warn(`@google/genai analysis for ${familyName} invalid classification: ${jsonData.classification}`);
+            functions.logger.warn(`@google-cloud/vertexai analysis for ${familyName} invalid classification: ${jsonData.classification}`);
             return null;
         }
 
-        functions.logger.info(`Successfully parsed @google/genai analysis for ${familyName}.`);
+        functions.logger.info(`Successfully parsed @google-cloud/vertexai analysis for ${familyName}.`);
         return {
             description: jsonData.description,
             tags: jsonData.tags,
@@ -174,7 +150,7 @@ export async function getFontAnalysisVertexAI(
         };
 
     } catch (error: any) {
-        functions.logger.error(`Error calling @google/genai for ${familyName}:`, {
+        functions.logger.error(`Error calling @google-cloud/vertexai for ${familyName}:`, {
             message: error.message,
             stack: error.stack,
             code: error.code,

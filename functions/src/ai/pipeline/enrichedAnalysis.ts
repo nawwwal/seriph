@@ -1,33 +1,14 @@
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold, GenerationConfig, SafetySetting } from '@google/genai';
 import * as functions from 'firebase-functions';
 import { ENRICHED_ANALYSIS_SYSTEM_PROMPT } from '../prompts/systemPrompts';
 import { buildEnrichedAnalysisPrompt } from '../prompts/promptTemplates';
 import { validateAnalysisResult } from './validation';
+import { getConfigValue, getConfigBoolean } from '../../config/remoteConfig';
+import { RC_KEYS, RC_DEFAULTS } from '../../config/rcKeys';
+import { getGenerativeModelFromRC, isVertexEnabled, logUsageMetadata } from '../vertex/vertexClient';
 
-const PROJECT_ID = process.env.GOOGLE_CLOUD_PROJECT || 'seriph';
-const LOCATION_ID = process.env.GOOGLE_CLOUD_LOCATION || 'us-central1';
-const TARGET_MODEL_NAME = 'gemini-2.5-flash';
-const FALLBACK_MODEL_NAME = process.env.GEMINI_FALLBACK_MODEL || 'gemini-2.0-flash-exp';
-const WEB_SEARCH_ENABLED = process.env.GEMINI_WEB_SEARCH_ENABLED === 'true';
+const WEB_SEARCH_ENABLED = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, RC_DEFAULTS[RC_KEYS.webEnrichmentEnabled] === 'true');
 
-const genAI = new GoogleGenAI({
-    vertexai: true,
-    project: PROJECT_ID,
-    location: LOCATION_ID,
-});
-
-const generationConfig: GenerationConfig = {
-    maxOutputTokens: 2048,
-    temperature: 0.6,
-    topP: 0.9,
-    topK: 40,
-    responseMimeType: "application/json", // Ensure JSON responses
-};
-
-const safetySettings: SafetySetting[] = [{
-    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE
-}];
+const getGenerativeModel = (modelNameKey: string) => getGenerativeModelFromRC(modelNameKey);
 
 // Schema for enriched analysis (includes web-sourced fields)
 const enrichedAnalysisSchema = {
@@ -128,43 +109,44 @@ export async function performEnrichedAnalysis(
     visualAnalysisResult?: any,
     useFallback: boolean = false
 ): Promise<any | null> {
+    if (!isVertexEnabled()) {
+        functions.logger.info(`Vertex AI disabled via RC. Skipping enriched analysis.`);
+        return null;
+    }
     const familyName = parsedData.familyName || 'Unknown Family';
-    const modelName = useFallback ? FALLBACK_MODEL_NAME : TARGET_MODEL_NAME;
-    functions.logger.info(`Starting enriched analysis for: ${familyName} using ${modelName}${WEB_SEARCH_ENABLED ? ' with web search' : ''}`);
+    const modelNameKey = useFallback ? RC_KEYS.enrichedAnalysisFallbackModelName : RC_KEYS.enrichedAnalysisModelName;
+    functions.logger.info(`Starting enriched analysis for: ${familyName} (${useFallback ? 'fallback' : 'primary'})${WEB_SEARCH_ENABLED ? ' with web search' : ''}`);
 
     const userPrompt = buildEnrichedAnalysisPrompt(parsedData, visualMetrics, visualAnalysisResult);
     const systemPrompt = ENRICHED_ANALYSIS_SYSTEM_PROMPT;
 
     const promptParts = [
-        { text: systemPrompt },
-        { text: '\n\n' },
-        { text: userPrompt },
-        { text: '\n\nYour response MUST be a valid JSON object adhering to the following schema:\n' },
-        { text: JSON.stringify(enrichedAnalysisSchema, null, 2) },
-        { text: '\n\nGenerate ONLY the JSON output, no markdown formatting.' }
+        systemPrompt,
+        '\n\n',
+        userPrompt,
+        '\n\nYour response MUST be a valid JSON object adhering to the following schema:\n',
+        JSON.stringify(enrichedAnalysisSchema, null, 2),
+        '\n\nGenerate ONLY the JSON output, no markdown formatting.'
     ];
 
     try {
         // Enable web search via tools if available
-        const request: any = {
-            model: modelName,
-            contents: [{ role: 'user', parts: promptParts }],
-            generationConfig: generationConfig,
-            safetySettings: safetySettings,
-        };
+        const generativeModel = getGenerativeModel(modelNameKey);
 
-        // Note: Gemini web search is enabled via the model's built-in capabilities
-        // If the API supports tools parameter, we can add it here
-        // For now, the prompt instructs Gemini to search when needed
+        const result = await generativeModel.generateContent({
+            contents: [{ role: 'user', parts: promptParts.map(text => ({ text })) }],
+            // Enable Google Search grounding when allowed (optional; default off)
+            ...(WEB_SEARCH_ENABLED ? { tools: [{ googleSearchRetrieval: {} as any }] } : {}),
+        });
+        logUsageMetadata('enrichedAnalysis', result?.response);
 
-        const result = await genAI.models.generateContent(request);
-
-        if (!result || !result.candidates || result.candidates.length === 0) {
+        const response = result.response;
+        if (!response || !response.candidates || response.candidates.length === 0) {
             functions.logger.warn(`Enriched analysis for ${familyName} returned no candidates.`);
             return null;
         }
 
-        const candidate = result.candidates[0];
+        const candidate = response.candidates[0];
         if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'MAX_TOKENS') {
             functions.logger.warn(`Enriched analysis for ${familyName} finished with reason: ${candidate.finishReason}`);
             if (candidate.finishReason === 'SAFETY') return null;
