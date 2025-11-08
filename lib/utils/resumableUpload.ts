@@ -77,10 +77,12 @@ export function uploadFileResumable(
 
 /**
  * Exponential backoff with jitter for retry logic
+ * Ensures minimum delay of baseDelay plus random jitter up to exponentialDelay
  */
 export function getRetryDelay(attempt: number, baseDelay: number = 500, maxDelay: number = 30000): number {
   const exponentialDelay = Math.min(baseDelay * Math.pow(2, attempt), maxDelay);
-  const jitter = Math.random() * exponentialDelay; // Full jitter
+  // Ensure minimum delay of baseDelay, with random jitter up to exponentialDelay
+  const jitter = baseDelay + Math.random() * (exponentialDelay - baseDelay);
   return jitter;
 }
 
