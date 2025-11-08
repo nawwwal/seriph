@@ -145,8 +145,8 @@ export const processUploadedFontStorage = onObjectFinalized(
       }
       logger.info(`[${actualFileName}] Parsed font successfully. Family: ${parsedFontData.familyName}, Subfamily: ${parsedFontData.subfamilyName}, Foundry: ${parsedFontData.foundry || 'N/A'}`);
 
-      // Update analysis state to ai_classifying (beginning AI path)
-      await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'ai_classifying' as any);
+      // Update analysis state to analyzing (beginning AI path)
+      await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'analyzing');
 
       // Run enhanced AI pipeline with rate limiting
       logger.info(`[${actualFileName}] Starting enhanced AI pipeline for: ${parsedFontData.familyName}`);
@@ -195,7 +195,6 @@ export const processUploadedFontStorage = onObjectFinalized(
       } catch (pipelineError: any) {
         logger.error(`[${actualFileName}] Enhanced pipeline error:`, pipelineError);
         // Update to error state
-        await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error' as any, pipelineError.message);
         await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error' as any, pipelineError.message);
       }
 
