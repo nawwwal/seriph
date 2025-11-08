@@ -1,6 +1,7 @@
+import { statSync } from "fs";
+import { resolve } from "path";
 // Firebase Admin SDK
 import * as admin from "firebase-admin";
-admin.initializeApp();
 
 // Firebase Functions
 import { onObjectFinalized } from "firebase-functions/v2/storage";
@@ -16,6 +17,212 @@ import { runFontPipeline } from "./ai/pipeline/fontPipeline";
 import { withRateLimit } from "./utils/rateLimiter";
 import { initializeRemoteConfig, getConfigValue, getConfigBoolean } from "./config/remoteConfig";
 import { RC_KEYS, RC_DEFAULTS } from "./config/rcKeys";
+
+type ServiceAccountConfig = admin.ServiceAccount & {
+  project_id?: string;
+  client_email?: string;
+  private_key?: string;
+};
+
+function coercePrivateKey(input?: string | null): string | null {
+  if (!input) return null;
+  let pk = input.trim();
+  const looksLikeBase64 = !pk.includes("BEGIN PRIVATE KEY") && /^[A-Za-z0-9+/=\s]+$/.test(pk);
+  if (looksLikeBase64) {
+    try {
+      pk = Buffer.from(pk, "base64").toString("utf8");
+    } catch (error) {
+      logger.warn("Failed to decode base64 private key", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  pk = pk.replace(/\\n/g, "\n");
+  pk = pk.replace(/^"+|"+$/g, "");
+  pk = pk.replace(/^-*BEGIN PRIVATE KEY-*$/m, "-----BEGIN PRIVATE KEY-----");
+  pk = pk.replace(/^-*END PRIVATE KEY-*$/m, "-----END PRIVATE KEY-----");
+  pk = pk.replace(/(-----BEGIN PRIVATE KEY-----)([^\n])/, "$1\n$2");
+  pk = pk.replace(/([^\n])(-----END PRIVATE KEY-----)/, "$1\n$2");
+  if (!pk.endsWith("\n")) pk += "\n";
+  if (!pk.includes("BEGIN PRIVATE KEY")) {
+    return pk;
+  }
+  return pk;
+}
+
+function serviceAccountFromJson(json: string, source: string): admin.ServiceAccount | null {
+  try {
+    const parsed: ServiceAccountConfig = JSON.parse(json);
+    const clientEmail = parsed.client_email ?? parsed.clientEmail;
+    const privateKey = coercePrivateKey(parsed.private_key ?? parsed.privateKey);
+    const projectId =
+      parsed.project_id ??
+      parsed.projectId ??
+      process.env.FIREBASE_ADMIN_PROJECT_ID ??
+      process.env.GOOGLE_CLOUD_PROJECT ??
+      undefined;
+
+    if (!clientEmail || !privateKey) {
+      logger.error(`Service account JSON from ${source} is missing clientEmail/privateKey.`);
+      return null;
+    }
+
+    return {
+      projectId,
+      clientEmail,
+      privateKey,
+    };
+  } catch (error) {
+    logger.error(`Failed to parse service account JSON from ${source}.`, {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+function decodeBase64Credentials(value: string, source: string): admin.ServiceAccount | null {
+  try {
+    const decoded = Buffer.from(value, "base64").toString("utf8");
+    return serviceAccountFromJson(decoded, source);
+  } catch (error) {
+    logger.error(`Failed to decode base64 service account from ${source}.`, {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+function loadServiceAccountFromEnv(): admin.ServiceAccount | null {
+  const inlineCredentialEnv = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (inlineCredentialEnv) {
+    const trimmed = inlineCredentialEnv.trim();
+    if (trimmed.startsWith("{")) {
+      const parsed = serviceAccountFromJson(trimmed, "GOOGLE_APPLICATION_CREDENTIALS");
+      if (parsed) {
+        return parsed;
+      }
+    }
+  }
+
+  const jsonSources: Array<[string | undefined, string]> = [
+    [process.env.FIREBASE_ADMIN_CREDENTIALS, "FIREBASE_ADMIN_CREDENTIALS"],
+    [process.env.GOOGLE_CREDENTIALS, "GOOGLE_CREDENTIALS"],
+    [process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON, "GOOGLE_APPLICATION_CREDENTIALS_JSON"],
+  ];
+
+  for (const [value, source] of jsonSources) {
+    if (value) {
+      const parsed = serviceAccountFromJson(value, source);
+      if (parsed) {
+        return parsed;
+      }
+    }
+  }
+
+  const base64Sources: Array<[string | undefined, string]> = [
+    [process.env.FIREBASE_ADMIN_CREDENTIALS_BASE64, "FIREBASE_ADMIN_CREDENTIALS_BASE64"],
+    [process.env.GOOGLE_CREDENTIALS_BASE64, "GOOGLE_CREDENTIALS_BASE64"],
+    [process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64, "GOOGLE_APPLICATION_CREDENTIALS_BASE64"],
+  ];
+
+  for (const [value, source] of base64Sources) {
+    if (value) {
+      const parsed = decodeBase64Credentials(value, source);
+      if (parsed) {
+        return parsed;
+      }
+    }
+  }
+
+  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+  const privateKey = coercePrivateKey(process.env.FIREBASE_ADMIN_PRIVATE_KEY ?? null);
+  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID ?? process.env.GOOGLE_CLOUD_PROJECT ?? undefined;
+
+  if (clientEmail && privateKey) {
+    return {
+      projectId,
+      clientEmail,
+      privateKey,
+    };
+  }
+
+  return null;
+}
+
+function credentialPathLooksValid(filePath: string): boolean {
+  try {
+    const stats = statSync(filePath);
+    return stats.isFile();
+  } catch (_) {
+    return false;
+  }
+}
+
+function sanitizeGoogleApplicationCredentialsEnv(): void {
+  const configured = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  if (!configured) {
+    return;
+  }
+
+  const trimmed = configured.trim();
+  if (!trimmed) {
+    delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+    return;
+  }
+
+  const resolvedPaths = new Set<string>([trimmed, resolve(trimmed)]);
+  if (trimmed.startsWith("file://")) {
+    try {
+      resolvedPaths.add(new URL(trimmed).pathname);
+    } catch (_) {
+      // Ignore URL parsing errors
+    }
+  }
+  const hasValidFile = Array.from(resolvedPaths).some(credentialPathLooksValid);
+
+  if (!hasValidFile) {
+    logger.warn("GOOGLE_APPLICATION_CREDENTIALS path is invalid. Falling back to default application credentials.", {
+      configured: trimmed,
+    });
+    delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  }
+}
+
+function initializeFirebaseAdminApp(): void {
+  const appOptions: admin.AppOptions = {};
+  const storageBucket =
+    process.env.FIREBASE_STORAGE_BUCKET ||
+    process.env.GOOGLE_CLOUD_STORAGE_BUCKET ||
+    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+
+  if (storageBucket) {
+    appOptions.storageBucket = storageBucket;
+  }
+
+  const serviceAccount = loadServiceAccountFromEnv();
+  if (serviceAccount) {
+    appOptions.credential = admin.credential.cert(serviceAccount);
+    if (!appOptions.projectId && serviceAccount.projectId) {
+      appOptions.projectId = serviceAccount.projectId;
+    }
+  } else {
+    sanitizeGoogleApplicationCredentialsEnv();
+    if (process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT) {
+      appOptions.projectId = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT;
+    }
+  }
+
+  try {
+    admin.initializeApp(appOptions);
+  } catch (error) {
+    logger.error("Failed to initialize Firebase Admin app.", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
+}
+
+initializeFirebaseAdminApp();
 
 const firestoreDb = getFirestore(); // Renamed to avoid conflict if 'firestore' is used as a module
 const appStorage = getStorage(); // Renamed to avoid conflict
