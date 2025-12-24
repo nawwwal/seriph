@@ -23,7 +23,7 @@
     "fuse.js": "latest",
     "jszip": "latest",
     "lucide-react": "latest",
-    "next": "latest",
+    "next": "15.5.8",
     "opentype.js": "latest",
     "react": "latest",
     "react-dom": "latest",
