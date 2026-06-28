@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Setup Remote Config parameters via CLI
- * Usage: node scripts/setup-remote-config.js [project-id]
+ * Usage: node scripts/setup-remote-config.cjs [project-id]
  */
 
 const admin = require('firebase-admin');
@@ -87,7 +87,7 @@ const RC_DEFAULTS = {
 async function setupRemoteConfig(projectId) {
   if (!projectId) {
     console.error('Error: Project ID required');
-    console.log('Usage: node scripts/setup-remote-config.js [project-id]');
+    console.log('Usage: node scripts/setup-remote-config.cjs [project-id]');
     console.log('Or set GOOGLE_CLOUD_PROJECT environment variable');
     process.exit(1);
   }
@@ -258,4 +258,3 @@ async function setupRemoteConfig(projectId) {
 const projectId = process.argv[2] || process.env.GOOGLE_CLOUD_PROJECT || process.env.GCLOUD_PROJECT;
 
 setupRemoteConfig(projectId);
-

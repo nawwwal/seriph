@@ -1,7 +1,7 @@
 'use client';
 
 import { Font } from '@/models/font.models';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useVariableFontFace } from '@/lib/hooks/useVariableFontFace';
 import AxisSlider from './AxisSlider';
 
@@ -18,25 +18,52 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
     () => axes.reduce<Record<string, number>>((v, axis) => ((v[axis.tag] = axis.defaultValue), v), {}),
     [axes]
   );
+  const axisKey = useMemo(
+    () => axes.map((axis) => `${axis.tag}:${axis.defaultValue}:${axis.minValue}:${axis.maxValue}`).join('|'),
+    [axes]
+  );
+  const cssName = useVariableFontFace(font, fontFamilyName, isVariableFont);
+
+  if (!isVariableFont) {
+    return <p className="text-sm opacity-70">This font is not variable or has no defined axes.</p>;
+  }
+
+  return (
+    <VariableFontPlaygroundControls
+      key={axisKey}
+      axes={axes}
+      cssName={cssName}
+      font={font}
+      initialAxisValues={initialAxisValues}
+    />
+  );
+};
+
+interface VariableFontPlaygroundControlsProps {
+  axes: NonNullable<Font['variableAxes']>;
+  cssName: string;
+  font: Font;
+  initialAxisValues: Record<string, number>;
+}
+
+function VariableFontPlaygroundControls({
+  axes,
+  cssName,
+  font,
+  initialAxisValues,
+}: VariableFontPlaygroundControlsProps) {
   const [currentAxisValues, setCurrentAxisValues] = useState<Record<string, number>>(initialAxisValues);
-  useEffect(() => setCurrentAxisValues(initialAxisValues), [initialAxisValues]);
 
   const handleSliderChange = (tag: string, value: number) =>
     setCurrentAxisValues((prev) => ({ ...prev, [tag]: value }));
 
   const fontVariationSettings = useMemo(
-    () => (isVariableFont ? axes.map((a) => `'${a.tag}' ${currentAxisValues[a.tag]}`).join(', ') : ''),
-    [axes, currentAxisValues, isVariableFont]
+    () => axes.map((a) => `'${a.tag}' ${currentAxisValues[a.tag]}`).join(', '),
+    [axes, currentAxisValues]
   );
-
-  const cssName = useVariableFontFace(font, fontFamilyName, isVariableFont);
 
   const [previewText, setPreviewText] = useState('The quick brown fox jumps over the lazy dog.');
   const [previewFontSize, setPreviewFontSize] = useState(48);
-
-  if (!isVariableFont) {
-    return <p className="text-sm opacity-70">This font is not variable or has no defined axes.</p>;
-  }
 
   return (
     <div className="rule p-6 rounded-[var(--radius)]">
@@ -81,6 +108,6 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
       </div>
     </div>
   );
-};
+}
 
 export default VariableFontPlayground;

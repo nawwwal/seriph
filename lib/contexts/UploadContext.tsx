@@ -28,12 +28,11 @@ export function UploadProvider({ children }: { children: ReactNode }) {
   const [uploadProgress, setProgress] = useState<Record<string, number>>({});
   const completedCbs = useRef(new Set<() => void>());
   const reloadTimer = useRef<NodeJS.Timeout | null>(null);
+  const canReadIngests = !isLoading && Boolean(user?.uid);
 
   useEffect(() => {
-    if (isLoading || !user?.uid) {
-      setIngests([]);
-      return;
-    }
+    if (!canReadIngests || !user?.uid) return;
+
     const col = collection(db, 'users', user.uid, 'ingests');
     const unsub = onSnapshot(
       col,
@@ -54,7 +53,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       if (reloadTimer.current) clearTimeout(reloadTimer.current);
       unsub();
     };
-  }, [user?.uid, isLoading]);
+  }, [user?.uid, canReadIngests]);
 
   const setUploadProgress = useCallback((ingestId: string, percent: number) => {
     setProgress((prev) => ({ ...prev, [ingestId]: percent }));
@@ -65,18 +64,20 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     return () => { completedCbs.current.delete(cb); };
   }, []);
 
+  const visibleIngests = useMemo(() => (canReadIngests ? ingests : []), [canReadIngests, ingests]);
+
   const activeCount = useMemo(
     () =>
-      ingests.filter((ing) => {
+      visibleIngests.filter((ing) => {
         const { stage } = getCombinedStatus(ing.uploadState, ing.analysisState, uploadProgress[ing.ingestId]);
         return stage !== 'complete' && stage !== 'error' && stage !== 'canceled';
       }).length,
-    [ingests, uploadProgress]
+    [visibleIngests, uploadProgress]
   );
 
   const value = useMemo<UploadContextValue>(
     () => ({
-      ingests,
+      ingests: visibleIngests,
       activeCount,
       isOpen,
       open: () => setIsOpen(true),
@@ -85,7 +86,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       setUploadProgress,
       onCompleted,
     }),
-    [ingests, activeCount, isOpen, uploadProgress, setUploadProgress, onCompleted]
+    [visibleIngests, activeCount, isOpen, uploadProgress, setUploadProgress, onCompleted]
   );
 
   return <UploadContext.Provider value={value}>{children}</UploadContext.Provider>;

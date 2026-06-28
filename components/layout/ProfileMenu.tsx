@@ -6,17 +6,18 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 /** Avatar button + sign-out dropdown for a signed-in user. Self-contained state. */
 export default function ProfileMenu() {
   const { user, signOut } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
-  const [avatarFailed, setAvatarFailed] = useState(false);
+  const [openForUserId, setOpenForUserId] = useState<string | null>(null);
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => setAvatarFailed(false), [user?.photoURL]);
-  useEffect(() => setIsOpen(false), [user]);
+  const userId = user?.uid ?? null;
+  const avatarUrl = user?.photoURL ?? null;
+  const isOpen = openForUserId === userId;
+  const avatarFailed = avatarUrl !== null && failedAvatarUrl === avatarUrl;
 
   useEffect(() => {
     if (!isOpen) return;
     const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpenForUserId(null);
     };
     window.addEventListener('mousedown', onClick);
     return () => window.removeEventListener('mousedown', onClick);
@@ -28,20 +29,20 @@ export default function ProfileMenu() {
     <div className="relative" ref={ref}>
       <button
         type="button"
-        onClick={() => setIsOpen((p) => !p)}
+        onClick={() => setOpenForUserId((current) => (current === user.uid ? null : user.uid))}
         className="flex items-center justify-center w-8 h-8 rounded-full rule overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--ink)] transition"
         aria-haspopup="true"
         aria-expanded={isOpen}
       >
-        {user.photoURL && !avatarFailed ? (
+        {avatarUrl && !avatarFailed ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={user.photoURL}
+            src={avatarUrl}
             alt={user.displayName || 'User'}
             width={32}
             height={32}
             referrerPolicy="no-referrer"
-            onError={() => setAvatarFailed(true)}
+            onError={() => setFailedAvatarUrl(avatarUrl)}
             className="w-8 h-8 object-cover"
           />
         ) : (
@@ -57,7 +58,7 @@ export default function ProfileMenu() {
           </div>
           <button
             type="button"
-            onClick={() => { setIsOpen(false); signOut(); }}
+            onClick={() => { setOpenForUserId(null); signOut(); }}
             className="w-full text-left uppercase font-bold text-sm px-3 py-2 btn-ink rule-t hover:ink-bg transition"
           >
             Sign out

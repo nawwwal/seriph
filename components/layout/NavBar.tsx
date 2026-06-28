@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import ThemeSwitcher from '@/components/theme/ThemeSwitcher';
 import ProfileMenu from './ProfileMenu';
@@ -9,18 +9,27 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { useUploads } from '@/lib/contexts/UploadContext';
 
 export default function NavBar() {
+  return (
+    <Suspense fallback={<NavBarFallback />}>
+      <NavBarContent />
+    </Suspense>
+  );
+}
+
+function NavBarContent() {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isLoading, signInWithGoogle } = useAuth();
   const { activeCount, open: openUploadCenter } = useUploads();
   const [searchQuery, setSearchQuery] = useState('');
+  const urlSearchQuery = pathname === '/search' ? searchParams.get('q') ?? '' : null;
+  const [syncedUrlSearchQuery, setSyncedUrlSearchQuery] = useState<string | null>(urlSearchQuery);
 
-  // Keep the nav field in sync with the active search query (client-only read).
-  useEffect(() => {
-    if (pathname === '/search' && typeof window !== 'undefined') {
-      setSearchQuery(new URLSearchParams(window.location.search).get('q') ?? '');
-    }
-  }, [pathname]);
+  if (syncedUrlSearchQuery !== urlSearchQuery) {
+    setSyncedUrlSearchQuery(urlSearchQuery);
+    setSearchQuery(urlSearchQuery ?? '');
+  }
 
   const handleSearchSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -74,6 +83,19 @@ export default function NavBar() {
               Sign in
             </button>
           )}
+          <ThemeSwitcher />
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+function NavBarFallback() {
+  return (
+    <nav className="w-full rule-b bg-[var(--paper)] sticky top-0 z-10">
+      <div className="w-full px-8 sm:px-10 md:px-12 lg:px-16 py-3 flex gap-2 items-center">
+        <span className="uppercase font-black tracking-tight text-lg">Seriph</span>
+        <div className="ml-auto flex items-center gap-2">
           <ThemeSwitcher />
         </div>
       </div>

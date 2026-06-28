@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useSyncExternalStore } from 'react';
 
 export type ThemeName = 'ink' | 'noir' | 'sunset' | 'ocean';
 
@@ -14,28 +14,40 @@ const ThemeContext = createContext<ThemeContextType>({
   setTheme: () => {},
 });
 
+const themeChangedEvent = 'seriph-theme-change';
+const validThemes = new Set<ThemeName>(['ink', 'noir', 'sunset', 'ocean']);
+
+function readStoredTheme(): ThemeName {
+  if (typeof window === 'undefined') return 'ink';
+  const saved = window.localStorage.getItem('theme');
+  return validThemes.has(saved as ThemeName) ? (saved as ThemeName) : 'ink';
+}
+
+function subscribeToThemeChanges(onStoreChange: () => void) {
+  window.addEventListener('storage', onStoreChange);
+  window.addEventListener(themeChangedEvent, onStoreChange);
+  return () => {
+    window.removeEventListener('storage', onStoreChange);
+    window.removeEventListener(themeChangedEvent, onStoreChange);
+  };
+}
+
+function getServerThemeSnapshot(): ThemeName {
+  return 'ink';
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<ThemeName>('ink');
-  const [mounted, setMounted] = useState(false);
+  const theme = useSyncExternalStore(subscribeToThemeChanges, readStoredTheme, getServerThemeSnapshot);
 
   useEffect(() => {
-    setMounted(true);
-    const saved = localStorage.getItem('theme') as ThemeName | null;
-    const initialTheme = saved || 'ink';
-    setThemeState(initialTheme);
-    document.documentElement.setAttribute('data-theme', initialTheme);
-  }, []);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   const setTheme = (newTheme: ThemeName) => {
-    setThemeState(newTheme);
     document.documentElement.setAttribute('data-theme', newTheme);
     localStorage.setItem('theme', newTheme);
+    window.dispatchEvent(new Event(themeChangedEvent));
   };
-
-  // Prevent flash during hydration
-  if (!mounted) {
-    return <>{children}</>;
-  }
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>
@@ -51,4 +63,3 @@ export function useTheme() {
   }
   return context;
 }
-

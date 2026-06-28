@@ -54,7 +54,8 @@ Project context lives in `.agents/`. Start with `.agents/AGENTS.md`, then read
 `.agents/pipeline-recovery-plan.md` for the historical recovery roadmap.
 
 ### Useful Scripts
-- `scripts/reset.js`: destructive helper that clears Firestore `fontfamilies` collection and Storage assets. Requires admin credentials.
+- `scripts/setup-remote-config.cjs`: Admin SDK helper that creates or updates the server Remote Config parameter group.
+- `scripts/setup-remote-config.sh`: Firebase CLI template helper for Remote Config setup.
 
 ### Contributing Notes
 - Always run `npm run lint && npm run typecheck && npm test` before pushing.

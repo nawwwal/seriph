@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import type { FontFamily, Font as FontVariant } from '@/models/font.models';
 
 function cssFormatFor(fontFormat: string): string {
@@ -46,16 +46,9 @@ function buildFontFaceRule(
 }
 
 export function useRegisterFamilyFonts(family: FontFamily | null | undefined) {
-  useEffect(() => {
-    if (!family || !family.fonts || family.fonts.length === 0) return;
-
-    const styleId = `seriph-fonts-${family.id}`;
-    let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
-    if (!styleEl) {
-      styleEl = document.createElement('style');
-      styleEl.id = styleId;
-      document.head.appendChild(styleEl);
-    }
+  const styleId = family ? `seriph-fonts-${family.id}` : null;
+  const fontFaceRules = useMemo(() => {
+    if (!family || !family.fonts || family.fonts.length === 0) return '';
 
     // Build rules for each variant, proxying URLs through our API to avoid CORS
     const rules: string[] = [];
@@ -72,9 +65,21 @@ export function useRegisterFamilyFonts(family: FontFamily | null | undefined) {
       rules.push(buildFontFaceRule(family.name, v, src));
     }
 
-    styleEl.innerHTML = rules.join('\n\n');
+    return rules.join('\n\n');
+  }, [family]);
+
+  useEffect(() => {
+    if (!styleId || !fontFaceRules) return;
+
+    let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = styleId;
+      document.head.appendChild(styleEl);
+    }
+
+    styleEl.innerHTML = fontFaceRules;
 
     // No cleanup to persist loaded fonts; updating is handled by replacing innerHTML
-  }, [family?.id, family?.name, JSON.stringify(family?.fonts ?? [])]);
+  }, [styleId, fontFaceRules]);
 }
-
