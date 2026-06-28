@@ -14,7 +14,12 @@ let client: GoogleGenAI | null = null;
 function ai(): GoogleGenAI {
   if (client) return client;
   const project = process.env.GOOGLE_CLOUD_PROJECT || 'seriph';
-  const location = getConfigValue(RC_KEYS.vertexLocationId, RC_DEFAULTS[RC_KEYS.vertexLocationId]);
+  // gemini-embedding-2-preview is not served from asia-southeast1; embeddings use
+  // their own location (default us-central1), independent of the analysis model.
+  const location = getConfigValue(
+    RC_KEYS.embeddingLocationId,
+    RC_DEFAULTS[RC_KEYS.embeddingLocationId] || getConfigValue(RC_KEYS.vertexLocationId, RC_DEFAULTS[RC_KEYS.vertexLocationId]),
+  );
   client = new GoogleGenAI({ vertexai: true, project, location });
   return client;
 }

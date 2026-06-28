@@ -69,5 +69,6 @@ export interface IngestRecord {
   normalizationSpecVersion?: string; // Client spec version sent with upload
   conflictResolution?: ConflictResolution; // Metadata for style conflicts (server-decided)
   uploadState?: UploadState; // Enhanced upload state tracking
+  uploadProgress?: number; // 0-100 resumable upload progress (client-driven)
   resumeMetadata?: ResumeMetadata; // For resumable upload state binding
 }

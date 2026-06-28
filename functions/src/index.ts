@@ -5,7 +5,7 @@ import * as admin from "firebase-admin";
 
 // Firebase Functions
 import { onObjectFinalized } from "firebase-functions/v2/storage";
-import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import { getStorage } from "firebase-admin/storage";
@@ -15,11 +15,11 @@ import { getFirestore } from "firebase-admin/firestore";
 import { initializeRemoteConfig, getConfigValue } from "./config/remoteConfig";
 import { RC_KEYS, RC_DEFAULTS } from "./config/rcKeys";
 import { ingestFont } from "./storage/ingest";
-import { enrichFamily } from "./ai/enrichFont";
 import { searchFonts } from "./search/searchFonts";
 import { css2Handler, serveFontHandler } from "./serve/handlers";
 import { FAMILIES_COLLECTION } from "./storage/familyStore";
-import type { FontFamilyDoc } from "./models/catalog.models";
+import { expandIntakeObject } from "./ingest/expandArchive";
+import { submitPendingEnrichmentBatch, pollEnrichmentBatches } from "./ingest/batchEnrich";
 
 type ServiceAccountConfig = admin.ServiceAccount & {
   project_id?: string;
@@ -240,16 +240,30 @@ const appStorage = getStorage();
 const INGEST_FUNCTION_OPTIONS = {
   region: "asia-southeast1",
   memory: "1GiB" as const,
+  // Parse (fontkit glyph iteration), woff2 transcode (wawoff2 WASM) and specimen
+  // render (skia) are CPU-bound; 2 vCPU shortens per-font wall-clock on big batches.
+  cpu: 2,
   timeoutSeconds: 300,
   maxInstances: 2,
 };
 
-const ENRICH_FUNCTION_OPTIONS = {
+// Batch enrichment runs on a schedule, not per-document. Submit renders specimens
+// (CPU + memory), so it gets more headroom than the lightweight poller.
+const BATCH_SUBMIT_OPTIONS = {
   region: "asia-southeast1",
   memory: "1GiB" as const,
-  timeoutSeconds: 300,
+  cpu: 2,
+  timeoutSeconds: 540,
   maxInstances: 1,
-  document: `${FAMILIES_COLLECTION}/{slug}`,
+  schedule: "every 30 minutes",
+};
+
+const BATCH_POLL_OPTIONS = {
+  region: "asia-southeast1",
+  memory: "512MiB" as const,
+  timeoutSeconds: 540,
+  maxInstances: 1,
+  schedule: "every 10 minutes",
 };
 
 const SEARCH_FUNCTION_OPTIONS = {
@@ -291,6 +305,16 @@ async function updateIngestState(
  * font is viewable + downloadable as soon as this finishes. Enrichment runs
  * separately via `enrichFontOnReady`.
  */
+/**
+ * Intake expander. Anything dropped under the intake prefix (loose fonts, zips,
+ * nested zips, folder trees) is normalized here: fonts move to the unprocessed
+ * prefix, archives are unzipped and their entries written back to intake so this
+ * same trigger recurses. Source-agnostic and recursive — see ingestion-at-scale.
+ */
+export const expandArchive = onObjectFinalized(INGEST_FUNCTION_OPTIONS, (event) =>
+  expandIntakeObject(event)
+);
+
 export const processUploadedFontStorage = onObjectFinalized(
   INGEST_FUNCTION_OPTIONS,
   async (event) => {
@@ -322,6 +346,7 @@ export const processUploadedFontStorage = onObjectFinalized(
     const t0 = Date.now();
     try {
       const [buffer] = await srcFile.download();
+      await updateIngestState(processingId, ownerId, { analysisState: "analyzing" });
       const result = await ingestFont({
         fileBuffer: buffer,
         originalFilename: actualName,
@@ -339,9 +364,11 @@ export const processUploadedFontStorage = onObjectFinalized(
         return null;
       }
 
+      // Parse done; the family is now viewable. Hand off to enrichment — keep the
+      // ingest visible as `enriching` until enrichFontOnReady finalizes it.
       await updateIngestState(processingId, ownerId, {
-        analysisState: "complete",
-        status: "completed",
+        analysisState: "enriching",
+        status: "processing",
         familyId: result.family.id,
       });
       await srcFile.delete({ ignoreNotFound: true });
@@ -377,27 +404,33 @@ export const processUploadedFontStorage = onObjectFinalized(
 );
 
 /**
- * Enrichment trigger: when a family doc becomes `ready`, run the async
- * multimodal enrichment + embedding. Only acts on the `ready` state, so the
- * `enriching`/`enriched` writes it makes don't re-trigger work.
+ * All-batch enrichment (submit). On a schedule, collect every `ready` family,
+ * render specimens, and submit one Gemini Batch API job for the multimodal
+ * analysis (50% of realtime price). Fonts are viewable the instant they parse;
+ * enrichment lands on the batch cadence. See ingest/batchEnrich.ts.
  */
-export const enrichFontOnReady = onDocumentWritten(
-  ENRICH_FUNCTION_OPTIONS,
-  async (event) => {
-    const after = event.data?.after?.data() as FontFamilyDoc | undefined;
-    if (!after || after.status !== "ready") return;
-    try {
-      await initializeRemoteConfig();
-    } catch {
-      // defaults
-    }
-    try {
-      await enrichFamily(event.params.slug as string);
-    } catch (e: any) {
-      logger.error(`Enrichment failed for ${event.params.slug}`, { message: e?.message });
-    }
+export const submitEnrichmentBatch = onSchedule(BATCH_SUBMIT_OPTIONS, async () => {
+  try {
+    await initializeRemoteConfig();
+  } catch {
+    // defaults
   }
-);
+  await submitPendingEnrichmentBatch();
+});
+
+/**
+ * All-batch enrichment (poll). On a schedule, check in-flight batch jobs; when a
+ * job finishes, parse its output, embed each family inline, write the enrichment
+ * + vector, and finalize the originating ingests.
+ */
+export const pollEnrichmentBatch = onSchedule(BATCH_POLL_OPTIONS, async () => {
+  try {
+    await initializeRemoteConfig();
+  } catch {
+    // defaults
+  }
+  await pollEnrichmentBatches();
+});
 
 /** Semantic font search. POST { q?, filters?, limit? }. */
 export const searchFontsHttp = onRequest(SEARCH_FUNCTION_OPTIONS, async (req, res) => {

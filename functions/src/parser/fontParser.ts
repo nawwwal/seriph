@@ -139,7 +139,7 @@ export async function serverParseFontFile(
   else if (lowerSubfamily.includes('thin')) weight = 100;
   else weight = 400;
 
-  if ('variationAxes' in font && font.variationAxes) {
+  if ('variationAxes' in font && font.variationAxes && Object.keys(font.variationAxes).length > 0) {
       isVariable = true;
       variableAxes = Object.entries(font.variationAxes).map(([tag, axis]) => ({
           tag: tag,

@@ -37,7 +37,7 @@
       "queryScope": "COLLECTION",
       "density": "SPARSE_ALL",
       "fields": [
-        { "fieldPath": "text_vec", "vectorConfig": { "dimension": 1536, "flat": {} } }
+        { "fieldPath": "text_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
       ]
     },
     {
@@ -45,7 +45,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "ownerId", "order": "ASCENDING" },
-        { "fieldPath": "text_vec", "vectorConfig": { "dimension": 1536, "flat": {} } }
+        { "fieldPath": "text_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
       ]
     },
     {
@@ -53,7 +53,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "category", "order": "ASCENDING" },
-        { "fieldPath": "text_vec", "vectorConfig": { "dimension": 1536, "flat": {} } }
+        { "fieldPath": "text_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
       ]
     }
   ],

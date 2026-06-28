@@ -23,11 +23,11 @@ export const RC_KEYS = {
         topP: "ai_top_p",
         topK: "ai_top_k",
 	// Concurrency / retries
-	maxConcurrentOps: "ai_max_concurrent_ops",
 	retryMaxAttempts: "ai_retry_max_attempts",
 	retryBaseMs: "ai_retry_base_ms",
 	retryMaxMs: "ai_retry_max_ms",
 	// Storage paths
+	intakeBucketPath: "intake_bucket_path",
 	unprocessedBucketPath: "unprocessed_bucket_path",
 	processedBucketPath: "processed_bucket_path",
 	failedBucketPath: "failed_bucket_path",
@@ -50,7 +50,13 @@ export const RC_KEYS = {
         // --- Rebuilt AI pipeline (single multimodal pass + embeddings) ---
         analysisModelName: "analysis_model_name",          // multimodal specimen analysis
         embeddingModelName: "embedding_model_name",        // text + image embeddings
-        embeddingDimensions: "embedding_dimensions",
+        embeddingDimensions: "embedding_dimensions",       // Firestore vector index caps at 2048
+        embeddingLocationId: "embedding_location_id",       // embedding-2 preview is not in asia-southeast1; use us-central1
+        // --- Batch enrichment (all-batch: scheduled Gemini Batch API for analysis) ---
+        enrichBatchEnabled: "enrich_batch_enabled",        // master switch for batch enrichment lane
+        batchLocationId: "batch_location_id",              // region for Vertex batch prediction jobs
+        enrichBatchMax: "enrich_batch_max",                // max families per submitted batch job
+        batchIoBucket: "batch_io_bucket",                  // GCS bucket for batch JSONL IO (empty = public bucket)
         // --- Rebuilt vector search ---
         searchTopK: "search_top_k",
         searchImageWeight: "search_image_weight",          // 0..1 weight of image vector vs text
@@ -76,10 +82,10 @@ export const RC_DEFAULTS = {
         [RC_KEYS.temperature]: "0.4",
         [RC_KEYS.topP]: "0.9",
         [RC_KEYS.topK]: "40",
-	[RC_KEYS.maxConcurrentOps]: "4",
 	[RC_KEYS.retryMaxAttempts]: "3",
 	[RC_KEYS.retryBaseMs]: "250",
 	[RC_KEYS.retryMaxMs]: "4000",
+	[RC_KEYS.intakeBucketPath]: "intake",
 	[RC_KEYS.unprocessedBucketPath]: "unprocessed_fonts",
 	[RC_KEYS.processedBucketPath]: "processed_fonts",
         [RC_KEYS.failedBucketPath]: "failed_processing",
@@ -99,9 +105,15 @@ export const RC_DEFAULTS = {
         [RC_KEYS.catalogPublicBucket]: "seriph-fonts",
         [RC_KEYS.catalogCdnBaseUrl]: "",
         // --- Rebuilt AI pipeline ---
-        [RC_KEYS.analysisModelName]: "gemini-2.5-flash",
-        [RC_KEYS.embeddingModelName]: "gemini-embedding-001",
-        [RC_KEYS.embeddingDimensions]: "1536",
+        [RC_KEYS.analysisModelName]: "gemini-3.5-flash",
+        [RC_KEYS.embeddingModelName]: "gemini-embedding-2-preview",
+        [RC_KEYS.embeddingDimensions]: "2048",
+        [RC_KEYS.embeddingLocationId]: "us-central1",
+        // --- Batch enrichment ---
+        [RC_KEYS.enrichBatchEnabled]: "true",
+        [RC_KEYS.batchLocationId]: "global",
+        [RC_KEYS.enrichBatchMax]: "100",
+        [RC_KEYS.batchIoBucket]: "",
         // --- Rebuilt vector search ---
         [RC_KEYS.searchTopK]: "24",
         [RC_KEYS.searchImageWeight]: "0.35",
