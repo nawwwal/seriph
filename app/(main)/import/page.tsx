@@ -4,6 +4,7 @@ import { useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import NavBar from '@/components/layout/NavBar';
 import Dropzone from '@/components/ui/Dropzone';
+import ImportFooter from '@/components/import/ImportFooter';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useUploads } from '@/lib/contexts/UploadContext';
 import { useResumableBatchUpload } from '@/lib/hooks/useResumableBatchUpload';
@@ -38,11 +39,6 @@ export default function ImportPage() {
       <div className="w-screen h-screen flex flex-col">
         <NavBar />
         <div className="flex-1 w-full h-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto">
-          <header className="w-full rule-b pb-4 sm:pb-5 md:pb-6">
-            <h1 className="cap-tight uppercase font-black tracking-tight text-[clamp(56px,9.5vw,140px)] leading-[0.9]">
-              Import Fonts
-            </h1>
-          </header>
           <div className="mt-8 p-8 rule rounded-[var(--radius)] max-w-xl">
             <div className="text-xl font-bold">Sign in required</div>
             <p className="mt-2">Sign in to add fonts to your library.</p>
@@ -96,25 +92,7 @@ export default function ImportPage() {
           <Dropzone onFilesWalked={handleWalked} allowFolders accept=".ttf,.otf,.woff,.woff2,.zip" />
         </main>
 
-        <footer className="mt-8 sm:mt-10 md:mt-12 rule-t pt-4 sm:pt-5 md:pt-6 text-sm sm:text-base">
-          <div className="grid sm:grid-cols-3 gap-4">
-            <div className="rule-r pr-4">
-              <div className="uppercase font-bold">About</div>
-              <p className="mt-2">Browse, test, and rediscover your own type. One color, many voices.</p>
-            </div>
-            <div className="rule-r pr-4">
-              <div className="uppercase font-bold">Tips</div>
-              <ul className="mt-2 list-disc pl-5 leading-tight">
-                <li>Drop the whole messy folder — zips and subfolders are fine.</li>
-                <li>Duplicates are detected and skipped automatically.</li>
-              </ul>
-            </div>
-            <div>
-              <div className="uppercase font-bold">Supported</div>
-              <p className="mt-2 uppercase text-xs font-bold">TTF · OTF · WOFF · WOFF2 · ZIP · FOLDERS</p>
-            </div>
-          </div>
-        </footer>
+        <ImportFooter />
       </div>
     </div>
   );
