@@ -14,6 +14,7 @@ interface ShelfStateProps {
   pendingIngests: IngestRecord[];
   shelfMode: 'spines' | 'covers';
   onAddFonts: () => void;
+  coverSeed?: number;
 }
 
 const formatUploadStatus = (status: string) => {
@@ -34,7 +35,7 @@ const formatUploadStatus = (status: string) => {
 };
 
 const statusBadgeClass = (status: string, priority?: 'upload' | 'analysis' | 'complete') => {
-  if (status === 'failed' || status === 'error') return 'bg-red-600 text-white';
+  if (status === 'failed' || status === 'error') return 'bg-[var(--danger)] text-[var(--paper)]';
   if (status === 'completed' || priority === 'complete') return 'ink-bg text-[var(--paper)]';
   if (priority === 'analysis' && status !== 'complete') return 'btn-ink opacity-70';
   return 'btn-ink';
@@ -45,6 +46,7 @@ export default function ShelfState({
   pendingIngests,
   shelfMode,
   onAddFonts,
+  coverSeed = 0,
 }: ShelfStateProps) {
   const activeUploads = pendingIngests.filter((ingest) => ingest.status !== 'completed');
   const shouldReduceMotion = useReducedMotion();
@@ -76,7 +78,7 @@ export default function ShelfState({
             animate={shouldReduceMotion ? {} : { opacity: 1, scale: 1 }}
             exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.9 }}
             transition={shouldReduceMotion ? {} : { type: 'spring', damping: 25, stiffness: 300 }}
-            className="rule p-4 sm:p-5 md:p-6 rounded-[var(--radius)] flex flex-col justify-between gap-4 bg-[var(--surface)]"
+            className="h-full rule p-4 sm:p-5 md:p-6 rounded-[var(--radius)] flex flex-col justify-between gap-4 bg-[var(--surface)]"
           >
             <div>
               <div className="flex items-center justify-between gap-3">
@@ -100,14 +102,14 @@ export default function ShelfState({
                 </div>
               )}
               {ingest.quarantined && (
-                <div className="text-xs uppercase font-bold text-red-600 mt-1">
+                <div className="text-xs uppercase font-bold text-[var(--danger)] mt-1">
                   Quarantined
                 </div>
               )}
             </div>
             <div className="text-sm opacity-70">
               {ingest.error ? (
-                <div className="text-red-600">Error: {ingest.error}</div>
+                <div className="text-[var(--danger)]">Error: {ingest.error}</div>
               ) : (
                 <AnalysisStateIndicator
                   analysisState={combinedStatus.analysisState || 'not_started'}
@@ -130,8 +132,9 @@ export default function ShelfState({
           animate={shouldReduceMotion ? {} : { opacity: 1, scale: 1 }}
           exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.9 }}
           transition={shouldReduceMotion ? {} : { type: 'spring', damping: 25, stiffness: 300 }}
+          className="h-full"
         >
-          <FamilyCover family={family} mode={shelfMode} />
+          <FamilyCover family={family} mode={shelfMode} coverSeed={coverSeed} />
         </motion.div>
         ))}
       </AnimatePresence>

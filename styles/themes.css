@@ -12,6 +12,13 @@
   --surface: #FFFFFF;
   --shadow: color-mix(in srgb, var(--ink) 20%, transparent);
   --focus: #0D7E6C;
+  /* Semantic status tokens (adapt per theme) */
+  --success: #0F8A4D;
+  --danger: #C0392B;
+  --warning: #B8860B;
+  --info: #0D7E6C;
+  --surface-muted: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  --on-surface: #1A1A1A;
 }
 
 /* Noir theme */
@@ -26,6 +33,12 @@
   --surface: #1a1a1a;
   --shadow: rgba(0, 0, 0, 0.5);
   --focus: #FFFFFF;
+  --success: #4ADE80;
+  --danger: #F87171;
+  --warning: #FBBF24;
+  --info: #93C5FD;
+  --surface-muted: #242424;
+  --on-surface: #EDEDED;
 }
 
 /* Sunset theme */
@@ -40,6 +53,12 @@
   --surface: #FFFFFF;
   --shadow: color-mix(in srgb, var(--ink) 15%, transparent);
   --focus: #FF7A59;
+  --success: #2E8B57;
+  --danger: #C0392B;
+  --warning: #B8860B;
+  --info: #C2410C;
+  --surface-muted: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  --on-surface: #1A1A1A;
 }
 
 /* Ocean theme */
@@ -54,5 +73,11 @@
   --surface: #FFFFFF;
   --shadow: color-mix(in srgb, var(--ink) 15%, transparent);
   --focus: #0E87CC;
+  --success: #0F8A4D;
+  --danger: #C0392B;
+  --warning: #B8860B;
+  --info: #0E87CC;
+  --surface-muted: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  --on-surface: #0B2A3A;
 }
 

@@ -39,14 +39,11 @@ export async function OPTIONS() {
 export async function POST(request: NextRequest) {
   try {
     const payload = (await request.json()) as SearchRequestPayload;
-    const endpoint = process.env.SEARCH_FUNCTION_URL || process.env.SEARCH_SERVICE_URL;
-
-    if (!endpoint) {
-      return NextResponse.json(
-        { error: 'Search backend not configured. Set SEARCH_FUNCTION_URL environment variable.' },
-        { status: 503, headers: { 'Access-Control-Allow-Origin': '*' } }
-      );
-    }
+    // Default to the deployed searchFontsHttp function; override via env if needed.
+    const endpoint =
+      process.env.SEARCH_FUNCTION_URL ||
+      process.env.SEARCH_SERVICE_URL ||
+      'https://asia-southeast1-seriph.cloudfunctions.net/searchFontsHttp';
 
     const response = await fetch(endpoint, {
       method: 'POST',

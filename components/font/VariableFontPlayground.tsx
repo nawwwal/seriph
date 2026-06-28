@@ -79,20 +79,22 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
   const [previewFontSize, setPreviewFontSize] = useState(48);
 
   if (!isVariableFont) {
-    return <p className="text-sm text-gray-500">This font is not variable or has no defined axes.</p>;
+    return <p className="text-sm opacity-70">This font is not variable or has no defined axes.</p>;
   }
 
 
   return (
-    <div className="p-6 border border-gray-200 rounded-lg shadow-sm bg-white my-6">
-      <h4 className="text-xl font-semibold text-gray-700 mb-1">{font.subfamily} - Variable Playground</h4>
-      <p className="text-xs text-gray-500 mb-4">Format: {font.format}, Size: {(font.fileSize / 1024).toFixed(1)} KB</p>
+    <div className="rule p-6 rounded-[var(--radius)]">
+      <div className="flex items-baseline justify-between gap-3 mb-4">
+        <h4 className="uppercase font-bold text-sm">{font.subfamily} · Variable Playground</h4>
+        <p className="text-xs opacity-60">{font.format} · {(font.fileSize / 1024).toFixed(1)} KB</p>
+      </div>
 
       <div className="mb-6">
         <textarea
           value={previewText}
           onChange={(e) => setPreviewText(e.target.value)}
-          className="w-full p-3 border border-gray-300 rounded-md resize-none focus:ring-blue-500 focus:border-blue-500 min-h-[150px] md:min-h-[200px] lg:min-h-[250px]"
+          className="w-full p-3 rule rounded-[var(--radius)] bg-[var(--paper)] resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] min-h-[150px] md:min-h-[200px]"
           style={{
             fontFamily: `'${uniqueFontFamilyCssName}', sans-serif`,
             fontVariationSettings,
@@ -105,10 +107,10 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
         {axes.map((axis: VariableAxis) => (
           <div key={axis.tag} className="flex flex-col">
             <div className="flex justify-between items-center mb-1">
-                <label htmlFor={`slider-${axis.tag}`} className="text-sm font-medium text-gray-600">
+                <label htmlFor={`slider-${axis.tag}`} className="text-sm font-medium opacity-70">
                 {axis.name} ({axis.tag})
                 </label>
-                <span className="text-sm text-blue-600 font-mono bg-blue-50 px-2 py-0.5 rounded">
+                <span className="text-sm text-[var(--info)] font-mono bg-[color-mix(in_srgb,var(--info)_12%,transparent)] px-2 py-0.5 rounded">
                     {currentAxisValues[axis.tag]}
                 </span>
             </div>
@@ -120,14 +122,14 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
               step={ (axis.tag === 'wght' || axis.maxValue - axis.minValue > 100) ? 1 : ((axis.maxValue - axis.minValue) / 100) }
               value={currentAxisValues[axis.tag]}
               onChange={(e) => handleSliderChange(axis.tag, parseFloat(e.target.value))}
-              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
+              className="w-full h-2 bg-[var(--muted)] rounded-lg appearance-none cursor-pointer accent-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-offset-1 focus-visible:ring-[var(--focus)]"
               aria-valuenow={currentAxisValues[axis.tag]}
               aria-label={`${axis.name} (${axis.tag})`}
             />
           </div>
         ))}
         <div>
-            <label htmlFor="fontSizeSlider" className="text-sm font-medium text-gray-600 block mb-1">Preview Font Size</label>
+            <label htmlFor="fontSizeSlider" className="text-sm font-medium opacity-70 block mb-1">Preview Font Size</label>
             <div className="flex items-center gap-2">
                 <input
                 type="range"
@@ -137,11 +139,11 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
                 step="1"
                 value={previewFontSize}
                 onChange={(e) => setPreviewFontSize(Number(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500"
+                className="w-full h-2 bg-[var(--muted)] rounded-lg appearance-none cursor-pointer accent-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-offset-1 focus-visible:ring-[var(--focus)]"
                 aria-valuenow={previewFontSize}
                 aria-label="Preview font size"
                 />
-                <span className="text-sm text-blue-600 font-mono bg-blue-50 px-2 py-0.5 rounded min-w-[50px] text-center">
+                <span className="text-sm text-[var(--info)] font-mono bg-[color-mix(in_srgb,var(--info)_12%,transparent)] px-2 py-0.5 rounded min-w-[50px] text-center">
                     {previewFontSize}px
                 </span>
             </div>

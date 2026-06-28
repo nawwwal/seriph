@@ -26,12 +26,12 @@ const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ size = 'medium', text, 
   return (
     <div className={`flex flex-col items-center justify-center p-4 ${className || ''}`}>
       <div
-        className={`animate-spin rounded-full border-blue-500 border-t-transparent ${spinnerSizeClasses}`}
+        className={`animate-spin rounded-full border-[var(--ink)] border-t-transparent ${spinnerSizeClasses}`}
         role="status"
       >
         <span className="sr-only">Loading...</span>
       </div>
-      {text && <p className="mt-3 text-lg text-gray-600">{text}</p>}
+      {text && <p className="mt-3 text-lg opacity-70">{text}</p>}
     </div>
   );
 };

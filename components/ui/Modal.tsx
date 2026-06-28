@@ -67,19 +67,19 @@ const Modal: React.FC<ModalProps> = ({
     >
       <div
         ref={modalRef}
-        className={`bg-white rounded-lg shadow-xl transform transition-all duration-300 ease-in-out w-full ${sizeClasses} p-6 relative outline-none`}
+        className={`bg-[var(--surface)] text-[var(--on-surface)] rule rounded-[var(--radius)] shadow-xl transform transition-all duration-300 ease-in-out w-full ${sizeClasses} p-6 relative outline-none`}
         onClick={(e) => e.stopPropagation()}
         tabIndex={0} // Make the modal content itself focusable
       >
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700 transition-colors p-1.5 rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+          className="absolute top-3 right-3 opacity-60 hover:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-[var(--muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus:ring-offset-1"
           aria-label="Close modal"
         >
           <X size={22} />
         </button>
         {title && (
-          <h3 id={titleId} className="text-2xl font-semibold text-gray-800 mb-6 pr-10">
+          <h3 id={titleId} className="text-2xl font-semibold mb-6 pr-10">
             {title}
           </h3>
         )}

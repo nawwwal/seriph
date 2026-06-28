@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
-import { useParams } from 'next/navigation';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { storePendingFonts } from '@/utils/pendingFonts';
 import { FontFamily, Font as FontVariant } from '@/models/font.models';
 import { getFontFamilyById } from '@/lib/db/firestoreUtils';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -13,6 +14,7 @@ import StyleCard from '@/components/font/StyleCard';
 import Specimen from '@/components/font/Specimen';
 import TypeTester from '@/components/font/TypeTester';
 import UseFontPanel from '@/components/font/UseFontPanel';
+import VariableFontPlayground from '@/components/font/VariableFontPlayground';
 import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
 
 const serializeFamilyData = (family: any): FontFamily | null => {
@@ -34,12 +36,86 @@ const serializeFamilyData = (family: any): FontFamily | null => {
 export default function FamilyDetailPage() {
   const routeParams = useParams<{ familyId: string }>();
   const familyId = routeParams.familyId;
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
 
   const [family, setFamily] = useState<FontFamily | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>('All');
+  const [shareLabel, setShareLabel] = useState<'Share' | 'Copied' | 'Failed'>('Share');
+  const [downloadLabel, setDownloadLabel] = useState<'Download' | 'Preparing…' | 'Failed'>('Download');
+
+  const testerRef = useRef<HTMLDivElement | null>(null);
+  const addStyleInputRef = useRef<HTMLInputElement | null>(null);
+
+  const scrollToTester = () => {
+    testerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleAddStyleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+    storePendingFonts(files);
+    router.push('/import');
+  };
+
+  const handleShare = async () => {
+    try {
+      const url = typeof window !== 'undefined' ? window.location.href : '';
+      await navigator.clipboard.writeText(url);
+      setShareLabel('Copied');
+      setTimeout(() => setShareLabel('Share'), 1500);
+    } catch {
+      setShareLabel('Failed');
+      setTimeout(() => setShareLabel('Share'), 1500);
+    }
+  };
+
+  const handleDownload = async () => {
+    if (!family) return;
+    setDownloadLabel('Preparing…');
+    try {
+      const { default: JSZip } = await import('jszip');
+      const zip = new JSZip();
+      let added = 0;
+      await Promise.all(
+        (family.fonts || []).map(async (font) => {
+          const url =
+            ((font.metadata as any)?.downloadUrl as string | undefined) ||
+            ((font.metadata as any)?.cdnUrl as string | undefined);
+          if (!url) return;
+          try {
+            const res = await fetch(url);
+            if (!res.ok) return;
+            const blob = await res.blob();
+            const ext = (font.format || 'woff2').toLowerCase();
+            const safe = (font.filename || `${font.subfamily || 'style'}.${ext}`).replace(/[/\\]/g, '_');
+            zip.file(safe, blob);
+            added += 1;
+          } catch {
+            /* skip individual failures */
+          }
+        })
+      );
+      if (added === 0) {
+        setDownloadLabel('Failed');
+        setTimeout(() => setDownloadLabel('Download'), 1500);
+        return;
+      }
+      const content = await zip.generateAsync({ type: 'blob' });
+      const href = URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = `${family.name.replace(/[/\\]/g, '_')}.zip`;
+      a.click();
+      URL.revokeObjectURL(href);
+      setDownloadLabel('Download');
+    } catch {
+      setDownloadLabel('Failed');
+      setTimeout(() => setDownloadLabel('Download'), 1500);
+    }
+  };
 
   // Register fonts for this family when available
   useRegisterFamilyFonts(family || undefined);
@@ -71,6 +147,14 @@ export default function FamilyDetailPage() {
       return acc;
     }, {} as { [subfamilyName: string]: FontVariant[] });
   }, [groupedFontsBySubfamily, activeFilter]);
+
+  // The first variable face with usable axes drives the playground section.
+  const variableFont = useMemo(() => {
+    if (!family?.fonts) return null;
+    return (
+      family.fonts.find((f) => f.isVariable && (f.variableAxes?.length ?? 0) > 0) ?? null
+    );
+  }, [family]);
 
   // Parse Unicode ranges and generate character set
   const characterSet = useMemo(() => {
@@ -163,6 +247,14 @@ export default function FamilyDetailPage() {
   }, [characterSet]);
 
   useEffect(() => {
+    if (authLoading) return;
+
+    // Catalogue is private: don't fetch a family when logged out.
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
     if (!familyId) {
       setError('Font family ID is not available in the route.');
       setIsLoading(false);
@@ -189,10 +281,26 @@ export default function FamilyDetailPage() {
     };
 
     fetchFamilyData();
-  }, [familyId, user?.uid]);
+  }, [familyId, user, authLoading]);
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return <FontDetailLoader />;
+  }
+
+  if (!user) {
+    return (
+      <div className="w-screen h-screen flex flex-col bg-[var(--paper)]">
+        <NavBar />
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center p-10 rule rounded-[var(--radius)] max-w-lg">
+            <p className="text-xl mb-4">Sign in to view this family.</p>
+            <Link href="/" className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] btn-ink inline-block">
+              ← Back home
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (error || !family) {
@@ -223,10 +331,24 @@ export default function FamilyDetailPage() {
               </h1>
             </div>
             <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-              <button className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] text-sm sm:text-base btn-ink">
+              <input
+                ref={addStyleInputRef}
+                type="file"
+                multiple
+                accept=".ttf,.otf,.woff,.woff2"
+                className="hidden"
+                onChange={handleAddStyleFiles}
+              />
+              <button
+                onClick={() => addStyleInputRef.current?.click()}
+                className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] text-sm sm:text-base btn-ink"
+              >
                 Add Style <span className="caret"></span>
               </button>
-              <button className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] text-sm sm:text-base btn-ink">
+              <button
+                onClick={scrollToTester}
+                className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] text-sm sm:text-base btn-ink"
+              >
                 Test in Text
               </button>
             </div>
@@ -267,6 +389,13 @@ export default function FamilyDetailPage() {
 
         <UseFontPanel family={family} />
 
+        {variableFont && (
+          <section className="mt-6">
+            <h2 className="uppercase font-black text-2xl sm:text-3xl rule-b pb-4 mb-6">Variable</h2>
+            <VariableFontPlayground font={variableFont} fontFamilyName={family.name} />
+          </section>
+        )}
+
         <section className="mt-6">
           <div className="flex justify-between items-center rule-b pb-4">
             <h2 className="uppercase font-black text-2xl sm:text-3xl">Styles</h2>
@@ -297,7 +426,9 @@ export default function FamilyDetailPage() {
           </div>
         </section>
 
-        <TypeTester family={family} />
+        <div ref={testerRef}>
+          <TypeTester family={family} />
+        </div>
 
         <section className="mt-10">
           <h2 className="uppercase font-black text-2xl sm:text-3xl rule-b pb-4">Character Set</h2>
@@ -396,7 +527,7 @@ export default function FamilyDetailPage() {
             <div className="rule-r pr-4">
               <div className="uppercase font-bold">About</div>
               <p className="mt-2">
-                {family.description || 'A no-fuss library to browse, test, and tidy your type. One color, many voices.'}
+                {family.description || 'No description yet. Once analysis runs, this family earns its own write-up.'}
               </p>
               {family.metadata?.historical_context && (
                 <div className="mt-3 space-y-1">
@@ -447,11 +578,18 @@ export default function FamilyDetailPage() {
             <div>
               <div className="uppercase font-bold">Actions</div>
               <div className="mt-2 flex gap-2">
-                <button className="uppercase font-bold rule px-3 py-2 rounded-[var(--radius)] btn-ink text-sm">
-                  Download
+                <button
+                  onClick={handleDownload}
+                  disabled={downloadLabel === 'Preparing…'}
+                  className="uppercase font-bold rule px-3 py-2 rounded-[var(--radius)] btn-ink text-sm"
+                >
+                  {downloadLabel}
                 </button>
-                <button className="uppercase font-bold rule px-3 py-2 rounded-[var(--radius)] btn-ink text-sm">
-                  Share
+                <button
+                  onClick={handleShare}
+                  className="uppercase font-bold rule px-3 py-2 rounded-[var(--radius)] btn-ink text-sm"
+                >
+                  {shareLabel}
                 </button>
               </div>
             </div>

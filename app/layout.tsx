@@ -4,6 +4,8 @@ import "./globals.css";
 import Script from "next/script";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { AuthProvider } from "@/lib/contexts/AuthContext";
+import { UploadProvider } from "@/lib/contexts/UploadContext";
+import UploadCenterModal from "@/components/upload/UploadCenterModal";
 
 const leagueSpartan = League_Spartan({
   weight: ['400', '700', '900'],
@@ -52,7 +54,10 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <AuthProvider>
-            {children}
+            <UploadProvider>
+              {children}
+              <UploadCenterModal />
+            </UploadProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

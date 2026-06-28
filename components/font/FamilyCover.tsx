@@ -7,10 +7,12 @@ import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
 interface FamilyCoverProps {
   family: FontFamily;
   mode: 'spines' | 'covers';
+  /** Bump to re-pick the deterministic cover pattern ("Regenerate Covers"). */
+  coverSeed?: number;
 }
 
-// Generate a deterministic pattern based on family name
-function getFamilyPattern(familyName: string): string {
+// Generate a deterministic pattern based on family name (offset by an optional seed)
+function getFamilyPattern(familyName: string, seed = 0): string {
   const hash = familyName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
   const patterns = [
     'linear-gradient(180deg, var(--ink) 0%, transparent 10%, transparent 90%, var(--ink) 100%)',
@@ -18,7 +20,7 @@ function getFamilyPattern(familyName: string): string {
     'linear-gradient(90deg, color-mix(in srgb, var(--ink) 10%, transparent) 0 50%, transparent 50% 100%), linear-gradient(color-mix(in srgb, var(--ink) 10%, transparent), color-mix(in srgb, var(--ink) 10%, transparent))',
     'radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--ink) 15%, transparent) 0%, transparent 70%)',
   ];
-  return patterns[hash % patterns.length];
+  return patterns[(hash + seed) % patterns.length];
 }
 
 // Get sample characters based on classification
@@ -33,16 +35,17 @@ function getSampleChars(classification: string): string {
   return samples[classification] || 'Aa';
 }
 
-export default function FamilyCover({ family, mode }: FamilyCoverProps) {
+export default function FamilyCover({ family, mode, coverSeed = 0 }: FamilyCoverProps) {
   // Ensure fonts are registered so samples render with the actual family
   useRegisterFamilyFonts(family);
-  const pattern = getFamilyPattern(family.name);
+  const pattern = getFamilyPattern(family.name, coverSeed);
   const sampleChars = getSampleChars(family.classification);
+  const isVariable = family.fonts?.some((f) => f.isVariable);
 
   return (
     <Link
       href={`/family/${family.id}`}
-      className="relative rule rounded-[var(--radius)] overflow-hidden flex flex-col cursor-pointer transition-transform hover:scale-[1.02]"
+      className="relative h-full rule rounded-[var(--radius)] overflow-hidden flex flex-col cursor-pointer transition-transform hover:scale-[1.02]"
       style={{ background: pattern }}
     >
       <div className="relative flex-1 flex items-end p-4 sm:p-5 md:p-6">
@@ -62,11 +65,18 @@ export default function FamilyCover({ family, mode }: FamilyCoverProps) {
       <div className="rule-t p-3 sm:p-4 bg-[var(--paper)]">
         <div className="uppercase text-xs font-bold opacity-80">Family</div>
         <div className="text-xl font-extrabold truncate family-name">{family.name}</div>
-        <div className="mt-1 flex justify-between text-xs uppercase">
+        <div className="mt-1 flex justify-between items-center text-xs uppercase">
           <div>
             <span className="font-bold">Styles:</span> <span>{family.fonts.length}</span>
           </div>
-          <div className="font-bold">{family.classification}</div>
+          <div className="flex items-center gap-1.5">
+            {isVariable && (
+              <span className="font-bold text-[10px] rule px-1.5 py-0.5 rounded-[var(--radius)]">
+                Var
+              </span>
+            )}
+            <span className="font-bold">{family.classification}</span>
+          </div>
         </div>
       </div>
     </Link>

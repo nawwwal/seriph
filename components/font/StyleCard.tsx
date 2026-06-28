@@ -27,11 +27,19 @@ export default function StyleCard({ subfamilyName, variants, familyName }: Style
   const primaryVariant = variants[0];
   const weight = primaryVariant.weight || 400;
   const isItalic = subfamilyName.toLowerCase().includes('italic');
+  const isVariable = variants.some((v) => v.isVariable);
 
   return (
     <div className="style-card rule rounded-[var(--radius)] overflow-hidden">
       <div className="p-4 pb-2">
-        <div className="uppercase text-xs font-bold opacity-80">{subfamilyName}</div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="uppercase text-xs font-bold opacity-80">{subfamilyName}</div>
+          {isVariable && (
+            <span className="uppercase text-[10px] font-bold rule px-1.5 py-0.5 rounded-[var(--radius)] btn-ink shrink-0">
+              Variable
+            </span>
+          )}
+        </div>
         <div className="text-sm opacity-70">Weight: {weight}</div>
       </div>
       <div className="px-4 pb-4">

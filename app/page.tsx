@@ -1,19 +1,19 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { FontFamily } from '@/models/font.models';
-import { IngestRecord } from '@/models/ingest.models';
-import { getAllFontFamilies, getUserIngests } from '@/lib/db/firestoreUtils';
+import { getAllFontFamilies } from '@/lib/db/firestoreUtils';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { Timestamp, onSnapshot, collection, orderBy, limit as fsLimit } from 'firebase/firestore';
-import { db } from '@/lib/firebase/config';
+import { useUploads } from '@/lib/contexts/UploadContext';
+import { Timestamp } from 'firebase/firestore';
 import NavBar from '@/components/layout/NavBar';
 import WelcomeState from '@/components/home/WelcomeState';
 import ShelfState from '@/components/home/ShelfState';
 import Stat from '@/components/ui/Stat';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import BatchHUD from '@/components/font/BatchHUD';
+import LandingPage from '@/components/home/LandingPage';
 import { storePendingFonts } from '@/utils/pendingFonts';
 
 const serializeFamilies = (families: any[]): FontFamily[] => {
@@ -36,15 +36,22 @@ const CACHE_EXPIRATION_MS = 60 * 60 * 1000; // 1 hour
 export default function HomePage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
+  const { ingests: pendingIngests, onCompleted } = useUploads();
   const [families, setFamilies] = useState<FontFamily[]>([]);
-  const [pendingIngests, setPendingIngests] = useState<IngestRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shelfMode, setShelfMode] = useState<'spines' | 'covers'>('covers');
-  const familiesReloadTimer = useRef<NodeJS.Timeout | null>(null);
+  const [coverSeed, setCoverSeed] = useState(0);
 
   const loadFamilies = useCallback(async () => {
     if (authLoading) {
+      return;
+    }
+
+    // Catalogue is private: don't fetch anything when logged out.
+    if (!user) {
+      setFamilies([]);
+      setIsLoading(false);
       return;
     }
 
@@ -141,93 +148,14 @@ export default function HomePage() {
     }
   }, [authLoading, user]);
 
-  const loadIngests = useCallback(async () => {
-    if (authLoading) return;
-    if (!user?.uid) {
-      setPendingIngests([]);
-      return;
-    }
-
-    try {
-      const ingests = await getUserIngests(user.uid);
-      const visible = ingests.filter((ingest) => ingest.status !== 'completed');
-      setPendingIngests(visible);
-    } catch (ingestError) {
-      console.error('Error fetching pending ingests:', ingestError);
-    }
-  }, [authLoading, user?.uid]);
-
   useEffect(() => {
     if (authLoading) return;
     loadFamilies();
-    loadIngests();
-  }, [authLoading, loadFamilies, loadIngests]);
+  }, [authLoading, loadFamilies]);
 
-  // Live ingest listener: keeps pending uploads fresh and refreshes shelf when items complete
-  useEffect(() => {
-    if (authLoading || !user?.uid) return;
-    const ingestsCol = collection(db, 'users', user.uid, 'ingests');
-    const unsubscribe = onSnapshot(
-      // Order for stability; limit to avoid heavy payloads
-      (orderBy as any) ? (collection(db, 'users', user.uid, 'ingests') as any) : ingestsCol,
-      (snap: any) => {
-        try {
-          const all = snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as any) } as any));
-          const visible = all
-            .filter((ing: any) => (ing.status ?? 'uploaded') !== 'completed')
-            .map((ing: any) => ({
-              id: ing.id,
-              ingestId: ing.ingestId ?? ing.id,
-              ownerId: ing.ownerId ?? user.uid,
-              originalName: ing.originalName ?? 'Font file',
-              status: ing.status ?? 'uploaded',
-              error: ing.error ?? null,
-              errorCode: ing.errorCode ?? null,
-              familyId: ing.familyId ?? null,
-              requestId: ing.requestId ?? null,
-              processingId: ing.processingId ?? null,
-              uploadSource: ing.uploadSource ?? null,
-              unprocessedPath: ing.unprocessedPath ?? null,
-              processedPath: ing.processedPath ?? null,
-              uploadedAt:
-                ing.uploadedAt?.toDate?.() ? ing.uploadedAt.toDate().toISOString() : ing.uploadedAt ?? null,
-              updatedAt:
-                ing.updatedAt?.toDate?.() ? ing.updatedAt.toDate().toISOString() : ing.updatedAt ?? null,
-              // New fields for two-lane status model
-              analysisState: ing.analysisState ?? 'not_started',
-              uploadState: ing.uploadState ?? 'pending',
-              quarantined: ing.quarantined ?? false,
-              contentHash: ing.contentHash ?? null,
-              quickHash: ing.quickHash ?? null,
-              previewFamilyKey: ing.previewFamilyKey ?? null,
-              canonicalFamilyId: ing.canonicalFamilyId ?? null,
-              normalizationSpecVersion: ing.normalizationSpecVersion ?? null,
-              conflictResolution: ing.conflictResolution ?? null,
-              resumeMetadata: ing.resumeMetadata ?? null,
-            }));
-          setPendingIngests(visible);
-
-          // If any completed in snapshot, schedule a families refresh (debounced)
-          const hasCompleted = all.some((ing: any) => ing.status === 'completed');
-          if (hasCompleted) {
-            if (familiesReloadTimer.current) clearTimeout(familiesReloadTimer.current);
-            familiesReloadTimer.current = setTimeout(() => {
-              loadFamilies();
-            }, 800);
-          }
-        } catch (e) {
-          console.error('Ingest snapshot parse failed', e);
-        }
-      },
-      (err: any) => {
-        console.error('Ingest snapshot listener error', err);
-      }
-    );
-    return () => {
-      if (familiesReloadTimer.current) clearTimeout(familiesReloadTimer.current);
-      unsubscribe();
-    };
-  }, [authLoading, user?.uid, loadFamilies]);
+  // The global UploadProvider owns the live ingest snapshot; refresh the shelf
+  // (debounced) when any upload completes.
+  useEffect(() => onCompleted(loadFamilies), [onCompleted, loadFamilies]);
 
   const handleFilesSelected = useCallback(
     (files: File[]) => {
@@ -262,12 +190,28 @@ export default function HomePage() {
     URL.revokeObjectURL(url);
   };
 
+  if (authLoading) {
+    return (
+      <div className="w-screen h-screen flex flex-col bg-[var(--paper)]">
+        <NavBar />
+        <div className="flex-1 flex items-center justify-center">
+          <LoadingSpinner text="Loading Seriph…" size="large" />
+        </div>
+      </div>
+    );
+  }
+
+  // Logged out: show the landing page, never the catalogue.
+  if (!user) {
+    return <LandingPage />;
+  }
+
   if (isLoading) {
     return (
       <div className="w-screen h-screen flex flex-col bg-[var(--paper)]">
         <NavBar />
         <div className="flex-1 flex items-center justify-center">
-          <LoadingSpinner text="Loading Seriph..." size="large" />
+          <LoadingSpinner text="Loading Seriph…" size="large" />
         </div>
       </div>
     );
@@ -283,7 +227,6 @@ export default function HomePage() {
             <button
               onClick={() => {
                 loadFamilies();
-                loadIngests();
               }}
               className="mt-4 px-6 py-2 rule rounded-[var(--radius)] btn-ink uppercase font-bold"
             >
@@ -320,15 +263,18 @@ export default function HomePage() {
                 Add Fonts <span className="caret"></span>
               </button>
               {!isEmpty && (
-                <button className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] text-sm sm:text-base btn-ink">
+                <button
+                  onClick={() => setCoverSeed((s) => s + 1)}
+                  className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] text-sm sm:text-base btn-ink"
+                >
                   Regenerate Covers
                 </button>
               )}
             </div>
           </div>
           <p className="mt-3 sm:mt-4 max-w-3xl text-base sm:text-lg tracking-tight">
-            Upload font files—families are grouped automatically. Each family earns a custom cover
-            reflecting its traits.
+            Your type library. Drop in font files and Seriph groups them into families, renders a
+            specimen for each, and makes the whole shelf searchable by mood and intent.
           </p>
         </header>
 
@@ -381,8 +327,9 @@ export default function HomePage() {
               pendingIngests={pendingIngests}
               shelfMode={shelfMode}
               onAddFonts={handleAddFonts}
+              coverSeed={coverSeed}
             />
-            {pendingIngests.length > 0 && <BatchHUD ingests={pendingIngests} />}
+            {pendingIngests.length > 0 && <BatchHUD />}
           </>
         )}
 
@@ -391,14 +338,14 @@ export default function HomePage() {
             <div className="rule-r pr-4">
               <div className="uppercase font-bold">About</div>
               <p className="mt-2">
-                A no-fuss library to browse, test, and tidy your type. One color, many voices.
+                Browse, test, and rediscover your own type. One color, many voices.
               </p>
             </div>
             <div className="rule-r pr-4">
               <div className="uppercase font-bold">Tips</div>
               <ul className="mt-2 list-disc pl-5 leading-tight">
-                <li>Upload all styles for better grouping.</li>
-                <li>Rename files to include weight/style.</li>
+                <li>Upload every style so families group cleanly.</li>
+                <li>Keep weight and style in the filename for sharper grouping.</li>
               </ul>
             </div>
             <div>

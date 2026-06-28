@@ -11,19 +11,20 @@ export default function WelcomeState({ onFilesSelected }: WelcomeStateProps) {
     <main className="mt-6 sm:mt-8 md:mt-10">
       <div className="text-center mb-12">
         <h2 className="text-3xl md:text-4xl font-black uppercase tracking-tight">
-          Welcome to Your Seriph
+          Your shelf is empty
         </h2>
         <p className="mt-3 max-w-2xl mx-auto text-lg">
-          Your personal font library is empty. Let&apos;s get started by adding some fonts.
+          Drop in your font files and Seriph turns the pile into a library you can see and search.
         </p>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto mb-12">
+      <Dropzone onFilesSelected={onFilesSelected}>
+        <div className="grid md:grid-cols-3 gap-6">
         <div className="flex flex-col items-center text-center p-6 rule rounded-[var(--radius)]">
           <div className="step-number">1</div>
-          <h3 className="text-xl font-bold mt-4 mb-2">Upload Fonts</h3>
+          <h3 className="text-xl font-bold mt-4 mb-2">Drop them in</h3>
           <p className="mb-4">
-            Click &quot;Add Fonts&quot; or drag and drop font files into the dropzone below.
+            Click &quot;Add Fonts&quot; or drag font files straight into the dropzone below.
           </p>
           <div className="mt-2">
             <svg
@@ -46,8 +47,8 @@ export default function WelcomeState({ onFilesSelected }: WelcomeStateProps) {
 
         <div className="flex flex-col items-center text-center p-6 rule rounded-[var(--radius)]">
           <div className="step-number">2</div>
-          <h3 className="text-xl font-bold mt-4 mb-2">Organize Automatically</h3>
-          <p className="mb-4">Fonts are grouped into families with custom generated covers.</p>
+          <h3 className="text-xl font-bold mt-4 mb-2">Grouped for you</h3>
+          <p className="mb-4">Styles snap into families, each with its own generated cover.</p>
           <div className="mt-2">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -70,8 +71,8 @@ export default function WelcomeState({ onFilesSelected }: WelcomeStateProps) {
 
         <div className="flex flex-col items-center text-center p-6 rule rounded-[var(--radius)]">
           <div className="step-number">3</div>
-          <h3 className="text-xl font-bold mt-4 mb-2">Browse Your Collection</h3>
-          <p className="mb-4">Switch between spines and covers view to explore your library.</p>
+          <h3 className="text-xl font-bold mt-4 mb-2">Find by feeling</h3>
+          <p className="mb-4">Browse covers and spines, or search your type by mood and intent.</p>
           <div className="mt-2">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -89,9 +90,8 @@ export default function WelcomeState({ onFilesSelected }: WelcomeStateProps) {
             </svg>
           </div>
         </div>
-      </div>
-
-      <Dropzone onFilesSelected={onFilesSelected} />
+        </div>
+      </Dropzone>
 
       <div className="mt-12 max-w-3xl mx-auto">
         <h3 className="uppercase font-bold text-lg mb-4">Supported Font Formats</h3>
