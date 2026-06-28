@@ -4,20 +4,9 @@ import { useMemo, useState } from 'react';
 import Modal from '@/components/ui/Modal';
 import { useUploads } from '@/lib/contexts/UploadContext';
 import { getCombinedStatus, type IngestStage } from '@/lib/contexts/ImportContext';
+import UploadCenterRow from './UploadCenterRow';
 
 type Filter = 'all' | 'in_progress' | 'complete' | 'error';
-
-const STAGE_LABEL: Record<IngestStage, string> = {
-  queued: 'Queued',
-  uploading: 'Uploading',
-  uploaded: 'Uploaded',
-  analyzing: 'Analyzing',
-  enriching: 'Enriching',
-  complete: 'Complete',
-  error: 'Error',
-  quarantined: 'Quarantined',
-  canceled: 'Canceled',
-};
 
 export default function UploadCenterModal() {
   const { ingests, isOpen, close, uploadProgress } = useUploads();
@@ -97,32 +86,7 @@ export default function UploadCenterModal() {
           {filtered.length === 0 ? (
             <p className="text-sm opacity-60 py-6 text-center">No uploads to show.</p>
           ) : (
-            filtered.map(({ ing, status }) => (
-              <div key={ing.id} className="rule rounded-[var(--radius)] p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="font-bold truncate">{ing.originalName}</div>
-                  <span
-                    className={`uppercase text-[10px] font-bold px-2 py-0.5 rounded-[var(--radius)] whitespace-nowrap ${
-                      status.stage === 'complete'
-                        ? 'ink-bg text-[var(--paper)]'
-                        : status.stage === 'error' || status.stage === 'quarantined'
-                          ? 'bg-[var(--danger)] text-[var(--paper)]'
-                          : 'btn-ink'
-                    }`}
-                  >
-                    {STAGE_LABEL[status.stage]}
-                  </span>
-                </div>
-                {/* Two-lane progress */}
-                <div className="mt-2 h-1.5 w-full bg-[var(--muted)] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-[var(--accent)] transition-all"
-                    style={{ width: `${status.percent}%` }}
-                  />
-                </div>
-                {ing.error && <div className="mt-1 text-xs text-[var(--danger)] truncate">{ing.error}</div>}
-              </div>
-            ))
+            filtered.map(({ ing, status }) => <UploadCenterRow key={ing.id} ing={ing} status={status} />)
           )}
         </div>
       </div>
