@@ -237,6 +237,33 @@ try {
 const firestoreDb = getFirestore();
 const appStorage = getStorage();
 
+const INGEST_FUNCTION_OPTIONS = {
+  region: "asia-southeast1",
+  memory: "1GiB" as const,
+  timeoutSeconds: 300,
+  maxInstances: 2,
+};
+
+const ENRICH_FUNCTION_OPTIONS = {
+  region: "asia-southeast1",
+  memory: "1GiB" as const,
+  timeoutSeconds: 300,
+  maxInstances: 1,
+  document: `${FAMILIES_COLLECTION}/{slug}`,
+};
+
+const SEARCH_FUNCTION_OPTIONS = {
+  region: "asia-southeast1",
+  cors: true,
+  maxInstances: 3,
+};
+
+const CDN_FUNCTION_OPTIONS = {
+  region: "asia-southeast1",
+  cors: true,
+  maxInstances: 5,
+};
+
 /** Update an ingest record's state by processingId (best-effort, non-fatal). */
 async function updateIngestState(
   processingId: string,
@@ -265,7 +292,7 @@ async function updateIngestState(
  * separately via `enrichFontOnReady`.
  */
 export const processUploadedFontStorage = onObjectFinalized(
-  { region: "asia-southeast1", memory: "1GiB", timeoutSeconds: 300 },
+  INGEST_FUNCTION_OPTIONS,
   async (event) => {
     try {
       await initializeRemoteConfig();
@@ -355,12 +382,7 @@ export const processUploadedFontStorage = onObjectFinalized(
  * `enriching`/`enriched` writes it makes don't re-trigger work.
  */
 export const enrichFontOnReady = onDocumentWritten(
-  {
-    region: "asia-southeast1",
-    memory: "1GiB",
-    timeoutSeconds: 300,
-    document: `${FAMILIES_COLLECTION}/{slug}`,
-  },
+  ENRICH_FUNCTION_OPTIONS,
   async (event) => {
     const after = event.data?.after?.data() as FontFamilyDoc | undefined;
     if (!after || after.status !== "ready") return;
@@ -378,7 +400,7 @@ export const enrichFontOnReady = onDocumentWritten(
 );
 
 /** Semantic font search. POST { q?, filters?, limit? }. */
-export const searchFontsHttp = onRequest({ region: "asia-southeast1", cors: true }, async (req, res) => {
+export const searchFontsHttp = onRequest(SEARCH_FUNCTION_OPTIONS, async (req, res) => {
   if (req.method === "OPTIONS") {
     res.status(204).send("");
     return;
@@ -403,7 +425,7 @@ export const searchFontsHttp = onRequest({ region: "asia-southeast1", cors: true
 });
 
 /** Google-Fonts-style CSS API. GET /css2?family=... (Firebase Hosting rewrites /css2 here). */
-export const css2 = onRequest({ region: "asia-southeast1", cors: true }, async (req, res) => {
+export const css2 = onRequest(CDN_FUNCTION_OPTIONS, async (req, res) => {
   try {
     await initializeRemoteConfig();
   } catch {
@@ -413,7 +435,7 @@ export const css2 = onRequest({ region: "asia-southeast1", cors: true }, async (
 });
 
 /** Font asset serving: /s/** (web woff2) and /d/** (original download). Hosting rewrites here. */
-export const serveFont = onRequest({ region: "asia-southeast1", cors: true }, async (req, res) => {
+export const serveFont = onRequest(CDN_FUNCTION_OPTIONS, async (req, res) => {
   try {
     await initializeRemoteConfig();
   } catch {
