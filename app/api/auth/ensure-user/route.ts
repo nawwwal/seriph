@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as admin from 'firebase-admin';
-import { getAdminDb } from '@/lib/firebase/admin';
+import { FieldValue } from 'firebase-admin/firestore';
+import { getAdminDb, getAdminAuth } from '@/lib/firebase/admin';
 import { getUidFromRequest } from '@/lib/server/auth';
 
 export const runtime = 'nodejs';
@@ -14,13 +14,13 @@ export async function POST(request: NextRequest) {
   try {
     const adminDb = getAdminDb();
     // Get user record from Firebase Auth
-    const userRecord = await admin.auth().getUser(uid);
+    const userRecord = await getAdminAuth().getUser(uid);
     
     // Check if user document exists in Firestore
     const userRef = adminDb.collection('users').doc(uid);
     const userDoc = await userRef.get();
 
-    const serverTimestamp = admin.firestore.FieldValue.serverTimestamp();
+    const serverTimestamp = FieldValue.serverTimestamp();
 
     if (!userDoc.exists) {
       // Create user document if it doesn't exist

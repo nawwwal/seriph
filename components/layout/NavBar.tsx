@@ -61,6 +61,14 @@ export default function NavBar() {
         >
           Import
         </Link>
+        <Link
+          href="/search"
+          className={`uppercase font-bold rule px-3 py-1 rounded-[var(--radius)] text-sm transition-colors ${
+            isActive('/search') ? 'btn-ink ink-bg' : 'btn-ink'
+          }`}
+        >
+          Search
+        </Link>
         <div className="ml-auto flex items-center gap-2">
           {user ? (
             <div className="relative" ref={profileMenuRef}>

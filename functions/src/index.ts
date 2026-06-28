@@ -5,21 +5,21 @@ import * as admin from "firebase-admin";
 
 // Firebase Functions
 import { onObjectFinalized } from "firebase-functions/v2/storage";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import { getStorage } from "firebase-admin/storage";
 import { getFirestore } from "firebase-admin/firestore";
-import { onRequest } from "firebase-functions/v2/https";
 
-// Helper imports (ensure these paths are correct based on your structure within functions/src)
-import { serverParseFontFile } from "./parser/fontParser";
-import { serverAddFontToFamilyAdmin } from "./db/firestoreUtils.admin";
-import { runFontPipeline } from "./ai/pipeline/fontPipeline";
-import { withRateLimit } from "./utils/rateLimiter";
-import { initializeRemoteConfig, getConfigValue, getConfigBoolean } from "./config/remoteConfig";
+// --- Rebuilt pipeline modules ---
+import { initializeRemoteConfig, getConfigValue } from "./config/remoteConfig";
 import { RC_KEYS, RC_DEFAULTS } from "./config/rcKeys";
-import { upsertPrompt, extractPromptId } from "./ai/prompts/promptRegistry";
-import { enrichedAnalysisSchema } from "./ai/schemas/enrichedAnalysisSchema";
-import { searchFonts as executeSearch } from "./ai/pipeline/searchOrchestrator";
+import { ingestFont } from "./storage/ingest";
+import { enrichFamily } from "./ai/enrichFont";
+import { searchFonts } from "./search/searchFonts";
+import { css2Handler, serveFontHandler } from "./serve/handlers";
+import { FAMILIES_COLLECTION } from "./storage/familyStore";
+import type { FontFamilyDoc } from "./models/catalog.models";
 
 type ServiceAccountConfig = admin.ServiceAccount & {
   project_id?: string;
@@ -231,606 +231,193 @@ initializeFirebaseAdminApp();
 try {
   getFirestore().settings({ ignoreUndefinedProperties: true });
 } catch (_) {
-  // If settings already applied or Firestore not ready, ignore; subsequent getFirestore calls will still work.
+  // If settings already applied or Firestore not ready, ignore.
 }
 
-const firestoreDb = getFirestore(); // Renamed to avoid conflict if 'firestore' is used as a module
-const appStorage = getStorage(); // Renamed to avoid conflict
+const firestoreDb = getFirestore();
+const appStorage = getStorage();
 
-/**
- * Update ingest record analysis state
- */
-async function updateIngestAnalysisState(
+/** Update an ingest record's state by processingId (best-effort, non-fatal). */
+async function updateIngestState(
   processingId: string,
   ownerId: string | null,
-  analysisState: 'queued' | 'analyzing' | 'enriching' | 'complete' | 'error' | 'quarantined',
-  error?: string
+  fields: Record<string, unknown>
 ): Promise<void> {
-  if (!ownerId) {
-    logger.warn(`Cannot update ingest record: no ownerId for processingId ${processingId}`);
-    return;
-  }
-
+  if (!ownerId) return;
   try {
-    // Find ingest record by processingId
-    const ingestsRef = firestoreDb.collection('users').doc(ownerId).collection('ingests');
-    const querySnapshot = await ingestsRef.where('processingId', '==', processingId).limit(1).get();
-
-    if (querySnapshot.empty) {
-      logger.warn(`No ingest record found for processingId ${processingId}`);
-      return;
-    }
-
-    const ingestDoc = querySnapshot.docs[0];
-    await ingestDoc.ref.update({
-      analysisState,
-      error: error || admin.firestore.FieldValue.delete(),
+    const ingestsRef = firestoreDb.collection("users").doc(ownerId).collection("ingests");
+    const snap = await ingestsRef.where("processingId", "==", processingId).limit(1).get();
+    if (snap.empty) return;
+    await snap.docs[0].ref.update({
+      ...fields,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-
-    logger.info(`Updated ingest ${ingestDoc.id} analysisState to ${analysisState}`);
-  } catch (error: any) {
-    logger.error(`Failed to update ingest analysisState for ${processingId}:`, error);
-    // Non-fatal: continue processing even if state update fails
+  } catch (e: any) {
+    logger.warn(`Failed to update ingest ${processingId}`, { message: e?.message });
   }
 }
 
+/**
+ * Store-first ingestion trigger. Uploads land in `unprocessed_bucket_path`; we
+ * parse, canonicalize (Google Fonts model), transcode to woff2, write canonical
+ * assets to the public bucket, and upsert the family doc (status `ready`). The
+ * font is viewable + downloadable as soon as this finishes. Enrichment runs
+ * separately via `enrichFontOnReady`.
+ */
 export const processUploadedFontStorage = onObjectFinalized(
-  {
-    region: "asia-southeast1", // Align with Vertex regional choice
-    memory: "1GiB",        // Specify memory allocation
-    timeoutSeconds: 540,   // Specify timeout
-  },
+  { region: "asia-southeast1", memory: "1GiB", timeoutSeconds: 300 },
   async (event) => {
-    // Await Remote Config to avoid cold-start defaults
     try {
       await initializeRemoteConfig();
     } catch (e: any) {
-      logger.warn('Remote Config initialization failed, using defaults:', { message: e?.message });
+      logger.warn("Remote Config init failed; using defaults", { message: e?.message });
     }
 
-    const UNPROCESSED_BUCKET_PATH = getConfigValue(RC_KEYS.unprocessedBucketPath, RC_DEFAULTS[RC_KEYS.unprocessedBucketPath]);
-    const PROCESSED_BUCKET_PATH = getConfigValue(RC_KEYS.processedBucketPath, RC_DEFAULTS[RC_KEYS.processedBucketPath]);
-    const FAILED_BUCKET_PATH = getConfigValue(RC_KEYS.failedBucketPath, RC_DEFAULTS[RC_KEYS.failedBucketPath]);
+    const UNPROCESSED = getConfigValue(RC_KEYS.unprocessedBucketPath, RC_DEFAULTS[RC_KEYS.unprocessedBucketPath]);
+    const FAILED = getConfigValue(RC_KEYS.failedBucketPath, RC_DEFAULTS[RC_KEYS.failedBucketPath]);
 
-    const fileBucket = event.data.bucket;
     const filePath = event.data.name;
     const contentType = event.data.contentType;
-
-    if (!filePath || !filePath.startsWith(`${UNPROCESSED_BUCKET_PATH}/`)) {
-      logger.log("File is not in the designated unprocessed directory. Ignoring.", { path: filePath });
+    if (!filePath || !filePath.startsWith(`${UNPROCESSED}/`) || filePath.endsWith("/")) {
       return null;
     }
+    if (event.data.metadata?.processed === "true") return null;
 
-    if (filePath.endsWith("/")) {
-      logger.log("This is a folder creation event. Ignoring.", { path: filePath });
-      return null;
-    }
+    const fileName = filePath.split("/").pop()!;
+    const m = fileName.match(/^([^-]+)-(.+)$/);
+    const processingId = m ? m[1] : firestoreDb.collection("_").doc().id;
+    const actualName = m ? m[2] : fileName;
+    const ownerId = event.data.metadata?.ownerId || null;
 
-    // The onObjectFinalized trigger ensures the object exists.
-    // Further checks for metadata can prevent reprocessing.
-    if (event.data.metadata && event.data.metadata.processed === 'true') {
-        logger.log("File has metadata indicating it was already processed. Ignoring.", {path: filePath});
-        return null;
-    }
+    const srcFile = appStorage.bucket(event.data.bucket).file(filePath);
+    await updateIngestState(processingId, ownerId, { analysisState: "queued" });
 
-    const originalFileName = filePath.split("/").pop();
-    if (!originalFileName) {
-      logger.error("Could not extract original file name from path.", { path: filePath });
-      return null;
-    }
-
-    logger.info(`Processing file: ${originalFileName} from ${filePath}`);
-
-    const bucket = appStorage.bucket(fileBucket);
-    const unprocessedFile = bucket.file(filePath);
-    
-    // Extract processingId from filename (format: {processingId}-{originalFileName})
-    const processingIdMatch = originalFileName.match(/^([^-]+)-(.+)$/);
-    const processingId = processingIdMatch ? processingIdMatch[1] : admin.firestore().collection('_').doc().id;
-    const actualFileName = processingIdMatch ? processingIdMatch[2] : originalFileName;
-    
-    // Get ownerId from file metadata (metadata is flat, not nested)
-    const ownerIdFromMetadata = event.data.metadata?.ownerId || null;
-    
-    // Update analysis state to queued
-    await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'queued');
-
-    // Metrics timing
     const t0 = Date.now();
-    let tParse = 0;
-    let tPipeline = 0;
-    let tPersist = 0;
-    let limiterWaitMs = 0; // Placeholder if you add wait time tracking in rateLimiter
-
     try {
-      const [fileBuffer] = await unprocessedFile.download();
-      logger.info(`[${originalFileName}] Downloaded ${fileBuffer.byteLength} bytes.`);
+      const [buffer] = await srcFile.download();
+      const result = await ingestFont({
+        fileBuffer: buffer,
+        originalFilename: actualName,
+        ownerId: ownerId || undefined,
+        contentType: contentType || undefined,
+      });
 
-      logger.info(`[${originalFileName}] Parsing font file...`);
-      const tParseStart = Date.now();
-      const parsedFontData = await serverParseFontFile(fileBuffer, originalFileName);
-      tParse = Date.now() - tParseStart;
-
-      if (!parsedFontData) {
-        logger.error(`[${actualFileName}] Failed to parse font.`);
-        await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error', 'Failed to parse font file');
-        const failedFilePath = `${FAILED_BUCKET_PATH}/${processingId}-${actualFileName}`;
-        await unprocessedFile.move(failedFilePath);
-        logger.info(`[${actualFileName}] Moved to ${failedFilePath}.`);
+      if (!result) {
+        await updateIngestState(processingId, ownerId, {
+          analysisState: "error",
+          status: "failed",
+          error: "Parse/ingest failed",
+        });
+        await srcFile.move(`${FAILED}/${processingId}-${actualName}`);
         return null;
       }
-      logger.info(`[${actualFileName}] Parsed font successfully. Family: ${parsedFontData.familyName}, Subfamily: ${parsedFontData.subfamilyName}, Foundry: ${parsedFontData.foundry || 'N/A'}`);
 
-      // Update analysis state to analyzing (beginning AI path)
-      await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'analyzing');
-
-      // Run enhanced AI pipeline with rate limiting
-      logger.info(`[${actualFileName}] Starting enhanced AI pipeline for: ${parsedFontData.familyName}`);
-      let pipelineResult = null;
-      let aiAnalysisResult = null;
+      await updateIngestState(processingId, ownerId, {
+        analysisState: "complete",
+        status: "completed",
+        familyId: result.family.id,
+      });
+      await srcFile.delete({ ignoreNotFound: true });
 
       try {
-        const tPipeStart = Date.now();
-        pipelineResult = await withRateLimit(
-          () => runFontPipeline(fileBuffer, actualFileName),
-          `Font pipeline for ${actualFileName}`
+        await firestoreDb.collection("metrics_ai").doc(processingId).set(
+          {
+            processingId,
+            familyId: result.family.id,
+            durations: { totalMs: Date.now() - t0 },
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true }
         );
-        tPipeline = Date.now() - tPipeStart;
-
-        // Update to enriching if web enrichment is enabled (RC)
-        const webEnrichmentEnabled = getConfigBoolean(RC_KEYS.webEnrichmentEnabled, false);
-        if (webEnrichmentEnabled && pipelineResult) {
-          await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'enriching' as any);
-        }
-
-        if (pipelineResult && pipelineResult.isValid) {
-          // Convert pipeline result to legacy format for compatibility
-          const enrichedAnalysis = pipelineResult.enrichedAnalysis || pipelineResult.visualAnalysis;
-          if (enrichedAnalysis) {
-            aiAnalysisResult = {
-              description: pipelineResult.description || 'A well-designed font family.',
-              tags: enrichedAnalysis.moods?.slice(0, 5).map((m: any) => m.value) || [],
-              classification: enrichedAnalysis.style_primary?.value || parsedFontData.classification || 'Sans Serif',
-              metadata: {
-                subClassification: enrichedAnalysis.substyle?.value,
-                moods: enrichedAnalysis.moods?.map((m: any) => m.value) || [],
-                useCases: enrichedAnalysis.use_cases?.map((uc: any) => uc.value) || [],
-                technicalCharacteristics: enrichedAnalysis.negative_tags || [],
-                // Enhanced fields
-                people: enrichedAnalysis.people,
-                historical_context: enrichedAnalysis.historical_context,
-                semantics: enrichedAnalysis,
-                provenance: pipelineResult.parsedData?.provenance,
-              },
-            };
-            logger.info(`[${actualFileName}] Enhanced AI pipeline completed successfully. Confidence: ${pipelineResult.confidence.toFixed(2)}`);
-          }
-        } else {
-          logger.warn(`[${actualFileName}] Enhanced AI pipeline failed or returned invalid results.`);
-        }
-      } catch (pipelineError: any) {
-        logger.error(`[${actualFileName}] Enhanced pipeline error:`, pipelineError);
-        // Update to error state
-        await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error' as any, pipelineError.message);
+      } catch {
+        // metrics are non-fatal
       }
-
-      if (!aiAnalysisResult) {
-        logger.warn(`[${actualFileName}] AI analysis failed or returned no data. Proceeding with basic data.`);
-        await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error', 'AI analysis failed');
-      } else {
-        logger.info(`[${actualFileName}] AI analysis completed for ${parsedFontData.familyName}.`);
-      }
-
-      const processedFileName = `${processingId}-${actualFileName}`;
-      const processedFileRef = bucket.file(`${PROCESSED_BUCKET_PATH}/${processedFileName}`);
-
-      const tPersistStart = Date.now();
-      await processedFileRef.save(fileBuffer, {
-        resumable: false,
-        // Set contentType at the top level per GCS SaveOptions
-        contentType: contentType || 'application/octet-stream',
-        // cacheControl belongs in FileMetadata under `metadata`
-        metadata: {
-          cacheControl: 'public, max-age=31536000',
-          // custom user metadata goes under `metadata`
-          metadata: {
-            processed: 'true',
-            originalPath: filePath,
-            processingId: processingId,
-            ...(ownerIdFromMetadata ? { ownerId: ownerIdFromMetadata } : {}),
-          },
-        },
+    } catch (e: any) {
+      logger.error(`Ingestion failed for ${actualName}`, { message: e?.message, stack: e?.stack });
+      await updateIngestState(processingId, ownerId, {
+        analysisState: "error",
+        status: "failed",
+        error: e?.message,
       });
-      // No object ACLs under UBLA; clients will stream via proxy using storagePath.
-      logger.info(`[${originalFileName}] Font saved to ${processedFileRef.name}`);
-      tPersist = Date.now() - tPersistStart;
-
-      const fontFileDetails = {
-        originalName: originalFileName,
-        storagePath: processedFileRef.name,
-        fileSize: fileBuffer.byteLength,
-      };
-
-      // Merge pipeline result data into parsedFontData if available
-      const enhancedParsedData = pipelineResult?.parsedData || parsedFontData;
-      if (pipelineResult?.visualMetrics) {
-        enhancedParsedData.visual_metrics = pipelineResult.visualMetrics;
-      }
-
-      const familyResult = await serverAddFontToFamilyAdmin(enhancedParsedData, fontFileDetails, aiAnalysisResult, ownerIdFromMetadata || undefined);
-
-      if (!familyResult) {
-        logger.error(`[${actualFileName}] Failed to add font to family in Firestore. Attempting to move processed file to failed folder.`);
-        await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error', 'Failed to add font to family');
-        const failedFilePath = `${FAILED_BUCKET_PATH}/${processedFileName}`;
-        try {
-          await processedFileRef.move(failedFilePath);
-          logger.info(`[${actualFileName}] Moved processed file from ${processedFileRef.name} to ${failedFilePath} after DB error.`);
-        } catch (moveError: any) {
-          logger.error(`[${actualFileName}] Failed to move processed file ${processedFileRef.name} to failed folder. Manual cleanup may be needed.`, { error: moveError.message });
-        }
-        try {
-            await unprocessedFile.delete({ ignoreNotFound: true });
-            logger.info(`[${actualFileName}] Deleted original unprocessed file after DB error and moving processed to failed.`);
-        } catch (delError: any) {
-            logger.warn(`[${actualFileName}] Could not delete original unprocessed file. It might have been deleted already.`, {error: delError.message});
-        }
-        return null;
-      }
-      logger.info(`[${actualFileName}] Successfully added font to family: ${familyResult.name} (ID: ${familyResult.id}) in Firestore.`);
-
-      // Update analysis state to complete
-      await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'complete');
-
-      // Update ingest record with familyId and mark as completed
       try {
-        const ingestsRef = firestoreDb.collection('users').doc(ownerIdFromMetadata!).collection('ingests');
-        const querySnapshot = await ingestsRef.where('processingId', '==', processingId).limit(1).get();
-        if (!querySnapshot.empty) {
-          const ingestDoc = querySnapshot.docs[0];
-          await ingestDoc.ref.update({
-            status: 'completed',
-            familyId: familyResult.id,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-        }
-      } catch (updateError: any) {
-        logger.warn(`[${actualFileName}] Failed to update ingest record with familyId:`, updateError);
-      }
-
-      await unprocessedFile.delete();
-      logger.info(`[${actualFileName}] Successfully processed. Original file ${filePath} deleted.`);
-      // Write metrics document (optional)
-      try {
-        const metricsDoc = {
-          processingId,
-          filePath,
-          bytes: event.data.size ? Number(event.data.size) : fileBuffer.byteLength,
-          durations: {
-            totalMs: Date.now() - t0,
-            parseMs: tParse,
-            pipelineMs: tPipeline,
-            persistMs: tPersist,
-            limiterWaitMs,
-          },
-          modelInfo: {
-            region: getConfigValue(RC_KEYS.vertexLocationId, RC_DEFAULTS[RC_KEYS.vertexLocationId]),
-          },
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        };
-        await firestoreDb.collection('metrics_ai').doc(processingId).set(metricsDoc, { merge: true });
-      } catch (metricsErr: any) {
-        logger.warn(`[${actualFileName}] Failed to write metrics_ai`, { message: metricsErr?.message });
-      }
-
-    } catch (error: any) {
-      logger.error(`[${actualFileName}] Unhandled error in processUploadedFontStorage:`, {
-        message: error.message,
-        stack: error.stack,
-        filePath: filePath
-      });
-      
-      // Update ingest record to error state (reuse ownerIdFromMetadata from outer scope)
-      await updateIngestAnalysisState(processingId, ownerIdFromMetadata, 'error', error.message);
-      
-      try {
-        const failedFilePath = `${FAILED_BUCKET_PATH}/${processingId}-${actualFileName}`;
-        await unprocessedFile.move(failedFilePath);
-        logger.info(`[${actualFileName}] Moved original unprocessed file to ${failedFilePath} after unhandled error.`);
-      } catch (moveError: any) {
-        logger.error(`[${actualFileName}] CRITICAL: Failed to move original unprocessed file to ${FAILED_BUCKET_PATH} after unhandled error. File may be stuck in ${UNPROCESSED_BUCKET_PATH}.`, { moveError: moveError.message });
+        await srcFile.move(`${FAILED}/${processingId}-${actualName}`);
+      } catch {
+        // ignore move failure
       }
     }
     return null;
   }
 );
 
-export const hybridFontSearch = onRequest({ region: "asia-southeast1", cors: true }, async (req, res) => {
-  res.set("Access-Control-Allow-Origin", "*");
-  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+/**
+ * Enrichment trigger: when a family doc becomes `ready`, run the async
+ * multimodal enrichment + embedding. Only acts on the `ready` state, so the
+ * `enriching`/`enriched` writes it makes don't re-trigger work.
+ */
+export const enrichFontOnReady = onDocumentWritten(
+  {
+    region: "asia-southeast1",
+    memory: "1GiB",
+    timeoutSeconds: 300,
+    document: `${FAMILIES_COLLECTION}/{slug}`,
+  },
+  async (event) => {
+    const after = event.data?.after?.data() as FontFamilyDoc | undefined;
+    if (!after || after.status !== "ready") return;
+    try {
+      await initializeRemoteConfig();
+    } catch {
+      // defaults
+    }
+    try {
+      await enrichFamily(event.params.slug as string);
+    } catch (e: any) {
+      logger.error(`Enrichment failed for ${event.params.slug}`, { message: e?.message });
+    }
+  }
+);
 
+/** Semantic font search. POST { q?, filters?, limit? }. */
+export const searchFontsHttp = onRequest({ region: "asia-southeast1", cors: true }, async (req, res) => {
   if (req.method === "OPTIONS") {
     res.status(204).send("");
     return;
   }
-
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
-
   try {
     await initializeRemoteConfig();
-  } catch (error: any) {
-    logger.warn("Remote Config initialization failed for search", { message: error?.message });
+  } catch {
+    // defaults
   }
-
   try {
-    const payload = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const response = await executeSearch(payload);
+    const payload = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+    const response = await searchFonts(payload);
     res.status(200).json(response);
-  } catch (error: any) {
-    logger.error("hybridFontSearch failed", { message: error?.message, stack: error?.stack });
-    res.status(500).json({ error: "Search failed", details: error?.message });
+  } catch (e: any) {
+    logger.error("searchFontsHttp failed", { message: e?.message, stack: e?.stack });
+    res.status(500).json({ error: "Search failed", details: e?.message });
   }
 });
 
-/**
- * Admin/test-only HTTP endpoint to run the font pipeline on a supplied font.
- * Request body JSON:
- * {
- *   "base64": "AA...", // base64-encoded font file (preferred)
- *   "filename": "MyFont.ttf",
- *   // or alternatively:
- *   "url": "https://..." // public URL to fetch font bytes
- * }
- */
-export const testFontPipeline = onRequest(
-  {
-    region: "asia-southeast1",
-    timeoutSeconds: 540,
-    memory: "1GiB",
-  },
-  async (req, res) => {
-    try {
-      if (req.method !== 'POST') {
-        res.status(405).json({ error: 'Method Not Allowed' });
-        return;
-      }
-      const { base64, url, filename } = (req.body || {}) as { base64?: string; url?: string; filename?: string };
-      if (!base64 && !url) {
-        res.status(400).json({ error: 'Provide "base64" or "url" in request body' });
-        return;
-      }
-      const name = filename || 'UploadedFont.ttf';
-      let buffer: Buffer;
-      if (base64) {
-        buffer = Buffer.from(base64, 'base64');
-      } else {
-        if (!url) {
-          res.status(400).json({ error: 'Provide "url" in request body' });
-          return;
-        }
-        const r = await fetch(url);
-        if (!r.ok) {
-          res.status(400).json({ error: `Failed to fetch url: ${r.status} ${r.statusText}` });
-          return;
-        }
-        const arr = await r.arrayBuffer();
-        buffer = Buffer.from(arr);
-      }
-      const result = await runFontPipeline(buffer, name);
-      res.status(200).json({ ok: true, result });
-    } catch (e: any) {
-      logger.error('testFontPipeline error', { message: e?.message, stack: e?.stack });
-      res.status(500).json({ ok: false, error: e?.message || 'Unknown error' });
-    }
+/** Google-Fonts-style CSS API. GET /css2?family=... (Firebase Hosting rewrites /css2 here). */
+export const css2 = onRequest({ region: "asia-southeast1", cors: true }, async (req, res) => {
+  try {
+    await initializeRemoteConfig();
+  } catch {
+    // defaults
   }
-);
+  await css2Handler(req as any, res as any);
+});
 
-/**
- * Admin-only HTTP endpoint to batch reprocess existing fonts through the AI pipeline.
- * Request body JSON:
- * {
- *   "ownerId": "user_uid",         // optional, scopes to user collection
- *   "familyIds": ["id1","id2"],    // optional, specific families only
- *   "limit": 10,                   // optional, max families to process
- *   "force": false                 // optional, ignore caches
- * }
- */
-export const batchReprocessFonts = onRequest(
-  {
-    region: "asia-southeast1",
-    timeoutSeconds: 540,
-    memory: "1GiB",
-  },
-  async (req, res) => {
-    try {
-      if (req.method !== 'POST') {
-        res.status(405).json({ error: 'Method Not Allowed' });
-        return;
-      }
-      const { ownerId, familyIds, limit, force } = (req.body || {}) as {
-        ownerId?: string;
-        familyIds?: string[];
-        limit?: number;
-        force?: boolean;
-      };
-
-      const maxFamilies = Math.min(Math.max(Number(limit) || 10, 1), 50);
-      const familiesCol = ownerId
-        ? firestoreDb.collection('users').doc(ownerId).collection('fontfamilies')
-        : firestoreDb.collection('fontfamilies');
-
-      let q = familiesCol.orderBy('lastModified', 'desc');
-      if (Array.isArray(familyIds) && familyIds.length > 0) {
-        // Fetch specific IDs
-        const snaps = await Promise.all(familyIds.slice(0, maxFamilies).map((id) => familiesCol.doc(id).get()));
-        const toProcess = snaps.filter((s) => s.exists).map((s) => ({ id: s.id, data: s.data() as any }));
-        const results = await reprocessFamilies(toProcess, ownerId || null, force === true);
-        res.status(200).json({ ok: true, processed: results.length });
-        return;
-      } else {
-        const snap = await q.limit(maxFamilies).get();
-        const toProcess = snap.docs.map((d) => ({ id: d.id, data: d.data() as any }));
-        const results = await reprocessFamilies(toProcess, ownerId || null, force === true);
-        res.status(200).json({ ok: true, processed: results.length });
-        return;
-      }
-    } catch (e: any) {
-      logger.error('batchReprocessFonts error', { message: e?.message, stack: e?.stack });
-      res.status(500).json({ ok: false, error: e?.message || 'Unknown error' });
-    }
+/** Font asset serving: /s/** (web woff2) and /d/** (original download). Hosting rewrites here. */
+export const serveFont = onRequest({ region: "asia-southeast1", cors: true }, async (req, res) => {
+  try {
+    await initializeRemoteConfig();
+  } catch {
+    // defaults
   }
-);
-
-export const createOrUpdateEnrichedPrompt = onRequest(
-  {
-    region: "asia-southeast1",
-    timeoutSeconds: 300,
-    memory: "512MiB",
-  },
-  async (req, res) => {
-    if (req.method !== 'POST') {
-      res.status(405).json({ error: 'Method Not Allowed' });
-      return;
-    }
-
-    try {
-      const rawBody = req.body ?? {};
-      const body =
-        typeof rawBody === 'string'
-          ? JSON.parse(rawBody || '{}')
-          : (rawBody as Record<string, unknown>);
-
-      const providedContents = Array.isArray((body as any).contents)
-        ? ((body as any).contents as Array<{ role: string; parts: Array<{ text: string }> }>)
-        : null;
-
-      const defaultContents = [
-        {
-          role: 'system',
-          parts: [{ text: '{{SYSTEM_PROMPT}}' }],
-        },
-        {
-          role: 'user',
-          parts: [
-            { text: '{{ENRICHED_ANALYSIS_INPUT}}' },
-            { text: '\nRespond strictly with valid JSON complying with the enforced schema.' },
-          ],
-        },
-      ];
-
-      const contents = providedContents && providedContents.length > 0 ? providedContents : defaultContents;
-
-      const displayNameRaw = typeof (body as any).displayName === 'string' ? (body as any).displayName : '';
-      const displayName = displayNameRaw.trim() || 'Enriched Analysis Prompt';
-      const description = typeof (body as any).description === 'string' ? (body as any).description : 'Prompt for enriched font analysis.';
-      const promptId = typeof (body as any).promptId === 'string' ? (body as any).promptId.trim() || undefined : undefined;
-      const modelOverride = typeof (body as any).model === 'string' ? (body as any).model.trim() : '';
-      const model =
-        modelOverride ||
-        getConfigValue(RC_KEYS.enrichedAnalysisModelName, RC_DEFAULTS[RC_KEYS.enrichedAnalysisModelName]);
-
-      const promptResource = await upsertPrompt({
-        promptId,
-        displayName,
-        description,
-        model,
-        contents,
-        responseSchema: enrichedAnalysisSchema as any,
-      });
-
-      const newPromptId = extractPromptId(promptResource);
-      res.status(200).json({
-        ok: true,
-        promptId: newPromptId,
-        prompt: promptResource,
-      });
-    } catch (error: any) {
-      logger.error('createOrUpdateEnrichedPrompt error', {
-        message: error?.message,
-        stack: error?.stack,
-      });
-      res.status(500).json({ ok: false, error: error?.message || 'Unknown error' });
-    }
-  }
-);
-
-async function reprocessFamilies(
-  families: Array<{ id: string; data: any }>,
-  ownerId: string | null,
-  force: boolean
-): Promise<Array<{ id: string; fonts: number }>> {
-  const out: Array<{ id: string; fonts: number }> = [];
-  for (const fam of families) {
-    try {
-      const fonts: any[] = Array.isArray(fam.data?.fonts) ? fam.data.fonts : [];
-      let processed = 0;
-      for (const font of fonts) {
-        try {
-          // Determine storage path; skip if unavailable (legacy downloadUrl removed)
-          const storagePath: string | undefined = font?.metadata?.storagePath || font?.storagePath;
-          let buffer: Buffer | null = null;
-          if (storagePath) {
-            const [file] = await appStorage.bucket().file(storagePath).download();
-            buffer = file;
-          }
-          if (!buffer) {
-            logger.warn(`Skip font without accessible bytes in family ${fam.id}`);
-            continue;
-          }
-          const filename = font?.filename || 'Unknown.ttf';
-          const pipelineResult = await withRateLimit(
-            () => runFontPipeline(buffer!, filename),
-            `Batch reprocess ${filename}`
-          );
-          if (!pipelineResult) {
-            logger.warn(`Pipeline returned null for ${filename} in family ${fam.id}`);
-            continue;
-          }
-          // Legacy compatibility payload
-          const enrichedAnalysis = pipelineResult.enrichedAnalysis || pipelineResult.visualAnalysis || {};
-          const aiAnalysisResult = {
-            description: pipelineResult.description || fam.data?.description || 'A font family.',
-            tags: enrichedAnalysis.moods?.slice(0, 5).map((m: any) => m.value) || [],
-            classification: enrichedAnalysis.style_primary?.value || fam.data?.classification || 'Sans Serif',
-            metadata: {
-              subClassification: enrichedAnalysis.substyle?.value,
-              moods: enrichedAnalysis.moods?.map((m: any) => m.value) || [],
-              useCases: enrichedAnalysis.use_cases?.map((uc: any) => uc.value) || [],
-              technicalCharacteristics: enrichedAnalysis.negative_tags || [],
-              people: enrichedAnalysis.people,
-              historical_context: enrichedAnalysis.historical_context,
-              semantics: enrichedAnalysis,
-              provenance: pipelineResult.parsedData?.provenance,
-            },
-          };
-          const enhancedParsedData = pipelineResult?.parsedData || {};
-          if (pipelineResult?.visualMetrics) {
-            (enhancedParsedData as any).visual_metrics = pipelineResult.visualMetrics;
-          }
-          await serverAddFontToFamilyAdmin(
-            enhancedParsedData,
-            {
-              originalName: filename,
-              storagePath: storagePath || '',
-              fileSize: buffer.length,
-            },
-            aiAnalysisResult,
-            ownerId || undefined
-          );
-          processed++;
-        } catch (fontErr: any) {
-          logger.warn(`Failed to reprocess font in family ${fam.id}`, { message: fontErr?.message });
-        }
-      }
-      out.push({ id: fam.id, fonts: processed });
-    } catch (famErr: any) {
-      logger.warn(`Family reprocess failed: ${fam.id}`, { message: famErr?.message });
-    }
-  }
-  return out;
-}
+  await serveFontHandler(req as any, res as any);
+});

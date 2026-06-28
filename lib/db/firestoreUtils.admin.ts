@@ -1,4 +1,5 @@
-import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
+import { getAdminDb } from '../firebase/admin';
 import { v4 as uuidv4 } from 'uuid'; // If needed for IDs when normalized names fail
 import { FontFamily, Font, FamilyMetadata, Classification } from '../../models/font.models'; // Adjust path as needed
 // Assuming normalizeName can be imported if it's a simple utility with no client-SDK dependencies
@@ -25,13 +26,14 @@ export async function serverAddFontToFamilyAdmin(
     const normalizedFamilyName = normalizeName(familyName);
     const familyDocId = normalizedFamilyName || uuidv4(); // Use normalized name or UUID as ID
 
-    const familyRef = admin.firestore().collection(FAMILIES_COLLECTION).doc(familyDocId);
+    const db = getAdminDb();
+    const familyRef = db.collection(FAMILIES_COLLECTION).doc(familyDocId);
     const fontId = normalizeName(
         (parsedFontData.postScriptName || parsedFontData.subfamilyName || fontFileDetails.originalName) + '-' + (parsedFontData.format || 'TYPE')
     );
 
     try {
-        await admin.firestore().runTransaction(async (transaction) => {
+        await db.runTransaction(async (transaction) => {
             const familyDoc = await transaction.get(familyRef);
             let familyDataToSet: Partial<FontFamily>; // Use Partial for easier construction
             let existingFonts: Font[] = [];
@@ -47,8 +49,8 @@ export async function serverAddFontToFamilyAdmin(
                     tags: aiAnalysisResult?.tags || [],
                     classification: aiAnalysisResult?.classification || parsedFontData.classification || 'Sans Serif',
                     fonts: [],
-                    uploadDate: admin.firestore.FieldValue.serverTimestamp() as any,
-                    lastModified: admin.firestore.FieldValue.serverTimestamp() as any,
+                    uploadDate: FieldValue.serverTimestamp() as any,
+                    lastModified: FieldValue.serverTimestamp() as any,
                     metadata: {
                         foundry: parsedFontData.foundry || '',
                         ...(aiAnalysisResult?.metadata || {}),
@@ -58,7 +60,7 @@ export async function serverAddFontToFamilyAdmin(
                 const existingData = familyDoc.data() as FontFamily;
                 familyDataToSet = { ...existingData }; // Start with existing data
                 existingFonts = existingData.fonts || [];
-                familyDataToSet.lastModified = admin.firestore.FieldValue.serverTimestamp() as any;
+                familyDataToSet.lastModified = FieldValue.serverTimestamp() as any;
 
                 // Merge AI data if provided, prioritizing new AI data for certain fields
                 if (aiAnalysisResult) {

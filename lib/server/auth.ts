@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
-import * as admin from 'firebase-admin';
-import { isFirebaseAdminConfigured } from '@/lib/firebase/admin';
+import { isFirebaseAdminConfigured, getAdminAuth } from '@/lib/firebase/admin';
 
 export async function getUidFromRequest(request: NextRequest): Promise<string | null> {
   if (!isFirebaseAdminConfigured()) {
@@ -17,7 +16,7 @@ export async function getUidFromRequest(request: NextRequest): Promise<string | 
 
   const token = authHeader.slice('Bearer '.length);
   try {
-    const decoded = await admin.auth().verifyIdToken(token);
+    const decoded = await getAdminAuth().verifyIdToken(token);
     return decoded.uid;
   } catch (error) {
     console.error('Token verification failed:', error);

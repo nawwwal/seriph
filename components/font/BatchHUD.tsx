@@ -153,7 +153,7 @@ export default function BatchHUD({ ingests, onDismiss }: BatchHUDProps) {
           <motion.div
             initial={shouldReduceMotion ? false : { opacity: 0, y: 20, scale: 0.95 }}
             animate={shouldReduceMotion ? {} : { opacity: 1, y: 0, scale: 1 }}
-            exit={shouldReduceMotion ? false : { opacity: 0, y: 20, scale: 0.95 }}
+            exit={shouldReduceMotion ? {} : { opacity: 0, y: 20, scale: 0.95 }}
             transition={shouldReduceMotion ? {} : { type: 'spring', damping: 25, stiffness: 300 }}
             className="absolute bottom-full right-0 mb-2 w-[90vw] max-w-md bg-[var(--surface)] rule rounded-[var(--radius)] shadow-xl max-h-[70vh] flex flex-col"
           >

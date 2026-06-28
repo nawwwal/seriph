@@ -31,6 +31,30 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "updatedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "density": "SPARSE_ALL",
+      "fields": [
+        { "fieldPath": "text_vec", "vectorConfig": { "dimension": 1536, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "text_vec", "vectorConfig": { "dimension": 1536, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "text_vec", "vectorConfig": { "dimension": 1536, "flat": {} } }
+      ]
     }
   ],
   "fieldOverrides": [

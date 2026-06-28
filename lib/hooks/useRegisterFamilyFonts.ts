@@ -19,7 +19,10 @@ function buildFontFaceRule(
 ): string {
   const isItalic = (variant.style || variant.subfamily || '').toLowerCase().includes('italic');
   const weight = variant.weight || 400;
-  const format = cssFormatFor(String(variant.format || ''));
+  // Derive the CSS format from the served file extension (woff2 from the CDN),
+  // falling back to the original font format.
+  const srcExt = (proxiedSrc.split('?')[0].split('.').pop() || '').toLowerCase();
+  const format = cssFormatFor(srcExt || String(variant.format || ''));
 
   // For variable fonts with a weight axis defined, declare a range
   // This assumes downloadUrl points to the variable font file
@@ -58,14 +61,15 @@ export function useRegisterFamilyFonts(family: FontFamily | null | undefined) {
     const rules: string[] = [];
     const seen = new Set<string>();
     for (const v of family.fonts) {
+      // Prefer the stable CDN url (woff2); fall back to the legacy proxy.
+      const cdn = (v?.metadata as any)?.cdnUrl as string | undefined;
       const storagePath = v?.metadata?.storagePath || null;
-      if (!storagePath) continue;
-      // Deduplicate by font id or src
-      const key = `${v.id}::${storagePath}`;
+      const src = cdn || (storagePath ? `/api/font/gcs?path=${encodeURIComponent(storagePath)}` : null);
+      if (!src) continue;
+      const key = `${v.id}::${src}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      const proxied = `/api/font/gcs?path=${encodeURIComponent(storagePath)}`;
-      rules.push(buildFontFaceRule(family.name, v, proxied));
+      rules.push(buildFontFaceRule(family.name, v, src));
     }
 
     styleEl.innerHTML = rules.join('\n\n');

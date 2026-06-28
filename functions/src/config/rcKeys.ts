@@ -44,6 +44,16 @@ export const RC_KEYS = {
         searchEnableRerank: "search_enable_rerank",
         searchEnableFileSearch: "search_enable_file_search",
         searchFallbackLimit: "search_fallback_limit",
+        // --- Rebuilt catalog / CDN ---
+        catalogPublicBucket: "catalog_public_bucket",     // public served bucket name
+        catalogCdnBaseUrl: "catalog_cdn_base_url",         // CDN base, e.g. https://fonts.seriph.app (no trailing slash)
+        // --- Rebuilt AI pipeline (single multimodal pass + embeddings) ---
+        analysisModelName: "analysis_model_name",          // multimodal specimen analysis
+        embeddingModelName: "embedding_model_name",        // text + image embeddings
+        embeddingDimensions: "embedding_dimensions",
+        // --- Rebuilt vector search ---
+        searchTopK: "search_top_k",
+        searchImageWeight: "search_image_weight",          // 0..1 weight of image vector vs text
 } as const;
 
 export const RC_DEFAULTS = {
@@ -85,6 +95,16 @@ export const RC_DEFAULTS = {
         [RC_KEYS.searchEnableRerank]: "false",
         [RC_KEYS.searchEnableFileSearch]: "true",
         [RC_KEYS.searchFallbackLimit]: "24",
+        // --- Rebuilt catalog / CDN ---
+        [RC_KEYS.catalogPublicBucket]: "seriph-fonts",
+        [RC_KEYS.catalogCdnBaseUrl]: "",
+        // --- Rebuilt AI pipeline ---
+        [RC_KEYS.analysisModelName]: "gemini-2.5-flash",
+        [RC_KEYS.embeddingModelName]: "gemini-embedding-001",
+        [RC_KEYS.embeddingDimensions]: "1536",
+        // --- Rebuilt vector search ---
+        [RC_KEYS.searchTopK]: "24",
+        [RC_KEYS.searchImageWeight]: "0.35",
 } as const;
 
 

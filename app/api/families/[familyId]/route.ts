@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as admin from 'firebase-admin';
-import type { Firestore } from 'firebase-admin/firestore';
+import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { getUidFromRequest } from '@/lib/server/auth';
 import { FontFamily } from '@/models/font.models';
@@ -82,7 +81,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       );
     }
 
-    (updates as any).lastModified = admin.firestore.FieldValue.serverTimestamp();
+    (updates as any).lastModified = FieldValue.serverTimestamp();
     await familyRef.set(updates, { merge: true });
 
     const updated = await loadFamily(db, uid, familyId);

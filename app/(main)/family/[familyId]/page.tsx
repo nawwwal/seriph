@@ -12,6 +12,7 @@ import FontDetailLoader from '@/components/ui/FontDetailLoader';
 import StyleCard from '@/components/font/StyleCard';
 import Specimen from '@/components/font/Specimen';
 import TypeTester from '@/components/font/TypeTester';
+import UseFontPanel from '@/components/font/UseFontPanel';
 import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
 
 const serializeFamilyData = (family: any): FontFamily | null => {
@@ -263,6 +264,8 @@ export default function FamilyDetailPage() {
         </header>
 
         <Specimen family={family} />
+
+        <UseFontPanel family={family} />
 
         <section className="mt-6">
           <div className="flex justify-between items-center rule-b pb-4">

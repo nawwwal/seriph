@@ -51,13 +51,16 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
       document.head.appendChild(styleElement);
     }
 
+    const cdn = (font as any)?.metadata?.cdnUrl as string | undefined;
     const storagePath = (font as any)?.metadata?.storagePath as string | undefined;
-    if (!storagePath) return;
-    const proxied = `/api/font/gcs?path=${encodeURIComponent(storagePath)}`;
+    const src = cdn || (storagePath ? `/api/font/gcs?path=${encodeURIComponent(storagePath)}` : undefined);
+    if (!src) return;
+    const srcExt = (src.split('?')[0].split('.').pop() || '').toLowerCase();
+    const cssFormat = srcExt === 'woff2' ? 'woff2' : font.format === 'TTF' ? 'truetype' : font.format.toLowerCase();
     const fontFaceRule = `
       @font-face {
         font-family: '${uniqueFontFamilyCssName}';
-        src: url('${proxied}') format('${font.format === "TTF" ? "truetype" : font.format.toLowerCase()}');
+        src: url('${src}') format('${cssFormat}');
         font-weight: normal; /* Default, actual variation via settings */
         font-style: normal;  /* Default, actual variation via settings */
       }
@@ -70,7 +73,7 @@ const VariableFontPlayground: React.FC<VariableFontPlaygroundProps> = ({ font, f
       //   document.head.removeChild(styleElement);
       // }
     };
-  }, [ (font as any)?.metadata?.storagePath, font.format, uniqueFontFamilyCssName, isVariableFont ]);
+  }, [ (font as any)?.metadata?.cdnUrl, (font as any)?.metadata?.storagePath, font.format, uniqueFontFamilyCssName, isVariableFont ]);
 
   const [previewText, setPreviewText] = useState('The quick brown fox jumps over the lazy dog.');
   const [previewFontSize, setPreviewFontSize] = useState(48);

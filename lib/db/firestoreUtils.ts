@@ -13,6 +13,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { FontFamily } from '@/models/font.models';
+import { adaptFamilyDoc } from './catalogAdapter';
 
 const SEARCH_FAMILIES_COLLECTION = 'families';
 const SEARCH_STYLES_COLLECTION = 'styles';
@@ -31,80 +32,26 @@ export async function getAllFontFamilies(ownerId?: string): Promise<{
     errorMessage?: string;
 }> {
     try {
-        let familyList: FontFamily[] = [];
-
-        if (ownerId) {
-          // Primary: user-scoped subcollection
-          const familiesCol = collection(db, 'users', ownerId, FAMILIES_COLLECTION);
-          const qUser = query(familiesCol, orderBy('name'));
-          const snap = await getDocs(qUser);
-          familyList = snap.docs.map((d) => {
-            const data = d.data() as FontFamily;
-            return { ...data, id: (data as any).id ?? d.id } as FontFamily;
-          });
-
-          // Fallback: if none under user, attempt legacy top-level
-          if (familyList.length === 0) {
-            const legacyCol = collection(db, FAMILIES_COLLECTION);
-            const legacySnap = await getDocs(query(legacyCol, orderBy('name')));
-            familyList = legacySnap.docs.map((d) => {
-              const data = d.data() as FontFamily;
-              return { ...data, id: (data as any).id ?? d.id } as FontFamily;
-            });
-          }
-        } else {
-          // No owner provided: query collection group across all users
-          const cg = collectionGroup(db, FAMILIES_COLLECTION);
-          const snap = await getDocs(query(cg, orderBy('name')));
-          familyList = snap.docs.map((d) => {
-            const data = d.data() as FontFamily;
-            return { ...data, id: (data as any).id ?? d.id } as FontFamily;
-          });
-        }
-
-        return { families: familyList };
+        // Rebuilt catalog: one top-level `fontfamilies` collection keyed by slug,
+        // with an `ownerId` field. Filter by owner (no orderBy, to avoid needing a
+        // composite index) and sort by name in-memory; adapt each doc to the UI shape.
+        const col = collection(db, FAMILIES_COLLECTION);
+        const qy = ownerId ? query(col, where('ownerId', '==', ownerId)) : query(col);
+        const snap = await getDocs(qy);
+        const families = snap.docs
+            .map((d) => adaptFamilyDoc(d.data(), d.id))
+            .sort((a, b) => a.name.localeCompare(b.name));
+        return { families };
     } catch (error: any) {
         const message = typeof error?.message === 'string' ? error.message : '';
-        const isIndexMissing = (error?.code === 'failed-precondition' || error?.code === 'permission-denied') && message.includes('requires an index');
-        if (!isIndexMissing) {
-            if (error?.code !== 'permission-denied') {
-                console.error("Error fetching all font families:", error);
-            }
-            return {
-                families: [],
-                errorCode: error?.code,
-                errorMessage: message || 'Unknown Firestore error',
-            };
+        if (error?.code !== 'permission-denied') {
+            console.error('Error fetching all font families:', error);
         }
-
-        try {
-            // Fallback: drop orderBy from query, then sort in-memory by name
-            const familiesCol = collection(db, FAMILIES_COLLECTION);
-            const qNoOrder = ownerId
-                ? query(
-                    familiesCol,
-                    where('ownerId', '==', ownerId)
-                  )
-                : query(familiesCol);
-
-            const snap = await getDocs(qNoOrder);
-            // If ownerId filter yields nothing, fetch all
-            const effectiveSnap = ownerId && snap.empty ? await getDocs(collection(db, FAMILIES_COLLECTION)) : snap;
-            const list = effectiveSnap.docs.map(d => {
-                const data = d.data() as FontFamily;
-                return { ...data, id: (data as any).id ?? d.id } as FontFamily;
-            });
-
-            list.sort((a, b) => a.name.localeCompare(b.name));
-            return { families: list };
-        } catch (fallbackError) {
-            console.error("Fallback fetch of font families failed:", fallbackError);
-            return {
-                families: [],
-                errorCode: (fallbackError as any)?.code,
-                errorMessage: (fallbackError as any)?.message || 'Unknown Firestore error',
-            };
-        }
+        return {
+            families: [],
+            errorCode: error?.code,
+            errorMessage: message || 'Unknown Firestore error',
+        };
     }
 }
 
@@ -119,34 +66,13 @@ export async function getFontFamilyById(familyId: string, ownerId?: string): Pro
         return null;
     }
     try {
-        if (ownerId) {
-          // User-scoped doc
-          const familyDocRef = doc(db, 'users', ownerId, FAMILIES_COLLECTION, familyId);
-          const familyDocSnap = await getDoc(familyDocRef);
-          if (familyDocSnap.exists()) {
-            const data = familyDocSnap.data() as FontFamily;
-            return { ...data, id: (data as any).id ?? familyId } as FontFamily;
-          }
+        // Rebuilt catalog: top-level doc keyed by slug (== familyId).
+        const ref = doc(db, FAMILIES_COLLECTION, familyId);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+          return adaptFamilyDoc(snap.data(), familyId);
         }
-
-        // Fallback 1: legacy top-level doc
-        const legacyRef = doc(db, FAMILIES_COLLECTION, familyId);
-        const legacySnap = await getDoc(legacyRef);
-        if (legacySnap.exists()) {
-          const data = legacySnap.data() as FontFamily;
-          return { ...data, id: (data as any).id ?? familyId } as FontFamily;
-        }
-
-        // Fallback 2: collection group search by id
-        const cg = collectionGroup(db, FAMILIES_COLLECTION);
-        const cgSnap = await getDocs(query(cg, where('id', '==', familyId)));
-        if (!cgSnap.empty) {
-          const d = cgSnap.docs[0];
-          const data = d.data() as FontFamily;
-          return { ...data, id: (data as any).id ?? familyId } as FontFamily;
-        }
-
-        console.log(`Font family with ID "${familyId}" not found in user or legacy collections.`);
+        console.log(`Font family with ID "${familyId}" not found.`);
         return null;
     } catch (error) {
         console.error(`Error fetching font family by ID "${familyId}":`, error);
@@ -247,7 +173,7 @@ export async function getSearchStylesByIds(styleIds: string[]): Promise<SearchSt
         isVariable: Boolean(data.isVariable),
         weight: typeof data.weight === 'number' ? data.weight : undefined,
         width: typeof data.width === 'number' ? data.width : undefined,
-        updatedAt: serializeTimestampValue(data.updatedAt),
+        updatedAt: serializeTimestampValue(data.updatedAt) ?? undefined,
       });
     });
   }

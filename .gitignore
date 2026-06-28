@@ -79,6 +79,7 @@ credentials/
 # IDE/Editor files
 .cursor/
 .vscode/settings.json
+.agents/settings.local.json
 .idea/
 *.swp
 *.swo
@@ -86,6 +87,9 @@ credentials/
 
 # vercel
 .vercel
+
+# firebase deploy cache
+.firebase/
 
 # typescript
 *.tsbuildinfo

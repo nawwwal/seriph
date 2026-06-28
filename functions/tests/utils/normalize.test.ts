@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeName } from '../../../src/utils/normalize';
+import { normalizeName } from '../../src/utils/normalize';
 
 describe('normalizeName', () => {
   it('normalizes names consistently (case, punctuation, spacing)', () => {
@@ -7,5 +7,4 @@ describe('normalizeName', () => {
     expect(normalizeName('Times—New—Roman')).toBe('timesnewroman');
   });
 });
-
 

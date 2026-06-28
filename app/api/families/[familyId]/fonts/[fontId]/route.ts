@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { getUidFromRequest } from '@/lib/server/auth';
 import { FontFamily } from '@/models/font.models';
@@ -44,7 +44,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     await familyRef.set(
       {
         fonts: nextFonts,
-        lastModified: admin.firestore.FieldValue.serverTimestamp(),
+        lastModified: FieldValue.serverTimestamp(),
       },
       { merge: true }
     );

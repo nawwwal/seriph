@@ -15,6 +15,7 @@ export interface ParseRequest {
 
 export interface ParseResult {
   id: string;
+  filename?: string;
   success: boolean;
   provisionalFamily?: string;
   subfamily?: string;
@@ -81,7 +82,14 @@ function extractNameTable(font: opentype.Font): {
   subfamily?: string;
   postScriptName?: string;
 } {
-  const names = font.names;
+  // opentype.js v2 exposes localized name records ({ en: "..." }) instead of
+  // plain strings, and drops the preferred* aliases. Normalize both shapes.
+  const names = font.names as any;
+  const pick = (n: unknown): string | undefined => {
+    if (!n) return undefined;
+    if (typeof n === 'string') return n;
+    return (n as any).en ?? (Object.values(n as Record<string, string>)[0]);
+  };
   const result: {
     family?: string;
     subfamily?: string;
@@ -90,9 +98,10 @@ function extractNameTable(font: opentype.Font): {
 
   // Prefer nameID 16 (Typographic Family) over 1 (Family)
   // Fall back to 1 if 16 missing
-  result.family = names.preferredFamily || names.fontFamily || names.fontSubfamily;
-  result.subfamily = names.preferredSubfamily || names.fontSubfamily;
-  result.postScriptName = names.postScriptName;
+  result.family =
+    pick(names.preferredFamily) || pick(names.fontFamily) || pick(names.fontSubfamily);
+  result.subfamily = pick(names.preferredSubfamily) || pick(names.fontSubfamily);
+  result.postScriptName = pick(names.postScriptName);
 
   return result;
 }
@@ -141,6 +150,7 @@ async function parseFont(request: ParseRequest): Promise<ParseResult> {
   const { id, file, filename } = request;
   const result: ParseResult = {
     id,
+    filename,
     success: false,
     errors: [],
     warnings: [],

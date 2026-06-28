@@ -26,7 +26,9 @@ export type UploadState =
   | 'resumed'
   | 'uploaded'
   | 'verifying'
+  | 'processed_by_api'
   | 'failed'
+  | 'error'
   | 'canceled';
 
 export interface ConflictResolution {
