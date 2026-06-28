@@ -265,7 +265,7 @@ export default function FamilyDetailPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const rawFamilyData = await getFontFamilyById(familyId, user?.uid);
+        const rawFamilyData = await getFontFamilyById(familyId);
         if (rawFamilyData) {
           const processedFamily = serializeFamilyData(rawFamilyData);
           setFamily(processedFamily as FontFamily);

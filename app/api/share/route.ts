@@ -1,122 +1,76 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { Firestore } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase/admin';
-import { FontFamily, Font } from '@/models/font.models';
+import { getUidFromRequest } from '@/lib/server/auth';
+import type { FontFamily } from '@/models/font.models';
 
 export const runtime = 'nodejs';
 
-type SanitizedFont = Omit<Font, 'metadata'> & { metadata?: Record<string, unknown> };
+// Strip ownerId before returning family data externally.
+type SharedFamily = Omit<FontFamily, 'ownerId'>;
 
-type SanitizedFamily = Omit<FontFamily, 'ownerId'> & {
-  ownerId?: never;
-  fonts: SanitizedFont[];
-};
-
-function sanitizeFamily(family: FontFamily): SanitizedFamily {
-  const { fonts: originalFonts } = family;
-  const safeFonts: SanitizedFont[] = (originalFonts ?? []).map((font) => {
-    return {
-      ...font,
-      metadata: font.metadata
-        ? {
-            ...font.metadata,
-          }
-        : undefined,
-    };
-  });
-
-  const sanitized = {
-    ...family,
-    fonts: safeFonts,
-  } as SanitizedFamily;
-
-  delete (sanitized as Record<string, unknown>).ownerId;
-  return sanitized;
+function sanitize(family: FontFamily): SharedFamily {
+  const out = { ...family } as Partial<FontFamily> & SharedFamily;
+  delete (out as Record<string, unknown>).ownerId;
+  return out as SharedFamily;
 }
 
-async function getFamily(db: Firestore, familyId: string, ownerId?: string): Promise<FontFamily | null> {
-  if (!familyId) return null;
-  if (ownerId) {
-    const snap = await db.collection('users').doc(ownerId).collection('fontfamilies').doc(familyId).get();
-    if (snap.exists) {
-      const data = snap.data() as FontFamily;
-      return { ...data, id: data.id ?? snap.id };
-    }
-  }
-  // Legacy fallback
-  const legacy = await db.collection('fontfamilies').doc(familyId).get();
-  if (legacy.exists) {
-    const data = legacy.data() as FontFamily;
-    return { ...data, id: data.id ?? legacy.id };
-  }
-  return null;
+async function getOwnedFamily(
+  uid: string,
+  familyId: string
+): Promise<FontFamily | null> {
+  const db = getAdminDb();
+  const snap = await db.collection('fontfamilies').doc(familyId).get();
+  if (!snap.exists) return null;
+  const data = snap.data() as FontFamily;
+  if (data.ownerId !== uid) return null;
+  return { ...data, id: data.id ?? snap.id };
 }
 
 export async function GET(request: NextRequest) {
+  const uid = await getUidFromRequest(request);
+  if (!uid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const familyId = request.nextUrl.searchParams.get('familyId') || '';
-  const ownerId = request.nextUrl.searchParams.get('ownerId') || undefined;
   if (!familyId) {
-    return NextResponse.json(
-      { error: 'familyId query parameter is required' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'familyId is required' }, { status: 400 });
   }
 
   try {
-    const db = getAdminDb();
-    const family = await getFamily(db, familyId, ownerId);
-    if (!family) {
-      return NextResponse.json({ error: 'Family not found' }, { status: 404 });
-    }
-    return NextResponse.json({ family: sanitizeFamily(family) });
-  } catch (error: any) {
-    console.error(`GET /api/share?familyId=${familyId} failed`, error);
-    return NextResponse.json(
-      { error: 'Failed to prepare share payload' },
-      { status: 500 }
-    );
+    const family = await getOwnedFamily(uid, familyId);
+    if (!family) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    return NextResponse.json({ family: sanitize(family) });
+  } catch (err: unknown) {
+    console.error('GET /api/share failed', err);
+    return NextResponse.json({ error: 'Failed to fetch share payload' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
+  const uid = await getUidFromRequest(request);
+  if (!uid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
-    const db = getAdminDb();
     const body = await request.json();
-    const familyIds: string[] = Array.isArray(body?.familyIds)
+    const ids: string[] = Array.isArray(body?.familyIds)
       ? body.familyIds
       : body?.familyId
       ? [body.familyId]
       : [];
-
-    if (familyIds.length === 0) {
-      return NextResponse.json(
-        { error: 'familyId or familyIds required in request body' },
-        { status: 400 }
-      );
+    if (ids.length === 0) {
+      return NextResponse.json({ error: 'familyId or familyIds required' }, { status: 400 });
     }
 
-    const families: SanitizedFamily[] = [];
-    const ownerId = request.nextUrl.searchParams.get('ownerId') || undefined;
-    for (const familyId of familyIds) {
-      const family = await getFamily(db, familyId, ownerId);
-      if (family) {
-        families.push(sanitizeFamily(family));
-      }
+    const families: SharedFamily[] = [];
+    for (const id of ids) {
+      const f = await getOwnedFamily(uid, id);
+      if (f) families.push(sanitize(f));
     }
-
     if (families.length === 0) {
-      return NextResponse.json(
-        { error: 'No matching families found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'No matching families found' }, { status: 404 });
     }
-
     return NextResponse.json({ families });
-  } catch (error: any) {
-    console.error('POST /api/share failed', error);
-    return NextResponse.json(
-      { error: 'Failed to prepare share payload' },
-      { status: 500 }
-    );
+  } catch (err: unknown) {
+    console.error('POST /api/share failed', err);
+    return NextResponse.json({ error: 'Failed to fetch share payload' }, { status: 500 });
   }
 }

@@ -8,41 +8,38 @@ service cloud.firestore {
     function userOwns(ownerId) {
       return isAuthenticated() && ownerId != null && ownerId == request.auth.uid;
     }
-    
-    // Font families collection
+
+    // Font families: owner-scoped reads. All writes go through Cloud Functions/admin.
+    // Serving (css2/s/d) and search use the admin SDK and bypass rules.
     match /fontfamilies/{familyId} {
-      // Allow public reads for all font families
-      // Note: Queries filtering by ownerId will work, but won't enforce ownership
-      // at the rules level - they'll just return empty results if user doesn't match
-      allow read: if true;
-      
-      // Writes go through Cloud Functions/Admin only
-      allow write: if false;
-    }
-    
-    // Ingests collection (if it exists)
-    match /ingests/{ingestId} {
-      // Only allow users to read their own ingests
       allow read: if userOwns(resource.data.ownerId);
       allow write: if false;
     }
-    
-    // Users collection (if storing user profiles)
+
+    // Batch tracking docs: admin-only writes; no client reads needed.
+    match /batchJobs/{jobId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // User profile
     match /users/{userId} {
-      // Users can read their own profile
       allow read: if isAuthenticated() && userId == request.auth.uid;
       allow write: if false;
     }
 
+    // Per-user ingest records
     match /users/{userId}/ingests/{ingestId} {
       allow read: if isAuthenticated() && userId == request.auth.uid;
       allow write: if false;
     }
-    
-    // Default: allow reads for everything else, but no writes
-    match /{document=**} {
-      allow read: if true;
+
+    // Per-user batch ledgers
+    match /users/{userId}/batches/{batchId} {
+      allow read: if isAuthenticated() && userId == request.auth.uid;
       allow write: if false;
     }
+
+    // Deny everything else by default (no catch-all allow).
   }
 }

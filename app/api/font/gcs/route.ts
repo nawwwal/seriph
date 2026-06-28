@@ -1,75 +1,64 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminStorage } from '@/lib/firebase/admin';
+import { getUidFromRequest } from '@/lib/server/auth';
 
 export const runtime = 'nodejs';
 
+// Allowlist: only public-facing font asset prefixes.
+// intake/unprocessed/batch paths are never accessible via this proxy.
+const ALLOWED_PREFIXES = ['s/', 'd/', 'processed_fonts/'];
+
+const EXT_TYPES: Record<string, string> = {
+  woff2: 'font/woff2',
+  woff: 'font/woff',
+  ttf: 'font/ttf',
+  otf: 'font/otf',
+  eot: 'application/vnd.ms-fontobject',
+};
+
 function isValidPath(p: string): boolean {
-  if (!p) return false;
-  if (p.startsWith('/')) return false;
-  if (p.includes('..')) return false;
-  // Optionally restrict to processed/ only. Keep permissive but safe for now.
-  return true;
+  if (!p || p.includes('..') || p.startsWith('/')) return false;
+  return ALLOWED_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
 
-function detectContentTypeFromExt(path: string): string {
-  const lower = path.toLowerCase();
-  if (lower.endsWith('.woff2')) return 'font/woff2';
-  if (lower.endsWith('.woff')) return 'font/woff';
-  if (lower.endsWith('.ttf')) return 'font/ttf';
-  if (lower.endsWith('.otf')) return 'font/otf';
-  if (lower.endsWith('.eot')) return 'application/vnd.ms-fontobject';
-  return 'application/octet-stream';
-}
-
+/** Deprecated fallback for old-schema fonts not yet on the CDN. Requires auth. */
 export async function GET(req: NextRequest) {
+  const uid = await getUidFromRequest(req);
+  if (!uid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const storagePath = req.nextUrl.searchParams.get('path') || '';
+  if (!isValidPath(storagePath)) {
+    return NextResponse.json({ error: 'Invalid or missing path' }, { status: 400 });
+  }
+
   try {
-    const storagePath = req.nextUrl.searchParams.get('path') || '';
-    if (!isValidPath(storagePath)) {
-      return NextResponse.json({ error: 'Invalid or missing path' }, { status: 400 });
-    }
-
-    const storage = getAdminStorage();
-    const file = storage.bucket().file(storagePath);
-
-    // Ensure the object exists and fetch metadata
+    const file = getAdminStorage().bucket().file(storagePath);
     const [exists] = await file.exists();
-    if (!exists) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    }
+    if (!exists) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
     const [metadata] = await file.getMetadata();
+    const ext = (storagePath.split('.').pop() || '').toLowerCase();
+    const contentType = metadata?.contentType || EXT_TYPES[ext] || 'application/octet-stream';
+    const readStream = file.createReadStream();
 
-    const contentType =
-      metadata?.contentType || detectContentTypeFromExt(storagePath);
-    const cacheControl =
-      metadata?.cacheControl || 'public, max-age=31536000, immutable';
-
-    const [readStream] = await Promise.all([file.createReadStream()]);
-
-    // Node streams are not directly supported in NextResponse init body; use Web Streams via ReadableStream
     const stream = new ReadableStream({
       start(controller) {
         readStream.on('data', (chunk: Buffer) => controller.enqueue(chunk));
         readStream.on('end', () => controller.close());
-        readStream.on('error', (err: any) => controller.error(err));
+        readStream.on('error', (err: unknown) => controller.error(err));
       },
-      cancel() {
-        try {
-          readStream.destroy();
-        } catch {}
-      },
+      cancel() { try { readStream.destroy(); } catch {} },
     });
 
-    return new NextResponse(stream as any, {
+    return new NextResponse(stream as BodyInit, {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': cacheControl,
-        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=31536000, immutable',
       },
     });
-  } catch (err: any) {
-    return NextResponse.json({ error: err?.message || 'GCS proxy error' }, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'GCS proxy error';
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-
-

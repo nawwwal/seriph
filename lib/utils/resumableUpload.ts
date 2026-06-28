@@ -2,7 +2,7 @@
  * Resumable upload utility for Firebase Storage
  */
 
-import { ref, uploadBytesResumable, getDownloadURL, UploadTask, UploadTaskSnapshot } from 'firebase/storage';
+import { ref, uploadBytesResumable, UploadTask, UploadTaskSnapshot } from 'firebase/storage';
 import { storage } from '@/lib/firebase/config';
 
 export interface ResumableUploadOptions {
@@ -56,14 +56,9 @@ export function uploadFileResumable(
       options.onError?.(error);
     },
     () => {
-      // Upload completed
-      getDownloadURL(uploadTask.snapshot.ref)
-        .then((downloadURL) => {
-          options.onComplete?.(downloadURL);
-        })
-        .catch((error) => {
-          options.onError?.(error);
-        });
+      // Upload completed. Intake objects are private and processed server-side,
+      // so the client never needs a download URL.
+      options.onComplete?.('');
     }
   );
 

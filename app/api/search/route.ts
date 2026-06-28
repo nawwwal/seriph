@@ -1,68 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUidFromRequest } from '@/lib/server/auth';
 
 export const runtime = 'nodejs';
 
-interface SearchFilters {
-  classification?: string[];
-  license?: string[];
-  scripts?: string[];
-  isVariable?: boolean;
-  axis?: string[];
-  weight?: { min?: number; max?: number; point?: number };
-  widthClass?: { min?: number; max?: number };
-  features?: string[];
-  opsz?: { min?: number; max?: number };
-  familyIds?: string[];
-  styleIds?: string[];
-}
-
-interface SearchRequestPayload {
-  q?: string;
-  filters?: SearchFilters;
-  sort?: { by: 'relevance' | 'popularity' | 'newest' };
-  page?: number;
-  pageSize?: number;
-  debug?: boolean;
-}
+const CORS = { 'Access-Control-Allow-Origin': '*' };
 
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
+    headers: { ...CORS, 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' },
   });
 }
 
 export async function POST(request: NextRequest) {
+  const uid = await getUidFromRequest(request);
+  if (!uid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: CORS });
+
   try {
-    const payload = (await request.json()) as SearchRequestPayload;
-    // Default to the deployed searchFontsHttp function; override via env if needed.
+    const body = await request.json();
+    // Strip any client-supplied ownerId; always inject from the verified token.
+    const payload = {
+      ...body,
+      filters: { ...(body.filters ?? {}), ownerId: uid },
+    };
+
     const endpoint =
       process.env.SEARCH_FUNCTION_URL ||
       process.env.SEARCH_SERVICE_URL ||
       'https://asia-southeast1-seriph.cloudfunctions.net/searchFontsHttp';
 
-    const response = await fetch(endpoint, {
+    const res = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-
-    const data = await response.json();
-    return NextResponse.json(data, {
-      status: response.status,
-      headers: { 'Access-Control-Allow-Origin': '*' },
-    });
-  } catch (error: any) {
-    console.error('POST /api/search failed', error);
-    return NextResponse.json(
-      { error: 'Search failed', details: error?.message },
-      { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } }
-    );
+    const data = await res.json();
+    return NextResponse.json(data, { status: res.status, headers: CORS });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('POST /api/search failed', err);
+    return NextResponse.json({ error: 'Search failed', details: msg }, { status: 500, headers: CORS });
   }
 }
