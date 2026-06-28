@@ -41,9 +41,17 @@ Live endpoints:
 - `serve/handlers.ts` — `/css2`, `/s/**`, `/d/**` (download) handlers.
 - `config/catalogConfig.ts` + extended `config/rcKeys.ts` — CDN base, public
   bucket, path builders, new RC keys.
-- `index.ts` — rewritten. Exports: `processUploadedFontStorage` (ingest trigger),
-  `enrichFontOnReady` (Firestore trigger on `fontfamilies/{slug}` when `ready`),
-  `searchFontsHttp`, `css2`, `serveFont`.
+- `index.ts` — rewritten. Exports: `expandArchive` (intake trigger),
+  `processUploadedFontStorage` (ingest trigger), `submitEnrichmentBatch` +
+  `pollEnrichmentBatch` (scheduled all-batch enrichment), `searchFontsHttp`,
+  `css2`, `serveFont`.
+- `ingest/batchEnrich.ts` — **all-batch enrichment lane.** Replaced the realtime
+  `enrichFontOnReady` Firestore trigger (removed). On a schedule, collect `ready`
+  families → render specimens → one GCS JSONL → Vertex **Batch API** job for the
+  multimodal analysis (50% of realtime price, `location: global` for
+  `gemini-3.5-flash`); a poller parses the output, embeds inline (2048-dim), writes
+  enrichment + `text_vec`, and finalizes ingests. Fonts stay instantly viewable;
+  enrichment lands on the batch cadence. Verified live 2026-06-28 (job applied 2/2).
 
 ### Front-end (web) — design unchanged
 - `lib/db/catalogAdapter.ts` — maps the new doc shape → the existing `FontFamily`
@@ -125,10 +133,42 @@ Remote Config group. New rebuilt keys such as `catalog_public_bucket`,
 currently using code defaults (`seriph-fonts`, `gemini-2.5-flash`,
 `gemini-embedding-001`, `1536`) unless explicitly added.
 
+## Ingestion + upload status + detail UI pass (2026-06-28)
+- **Scalable ingestion (code-complete, needs deploy):** drop folders/zips/nested.
+  Client walks the tree + resumable-uploads to `intake/**`; new `expandArchive`
+  Storage trigger normalizes fonts → `unprocessed_fonts/**` and recurses zips.
+  Content-hash dedup + per-batch ledger. RC key `intake_bucket_path`. **Phase 3
+  (Cloud Run job for >150MB zips + Cloud Tasks backpressure) not built** —
+  oversized zips are skipped + ledgered. See [ingestion-at-scale.md](./ingestion-at-scale.md).
+  Deploy needs: `expandArchive` function, Storage rules for `intake/**`,
+  collection-group index on `ingests.familyId`.
+- **Upload status overhaul:** single two-lane state machine; server now emits
+  `analyzing`/`enriching`; global Upload Center modal (nav "Uploads" button)
+  replaces scattered status; `BatchHUD` is now a shortcut. Legacy `status` no
+  longer drives display.
+- **Family detail UI:** wired the variable playground (was orphaned); redesigned
+  "Use this font" (no white code bars, URL truncation).
+- **Avatar:** Google photo now uses `referrerPolicy=no-referrer` + initials
+  fallback (`onError`).
+
+## Frontend audit pass (2026-06-28)
+- **Catalogue is now login-gated.** Logged-out `/` shows
+  `components/home/LandingPage.tsx`; `/search` and `/family/[familyId]` gate too.
+  See [frontend-ux.md](./frontend-ux.md).
+- **Variable-font false positives fixed** in `functions/src/parser/fontParser.ts`
+  (require non-empty `variationAxes`). Fonts ingested before this keep the wrong
+  `isVariable` until re-ingest/migration (see deferred follow-ups).
+- **Search moved into the top nav** as an inline field; `/search` reads `?q=`.
+- **Theme tokens extended** with semantic status vars (`--success/--danger/
+  --warning/--info`) and all hardcoded Tailwind palette colors removed.
+- Previously-dead buttons wired (Test in Text, Add Style, Download zip via
+  `jszip`, Share, Regenerate Covers).
+
 ## Deferred follow-ups (none block launch)
 - **Migration/reprocess** of existing fonts into the new schema (old
   `batchReprocessFonts` was removed). Existing old-schema fonts won't appear
-  until re-ingested or migrated.
+  until re-ingested or migrated. **Also re-ingest to correct stale `isVariable`
+  flags from the pre-fix parser.**
 - **Image (multimodal) embeddings** — `image_vec` stubbed; currently text-only.
 - **WOFF1 → woff2** (currently serves original for WOFF1 input).
 - **Per-subset woff2** and **per-weight vectors** (currently full-face + family-level).
