@@ -1,3 +1,6 @@
+// UI-facing font/family data model. Pure type declarations — exempt from the
+// <100-line guideline; this is the shared shape the whole front-end renders.
+
 export type Classification =
   | "Serif"
   | "Sans Serif"
@@ -6,18 +9,7 @@ export type Classification =
   | "Display & Decorative"
   | "Symbol & Icon";
 
-export const CLASSIFICATION_VALUES: Classification[] = [
-  "Serif",
-  "Sans Serif",
-  "Script & Handwriting",
-  "Monospace",
-  "Display & Decorative",
-  "Symbol & Icon"
-];
-
 export type FontFormat = "TTF" | "OTF" | "WOFF" | "WOFF2" | "EOT";
-
-export const FONT_FORMAT_VALUES: FontFormat[] = ["TTF", "OTF", "WOFF", "WOFF2", "EOT"];
 
 export type FontStyle =
   | "Thin"
@@ -173,54 +165,3 @@ export interface SemanticClassification {
   };
 }
 
-// Canonical enriched font data schema
-export interface EnrichedFontData {
-  id: string; // hash_of_fontfile
-  family: FieldWithProvenance<string>;
-  version?: FieldWithProvenance<string>;
-  license?: {
-    type: 'OFL' | 'Apache' | 'Proprietary' | 'Unknown';
-    url?: string;
-    fsType_flags?: string[];
-    confidence: number;
-    sources: DataProvenance[];
-  };
-  technical: {
-    style_core: Classification;
-    substyle?: string;
-    variable_axes: VariableAxis[];
-    features: string[];
-    scripts: Array<{
-      script: string; // ISO 15924 code
-      coverage_pct: number;
-      shaping_verified?: boolean;
-    }>;
-    color: {
-      present: boolean;
-      formats: string[];
-      layer_count?: number;
-      palette_count?: number;
-    };
-  };
-  metrics: VisualMetrics;
-  semantics: SemanticClassification;
-  people?: Array<{
-    role: 'designer' | 'foundry' | 'contributor';
-    name: string;
-    source: 'extracted' | 'web';
-    confidence: number;
-    source_url?: string;
-  }>;
-  historical_context?: {
-    period?: string;
-    cultural_influence?: string[];
-    notable_usage?: string[];
-    provenance: DataProvenance[];
-  };
-  similar_fonts?: Array<{
-    id: string;
-    method: 'vision_embedding' | 'fingerprint' | 'glyph_hash';
-    distance: number;
-  }>;
-  provenance: DataProvenance[];
-}
