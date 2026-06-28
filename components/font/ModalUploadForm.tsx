@@ -4,7 +4,7 @@ import { useState, useCallback, ChangeEvent, DragEvent, useEffect, useRef } from
 import { UploadCloud, FileText, XCircle, CheckCircle2, AlertTriangle, Hourglass, Pause, Play } from 'lucide-react';
 import { useFontParserWorker } from '@/lib/hooks/useFontParserWorker';
 import PreviewGroupingPanel, { type PreviewFile } from './PreviewGroupingPanel';
-import type { ParseResult } from '@/lib/workers/font-parser.worker';
+import type { ParseResult } from '@/lib/workers/fontParseTypes';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { uploadFileResumable, getRetryDelay } from '@/lib/utils/resumableUpload';
 import { NORMALIZATION_SPEC_VERSION } from '@/utils/normalizationSpec';

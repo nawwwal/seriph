@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { AlertTriangle, FileText } from 'lucide-react';
 import { normalizeFamilyName, NORMALIZATION_SPEC_VERSION } from '@/utils/normalizationSpec';
 import NormalizationSpecVersion from './NormalizationSpecVersion';
-import type { ParseResult } from '@/lib/workers/font-parser.worker';
+import type { ParseResult } from '@/lib/workers/fontParseTypes';
 
 export interface PreviewFile {
   id: string;
