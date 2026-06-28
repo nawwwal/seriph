@@ -516,13 +516,13 @@ export default function ModalUploadForm({ onUploadComplete }: ModalUploadFormPro
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         className={`border-2 border-dashed rounded-lg p-8 text-center mb-6 transition-colors
-                    ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}`}
+                    ${isDragging ? 'border-[var(--accent)] bg-[color-mix(in_srgb,var(--info)_12%,transparent)]' : 'border-[var(--muted)] hover:border-[var(--ink)]'}`}
       >
-        <UploadCloud className={`mx-auto mb-3 ${isDragging ? 'text-blue-600' : 'text-gray-400'}`} size={48} />
-        <p className="mb-2 text-gray-600">
+        <UploadCloud className={`mx-auto mb-3 ${isDragging ? 'text-[var(--info)]' : 'opacity-70'}`} size={48} />
+        <p className="mb-2 opacity-70">
           Drag & drop your font files here (TTF, OTF, WOFF, WOFF2, EOT)
         </p>
-        <p className="text-sm text-gray-500 mb-3">or</p>
+        <p className="text-sm opacity-70 mb-3">or</p>
         <input
           type="file"
           id="modal-font-upload-simplified"
@@ -533,17 +533,17 @@ export default function ModalUploadForm({ onUploadComplete }: ModalUploadFormPro
         />
         <label
           htmlFor="modal-font-upload-simplified"
-          className="cursor-pointer px-6 py-2.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"
+          className="cursor-pointer px-6 py-2.5 bg-[var(--accent)] text-[var(--paper)] rounded-md hover:opacity-90 transition-colors text-sm font-medium"
         >
           Choose Files
         </label>
-        {isDragging && <p className="mt-3 text-blue-500 font-semibold">Release to drop files</p>}
+        {isDragging && <p className="mt-3 text-[var(--info)] font-semibold">Release to drop files</p>}
       </div>
 
       {globalMessage && (
           <p className={`mb-4 text-sm text-center ${
-              globalMessage.includes('successfully') ? 'text-green-600' :
-              globalMessage.toLowerCase().includes('fail') || globalMessage.toLowerCase().includes('error')? 'text-red-600' : 'text-gray-700'}`}>
+              globalMessage.includes('successfully') ? 'text-[var(--success)]' :
+              globalMessage.toLowerCase().includes('fail') || globalMessage.toLowerCase().includes('error')? 'text-[var(--danger)]' : 'opacity-70'}`}>
               {globalMessage}
           </p>
       )}
@@ -567,68 +567,68 @@ export default function ModalUploadForm({ onUploadComplete }: ModalUploadFormPro
 
       {filesToUpload.length > 0 && (
         <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-          <h3 className="text-lg font-semibold text-gray-700 mb-2">Upload Queue ({filesToUpload.length})</h3>
+          <h3 className="text-lg font-semibold opacity-70 mb-2">Upload Queue ({filesToUpload.length})</h3>
           {filesToUpload.map(item => {
             let statusIcon, statusColor, statusText;
 
             switch(item.status) {
                 case 'processed_by_api':
-                    statusIcon = <CheckCircle2 className="text-green-500 mr-3 shrink-0" size={20} />;
-                    statusColor = 'text-green-600';
+                    statusIcon = <CheckCircle2 className="text-[var(--success)] mr-3 shrink-0" size={20} />;
+                    statusColor = 'text-[var(--success)]';
                     statusText = item.apiResponseMessage || 'Submitted for server processing';
                     break;
                 case 'error':
-                    statusIcon = <AlertTriangle className="text-red-500 mr-3 shrink-0" size={20} />;
-                    statusColor = 'text-red-600';
+                    statusIcon = <AlertTriangle className="text-[var(--danger)] mr-3 shrink-0" size={20} />;
+                    statusColor = 'text-[var(--danger)]';
                     statusText = item.error || item.parseError || 'An unknown error occurred';
                     break;
                 case 'parsing':
-                    statusIcon = <Hourglass className="text-blue-500 mr-3 shrink-0 animate-spin" size={20} />;
-                    statusColor = 'text-blue-600';
+                    statusIcon = <Hourglass className="text-[var(--info)] mr-3 shrink-0 animate-spin" size={20} />;
+                    statusColor = 'text-[var(--info)]';
                     statusText = 'Parsing font...';
                     break;
                 case 'paused':
-                    statusIcon = <Pause className="text-yellow-500 mr-3 shrink-0" size={20} />;
-                    statusColor = 'text-yellow-600';
+                    statusIcon = <Pause className="text-[var(--warning)] mr-3 shrink-0" size={20} />;
+                    statusColor = 'text-[var(--warning)]';
                     statusText = item.lastProgressTime
                       ? `Paused at ${item.progress}% (${new Date(item.lastProgressTime).toLocaleTimeString()})`
                       : `Paused at ${item.progress}%`;
                     break;
                 case 'retrying':
-                    statusIcon = <Hourglass className="text-orange-500 mr-3 shrink-0 animate-spin" size={20} />;
-                    statusColor = 'text-orange-600';
+                    statusIcon = <Hourglass className="text-[var(--warning)] mr-3 shrink-0 animate-spin" size={20} />;
+                    statusColor = 'text-[var(--warning)]';
                     statusText = item.error || `Retrying... (attempt ${(item.retryCount || 0) + 1})`;
                     break;
                 case 'resumed':
-                    statusIcon = <Play className="text-blue-500 mr-3 shrink-0" size={20} />;
-                    statusColor = 'text-blue-600';
+                    statusIcon = <Play className="text-[var(--info)] mr-3 shrink-0" size={20} />;
+                    statusColor = 'text-[var(--info)]';
                     statusText = `Resumed... ${item.progress}%`;
                     break;
                 case 'verifying':
-                    statusIcon = <Hourglass className="text-blue-500 mr-3 shrink-0 animate-spin" size={20} />;
-                    statusColor = 'text-blue-600';
+                    statusIcon = <Hourglass className="text-[var(--info)] mr-3 shrink-0 animate-spin" size={20} />;
+                    statusColor = 'text-[var(--info)]';
                     statusText = 'Verifying...';
                     break;
                 case 'submitting':
-                    statusIcon = <Hourglass className="text-blue-500 mr-3 shrink-0 animate-spin" size={20} />;
-                    statusColor = 'text-blue-600';
+                    statusIcon = <Hourglass className="text-[var(--info)] mr-3 shrink-0 animate-spin" size={20} />;
+                    statusColor = 'text-[var(--info)]';
                     statusText = `Uploading... ${item.progress}%`;
                     break;
                 case 'pending':
                 default:
-                    statusIcon = <FileText className="text-gray-500 mr-3 shrink-0" size={20} />;
-                    statusColor = 'text-gray-500';
+                    statusIcon = <FileText className="opacity-70 mr-3 shrink-0" size={20} />;
+                    statusColor = 'opacity-70';
                     statusText = item.parseError || 'Pending submission';
                     break;
             }
 
             return (
-              <div key={item.id} className="p-3 border rounded-md bg-white shadow-sm">
+              <div key={item.id} className="p-3 border rounded-md bg-[var(--surface)] shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center min-w-0">
                     {statusIcon}
                     <div className="flex-grow min-w-0">
-                      <p className="text-sm font-medium text-gray-700 truncate" title={item.file.name}>{item.file.name}</p>
+                      <p className="text-sm font-medium opacity-70 truncate" title={item.file.name}>{item.file.name}</p>
                       <p className={`text-xs ${statusColor}`}>
                         ({(item.file.size / 1024).toFixed(1)} KB) -
                         <span className="font-medium ml-1" title={item.error || item.apiResponseMessage}>
@@ -649,7 +649,7 @@ export default function ModalUploadForm({ onUploadComplete }: ModalUploadFormPro
                               )
                             );
                           }}
-                          className="text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-50"
+                          className="text-[var(--info)] hover:text-[var(--info)] p-1 rounded-full hover:bg-[color-mix(in_srgb,var(--info)_12%,transparent)]"
                           aria-label="Resume upload"
                         >
                           <Play size={18} />
@@ -663,7 +663,7 @@ export default function ModalUploadForm({ onUploadComplete }: ModalUploadFormPro
                           }
                           removeFile(item.id);
                         }}
-                        className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50"
+                        className="text-[var(--danger)] hover:text-[var(--danger)] p-1 rounded-full hover:bg-[color-mix(in_srgb,var(--danger)_12%,transparent)]"
                         aria-label={`Remove ${item.file.name}`}
                       >
                         <XCircle size={18} />
@@ -680,7 +680,7 @@ export default function ModalUploadForm({ onUploadComplete }: ModalUploadFormPro
                           )
                         );
                       }}
-                      className="text-yellow-500 hover:text-yellow-700 p-1 rounded-full hover:bg-yellow-50"
+                      className="text-[var(--warning)] hover:text-[var(--warning)] p-1 rounded-full hover:bg-[color-mix(in_srgb,var(--warning)_12%,transparent)]"
                       aria-label="Pause upload"
                     >
                       <Pause size={18} />
@@ -688,12 +688,12 @@ export default function ModalUploadForm({ onUploadComplete }: ModalUploadFormPro
                   )}
                 </div>
                 {(item.status === 'submitting' || item.status === 'paused' || item.status === 'retrying' || item.status === 'resumed') && item.progress < 100 && (
-                  <div className="mt-2 h-2 w-full bg-gray-200 rounded-full overflow-hidden">
+                  <div className="mt-2 h-2 w-full bg-[var(--muted)] rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full transition-all duration-150 ${
-                        item.status === 'paused' ? 'bg-yellow-500' :
-                        item.status === 'retrying' ? 'bg-orange-500' :
-                        'bg-blue-500'
+                        item.status === 'paused' ? 'bg-[color-mix(in_srgb,var(--warning)_12%,transparent)]0' :
+                        item.status === 'retrying' ? 'bg-[var(--warning)]' :
+                        'bg-[color-mix(in_srgb,var(--info)_12%,transparent)]0'
                       }`}
                       style={{ width: `${item.progress}%` }}
                     ></div>
@@ -710,7 +710,7 @@ export default function ModalUploadForm({ onUploadComplete }: ModalUploadFormPro
           <button
             onClick={startBatchUpload}
             disabled={pendingFileCount === 0 || isBatchProcessing}
-            className="w-full px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 transition-colors font-semibold"
+            className="w-full px-6 py-3 bg-[var(--success)] text-[var(--paper)] rounded-md hover:opacity-90 disabled:opacity-50 transition-colors font-semibold"
           >
             {isBatchProcessing
                 ? `Submitting ${currentlySubmittingCount} file(s)...`

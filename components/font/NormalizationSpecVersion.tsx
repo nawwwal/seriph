@@ -30,20 +30,20 @@ export default function NormalizationSpecVersion({
     <div
       className={`flex items-start gap-2 p-3 rounded-[var(--radius)] ${
         isOutdated
-          ? 'bg-yellow-50 border border-yellow-200'
-          : 'bg-blue-50 border border-blue-200'
+          ? 'bg-[color-mix(in_srgb,var(--warning)_12%,transparent)] border border-[var(--warning)]'
+          : 'bg-[color-mix(in_srgb,var(--info)_12%,transparent)] border border-[var(--info)]'
       } ${className}`}
     >
       {isOutdated ? (
-        <AlertTriangle className="text-yellow-600 shrink-0 mt-0.5" size={16} />
+        <AlertTriangle className="text-[var(--warning)] shrink-0 mt-0.5" size={16} />
       ) : (
-        <Info className="text-blue-600 shrink-0 mt-0.5" size={16} />
+        <Info className="text-[var(--info)] shrink-0 mt-0.5" size={16} />
       )}
       <div className="flex-1 text-xs">
-        <div className={`font-bold ${isOutdated ? 'text-yellow-800' : 'text-blue-800'}`}>
+        <div className={`font-bold ${isOutdated ? 'text-[var(--warning)]' : 'text-[var(--info)]'}`}>
           Normalization Spec Mismatch
         </div>
-        <div className={`mt-1 ${isOutdated ? 'text-yellow-700' : 'text-blue-700'}`}>
+        <div className={`mt-1 ${isOutdated ? 'text-[var(--warning)]' : 'text-[var(--info)]'}`}>
           {isOutdated ? (
             <>
               Client version ({clientVersion}) is older than server ({serverVersion}). Preview

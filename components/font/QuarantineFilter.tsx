@@ -26,7 +26,7 @@ export default function QuarantineFilter({
       className={`flex items-center gap-2 uppercase text-xs font-bold px-3 py-2 rounded-[var(--radius)] transition-colors ${
         showQuarantined
           ? 'ink-bg text-[var(--paper)]'
-          : 'btn-ink border-2 border-yellow-500'
+          : 'btn-ink border-2 border-[var(--warning)]'
       } ${className}`}
       aria-pressed={showQuarantined}
     >

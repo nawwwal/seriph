@@ -61,7 +61,7 @@ export default function ProcessingView({ uploads, phase }: ProcessingViewProps) 
             upload.status === 'completed'
               ? 'ink-bg text-[var(--paper)]'
               : upload.status === 'failed'
-              ? 'bg-red-600 text-white'
+              ? 'bg-[var(--danger)] text-[var(--paper)]'
               : 'btn-ink';
 
           return (
@@ -82,7 +82,7 @@ export default function ProcessingView({ uploads, phase }: ProcessingViewProps) 
                     </div>
                   ) : null}
                   {upload.error && (
-                    <div className="text-sm mt-1 text-red-600">{upload.error}</div>
+                    <div className="text-sm mt-1 text-[var(--danger)]">{upload.error}</div>
                   )}
                 </div>
                 <span

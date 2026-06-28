@@ -21,78 +21,113 @@ export type ImportState =
   | { kind: 'error'; message: string; files?: string[] };
 
 /**
- * Combined status for an upload/analysis item
+ * A single canonical stage derived from the two independent lanes
+ * (upload + analysis). Mutually exclusive — every item is in exactly one.
  */
+export type IngestStage =
+  | 'queued'
+  | 'uploading'
+  | 'uploaded'
+  | 'analyzing'
+  | 'enriching'
+  | 'complete'
+  | 'error'
+  | 'quarantined'
+  | 'canceled';
+
 export interface CombinedStatus {
   uploadState: UploadState;
   analysisState: AnalysisState;
+  stage: IngestStage;
   displayText: string;
   priority: 'upload' | 'analysis' | 'complete';
+  /** Overall 0-100 across both lanes (upload = first half, analysis = second). */
+  percent: number;
 }
 
+const STAGE_TEXT: Record<IngestStage, string> = {
+  queued: 'Queued',
+  uploading: 'Uploading',
+  uploaded: 'Uploaded',
+  analyzing: 'Analyzing',
+  enriching: 'Enriching',
+  complete: 'Complete',
+  error: 'Error',
+  quarantined: 'Quarantined',
+  canceled: 'Canceled',
+};
+
 /**
- * Get combined status display text and priority
+ * Canonical status from the two lanes only (the legacy `status` field is no
+ * longer consulted for display). `uploadProgress` is the client-driven 0-100
+ * resumable progress when uploading.
  */
 export function getCombinedStatus(
   uploadState?: UploadState,
-  analysisState?: AnalysisState
+  analysisState?: AnalysisState,
+  uploadProgress?: number
 ): CombinedStatus {
-  // Default states
   const upload = uploadState || 'pending';
   const analysis = analysisState || 'not_started';
 
-  // Priority rules: Upload errors take precedence, then analysis errors
-  if (upload === 'failed' || upload === 'error') {
-    return {
-      uploadState: upload,
-      analysisState: analysis,
-      displayText: `Upload failed${analysis !== 'not_started' ? ` (Analysis: ${analysis})` : ''}`,
-      priority: 'upload',
-    };
-  }
+  const uploadDone =
+    upload === 'uploaded' || upload === 'processed_by_api' || upload === 'verifying';
+
+  let stage: IngestStage;
+  let percent: number;
 
   if (upload === 'canceled') {
-    return {
-      uploadState: upload,
-      analysisState: analysis,
-      displayText: 'Canceled',
-      priority: 'upload',
-    };
+    stage = 'canceled';
+    percent = 0;
+  } else if (upload === 'failed' || upload === 'error') {
+    stage = 'error';
+    percent = 0;
+  } else if (analysis === 'quarantined') {
+    stage = 'quarantined';
+    percent = 100;
+  } else if (analysis === 'error') {
+    stage = 'error';
+    percent = 50;
+  } else if (analysis === 'complete') {
+    stage = 'complete';
+    percent = 100;
+  } else if (!uploadDone) {
+    // Upload lane (first 50%). A client-driven `uploadProgress` in (0,100) means
+    // the browser is still streaming bytes even if the doc still says `pending`.
+    const clientUploading =
+      typeof uploadProgress === 'number' && uploadProgress > 0 && uploadProgress < 100;
+    if (upload === 'uploading' || upload === 'resumed' || upload === 'retrying' || clientUploading) {
+      stage = 'uploading';
+      percent = Math.round(Math.min(Math.max(uploadProgress ?? 0, 0), 100) * 0.5);
+    } else if (typeof uploadProgress === 'number' && uploadProgress >= 100) {
+      stage = 'uploaded';
+      percent = 50;
+    } else {
+      stage = 'queued';
+      percent = 0;
+    }
+  } else {
+    // Analysis lane (second 50%)
+    if (analysis === 'analyzing') {
+      stage = 'analyzing';
+      percent = 65;
+    } else if (analysis === 'enriching') {
+      stage = 'enriching';
+      percent = 85;
+    } else {
+      stage = 'uploaded';
+      percent = 50;
+    }
   }
 
-  // If upload is complete, show analysis state
-  if (upload === 'uploaded' || upload === 'processed_by_api' || upload === 'verifying') {
-    if (analysis === 'error' || analysis === 'quarantined') {
-      return {
-        uploadState: upload,
-        analysisState: analysis,
-        displayText: `Error (Upload OK, Analysis: ${analysis})`,
-        priority: 'analysis',
-      };
-    }
-    if (analysis === 'complete') {
-      return {
-        uploadState: upload,
-        analysisState: analysis,
-        displayText: 'Complete',
-        priority: 'complete',
-      };
-    }
-    return {
-      uploadState: upload,
-      analysisState: analysis,
-      displayText: `Ready (Analysis: ${analysis})`,
-      priority: 'analysis',
-    };
-  }
+  const priority: CombinedStatus['priority'] =
+    stage === 'complete'
+      ? 'complete'
+      : stage === 'queued' || stage === 'uploading'
+        ? 'upload'
+        : 'analysis';
 
-  // Upload in progress
-  return {
-    uploadState: upload,
-    analysisState: analysis,
-    displayText: `Processing (Upload: ${upload}${analysis !== 'not_started' ? `, Analysis: ${analysis}` : ''})`,
-    priority: 'upload',
-  };
+  return { uploadState: upload, analysisState: analysis, stage, displayText: STAGE_TEXT[stage], priority, percent };
 }
 
 interface ImportContextType {

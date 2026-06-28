@@ -6,15 +6,20 @@ import { NORMALIZATION_SPEC_VERSION } from '@/utils/normalizationSpec';
 
 export const runtime = 'nodejs';
 
-const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 MB per file limit
-const ALLOWED_FONT_EXTENSIONS = ['ttf', 'otf', 'woff', 'woff2', 'eot'];
-const UNPROCESSED_FONTS_PATH = 'unprocessed_fonts';
-const MAX_FILES_PER_REQUEST = 20;
+const MAX_FILE_SIZE = 512 * 1024 * 1024; // 512 MB (archives can be large; expansion handles fonts)
+const INTAKE_PATH = 'intake';
+const MAX_FILES_PER_REQUEST = 200;
+
+function sanitizeRel(rel: string): string {
+  return rel.replace(/\\/g, '/').replace(/\.\.+/g, '').replace(/^\/+/, '');
+}
 
 interface RegisterRequest {
+  batchId?: string;
   files: Array<{
     originalName: string;
     size: number;
+    relativePath?: string;
     contentType?: string;
     contentHash?: string;
     quickHash?: string;
@@ -55,6 +60,7 @@ export async function POST(request: NextRequest) {
   try {
     const body: RegisterRequest = await request.json();
     const { files } = body;
+    const batchId = body.batchId || uuidv4();
 
     if (!files || files.length === 0) {
       return NextResponse.json({ error: 'No files specified.' }, { status: 400 });
@@ -89,15 +95,7 @@ export async function POST(request: NextRequest) {
       }
 
       const fileExtension = fileInfo.originalName.split('.').pop()?.toLowerCase();
-
-      if (!fileExtension || !ALLOWED_FONT_EXTENSIONS.includes(fileExtension)) {
-        registrations.push({
-          success: false,
-          originalName: fileInfo.originalName,
-          error: 'Unsupported file type.',
-        });
-        continue;
-      }
+      // All types are accepted into intake; expandArchive decides what to keep.
 
       // Check for duplicate by contentHash if provided
       let isDuplicate = false;
@@ -132,14 +130,15 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Create ingest record
+      // Create ingest record (intake item — bytes land in intake/**, then
+      // expandArchive normalizes into the font pipeline).
       const processingRef = firestore.collection('_').doc();
       const processingId = processingRef.id;
       const ingestRef = firestore.collection('users').doc(uid).collection('ingests').doc();
       const ingestId = ingestRef.id;
       const requestId = uuidv4();
-      const uniqueFilename = `${processingId}-${fileInfo.originalName}`;
-      const destPath = `${UNPROCESSED_FONTS_PATH}/${uniqueFilename}`;
+      const relPath = sanitizeRel(fileInfo.relativePath || fileInfo.originalName);
+      const destPath = `${INTAKE_PATH}/${batchId}/${processingId}-${fileInfo.originalName}`;
 
       try {
         const now = FieldValue.serverTimestamp();
@@ -148,13 +147,15 @@ export async function POST(request: NextRequest) {
           ownerId: uid,
           requestId,
           processingId,
+          batchId,
+          relPath,
           originalName: fileInfo.originalName,
           originalExtension: fileExtension,
           originalSize: fileInfo.size,
           status: 'uploaded',
           error: null,
           errorCode: null,
-          unprocessedPath: destPath,
+          intakePath: destPath,
           uploadSource: 'web-app',
           contentType: fileInfo.contentType || null,
           createdAt: now,
@@ -167,7 +168,8 @@ export async function POST(request: NextRequest) {
           normalizationSpecVersion: fileInfo.normalizationSpecVersion || NORMALIZATION_SPEC_VERSION,
           previewFamilyKey: fileInfo.previewFamilyKey || null,
           analysisState: 'not_started',
-          uploadState: 'uploaded',
+          uploadState: 'pending',
+          uploadProgress: 0,
         });
 
         registrations.push({
@@ -202,6 +204,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       message: `Registered ${registrations.filter(r => r.success).length} file(s) for upload.`,
+      batchId,
       results: registrations,
     });
   } catch (error: any) {

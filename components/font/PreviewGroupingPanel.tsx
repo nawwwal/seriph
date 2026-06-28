@@ -187,7 +187,7 @@ export default function PreviewGroupingPanel({
             {/* Conflicts */}
             {family.conflicts.length > 0 && (
               <div className="mb-3">
-                <div className="flex items-center gap-2 text-xs uppercase font-bold text-red-600 mb-1">
+                <div className="flex items-center gap-2 text-xs uppercase font-bold text-[var(--danger)] mb-1">
                   <AlertTriangle size={14} />
                   <span>Conflicts</span>
                 </div>
@@ -224,7 +224,7 @@ export default function PreviewGroupingPanel({
                     {onRemoveFile && (
                       <button
                         onClick={() => onRemoveFile(file.id)}
-                        className="text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                        className="text-[var(--danger)] hover:text-[var(--danger)] px-2 py-1 rounded hover:bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] transition-colors"
                         aria-label={`Remove ${file.file.name}`}
                       >
                         Remove
