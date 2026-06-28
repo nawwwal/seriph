@@ -164,6 +164,30 @@ currently using code defaults (`seriph-fonts`, `gemini-2.5-flash`,
 - Previously-dead buttons wired (Test in Text, Add Style, Download zip via
   `jszip`, Share, Regenerate Covers).
 
+## Security hardening + code-health pass (2026-06-28)
+- **Firestore rules**: removed the world-readable `match /{document=**}` catch-all;
+  `fontfamilies` reads are now **owner-scoped** (`userOwns(resource.data.ownerId)`),
+  and `users/**`, `ingests`, per-user `batches`, and `batchJobs` are locked down.
+  Deployed + verified (unauthenticated read of a family returns 403).
+- **Storage rules**: added `storage.rules` (registered in `firebase.json`) — authed
+  users may write only their own `intake/{batchId}/**`; processing prefixes are
+  admin-only; default deny. The public CDN is the separate `seriph-fonts` bucket
+  (IAM-based), unaffected. Deployed.
+- **API routes**: `/api/share` and `/api/search` now require a verified token and
+  inject `ownerId` server-side (search no longer trusts a client owner filter);
+  `/api/font/gcs` requires auth and is restricted to public asset prefixes
+  (`s/`, `d/`, `processed_fonts/`). `resumableUpload` dropped the unused
+  `getDownloadURL` so completion doesn't need read access to private intake objects.
+- **<100-line refactor**: split large files into focused modules across `functions/src`
+  and the web app; **~44 files over 100 → 4 documented exemptions** (pure type files
+  `models/font.models.ts` ×2 / `catalog.models.ts`, config registry `rcKeys.ts`,
+  and the single-concern `lib/firebase/admin.ts`). Behavior preserved (web typecheck/
+  lint/test + functions build/lint/31 tests green).
+- **Dead code removed**: web `lib/db/firestoreUtils.admin.ts` + legacy
+  `families/styles/searchSignals` queries; functions realtime Vertex path
+  (`generateStrictJSON`/`getGenerativeModelFromRC`/`ai/utils/retry.ts`), unused
+  remoteConfig threshold helpers, and trimmed `contracts.ts`/`font.models.ts`.
+
 ## Deferred follow-ups (none block launch)
 - **Migration/reprocess** of existing fonts into the new schema (old
   `batchReprocessFonts` was removed). Existing old-schema fonts won't appear
