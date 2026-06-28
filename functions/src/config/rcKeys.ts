@@ -1,4 +1,6 @@
-// Centralized Remote Config keys and default values
+// Centralized Remote Config keys and default values.
+// Pure config registry (data, not logic) — exempt from the <100-line guideline;
+// keeping every key + default in one place is the point.
 export const RC_KEYS = {
 	isVertexEnabled: "is_vertex_enabled",
 	webEnrichmentEnabled: "web_enrichment_enabled",

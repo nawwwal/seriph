@@ -1,9 +1,6 @@
 /**
- * Family document store for the rebuilt catalog.
- *
- * Families live in a single top-level collection `fontfamilies/{slug}` with an
- * `ownerId` field (simplifies enrichment triggers + collection vector search).
- * A face is merged transactionally; enrichment/vectors are left untouched.
+ * Family document store. Families live in `fontfamilies/{slug}` with an
+ * `ownerId` field; a face is merged transactionally (enrichment/vectors kept).
  */
 import { getFirestore, FieldValue, Firestore } from 'firebase-admin/firestore';
 import type { GfCategory } from './canonicalize';
@@ -33,13 +30,9 @@ function mergeAxes(a: CanonicalAxis[] = [], b: CanonicalAxis[] = []): CanonicalA
 }
 
 /** Is this the canonical "cover" face? (Regular, upright.) */
-function isCover(face: FontFace): boolean {
-  return face.weight === 400 && !face.italic;
-}
+const isCover = (face: FontFace): boolean => face.weight === 400 && !face.italic;
 
-/**
- * Create or update the family doc, merging in one face. Returns the resulting doc.
- */
+/** Create or update the family doc, merging in one face. Returns the resulting doc. */
 export async function upsertFace(
   input: UpsertFaceInput,
   db: Firestore = getFirestore()
@@ -49,7 +42,6 @@ export async function upsertFace(
   return db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const now = FieldValue.serverTimestamp();
-
     if (!snap.exists) {
       const doc: FontFamilyDoc = {
         id: input.slug,
@@ -98,8 +90,7 @@ export async function upsertFace(
       faces,
       coverFaceId,
       ownerId: existing.ownerId ?? input.ownerId,
-      // Keep an already-enriched family enriched; otherwise (re)mark ready.
-      status: existing.status === 'enriched' ? 'enriched' : 'ready',
+      status: existing.status === 'enriched' ? 'enriched' : 'ready', // keep enriched, else ready
       version: (existing.version ?? 1) + 1,
       updatedAt: now as unknown as string,
     };

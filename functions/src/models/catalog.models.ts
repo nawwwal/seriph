@@ -1,5 +1,6 @@
 /**
  * Clean catalog schema for the rebuilt pipeline (Google Fonts–style).
+ * Pure type declarations — exempt from the <100-line guideline.
  *
  * Replaces the deeply-nested legacy `font.models` shape. A family document holds
  * canonical faces (each with CDN urls), optional enrichment, and — once enriched —
