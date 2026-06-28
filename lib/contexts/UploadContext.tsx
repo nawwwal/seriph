@@ -1,69 +1,25 @@
 'use client';
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import type { IngestRecord } from '@/models/ingest.models';
-import { getCombinedStatus } from '@/lib/contexts/ImportContext';
+import { getCombinedStatus } from '@/lib/upload/combinedStatus';
+import { mapIngest } from '@/lib/upload/mapIngest';
 
 interface UploadContextValue {
-  /** Live ingest records for the signed-in user (non-completed + recently done). */
   ingests: IngestRecord[];
-  /** Count of items still in flight (not complete/error/canceled). */
-  activeCount: number;
+  activeCount: number; // items still in flight (not complete/error/canceled)
   isOpen: boolean;
   open: () => void;
   close: () => void;
-  /** Client-driven resumable progress, keyed by ingestId (0-100). */
-  uploadProgress: Record<string, number>;
+  uploadProgress: Record<string, number>; // client-driven resumable progress by ingestId
   setUploadProgress: (ingestId: string, percent: number) => void;
-  /** Fires (debounced) when any ingest transitions to completed. */
-  onCompleted: (cb: () => void) => () => void;
+  onCompleted: (cb: () => void) => () => void; // fires (debounced) on completion
 }
 
 const UploadContext = createContext<UploadContextValue | undefined>(undefined);
-
-function mapIngest(id: string, data: any, uid: string): IngestRecord {
-  const toIso = (v: any) => (v?.toDate?.() ? v.toDate().toISOString() : v ?? null);
-  return {
-    id,
-    ingestId: data.ingestId ?? id,
-    ownerId: data.ownerId ?? uid,
-    originalName: data.originalName ?? 'Font file',
-    status: data.status ?? 'uploaded',
-    error: data.error ?? null,
-    errorCode: data.errorCode ?? null,
-    familyId: data.familyId ?? null,
-    requestId: data.requestId ?? null,
-    processingId: data.processingId ?? null,
-    uploadSource: data.uploadSource ?? null,
-    unprocessedPath: data.unprocessedPath ?? null,
-    processedPath: data.processedPath ?? null,
-    uploadedAt: toIso(data.uploadedAt),
-    updatedAt: toIso(data.updatedAt),
-    analysisState: data.analysisState ?? 'not_started',
-    uploadState: data.uploadState ?? 'pending',
-    uploadProgress: typeof data.uploadProgress === 'number' ? data.uploadProgress : undefined,
-    quarantined: data.quarantined ?? false,
-    contentHash: data.contentHash ?? undefined,
-    quickHash: data.quickHash ?? undefined,
-    previewFamilyKey: data.previewFamilyKey ?? undefined,
-    canonicalFamilyId: data.canonicalFamilyId ?? undefined,
-    normalizationSpecVersion: data.normalizationSpecVersion ?? undefined,
-    conflictResolution: data.conflictResolution ?? undefined,
-    resumeMetadata: data.resumeMetadata ?? undefined,
-  };
-}
 
 export function UploadProvider({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -106,19 +62,13 @@ export function UploadProvider({ children }: { children: ReactNode }) {
 
   const onCompleted = useCallback((cb: () => void) => {
     completedCbs.current.add(cb);
-    return () => {
-      completedCbs.current.delete(cb);
-    };
+    return () => { completedCbs.current.delete(cb); };
   }, []);
 
   const activeCount = useMemo(
     () =>
       ingests.filter((ing) => {
-        const { stage } = getCombinedStatus(
-          ing.uploadState,
-          ing.analysisState,
-          uploadProgress[ing.ingestId]
-        );
+        const { stage } = getCombinedStatus(ing.uploadState, ing.analysisState, uploadProgress[ing.ingestId]);
         return stage !== 'complete' && stage !== 'error' && stage !== 'canceled';
       }).length,
     [ingests, uploadProgress]
