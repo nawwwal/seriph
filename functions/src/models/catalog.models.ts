@@ -76,6 +76,13 @@ export interface FontEnrichment {
   enrichedAt?: FirebaseFirestore.Timestamp | Date | string;
 }
 
+export interface SearchMeta {
+  embeddingModel: string;
+  embeddingVersion: string;
+  promptVersion: string;
+  generatedAt?: FirebaseFirestore.Timestamp | Date | string;
+}
+
 /** The family document. Vector fields are written via FieldValue.vector(). */
 export interface FontFamilyDoc {
   id: string; // family slug
@@ -95,9 +102,14 @@ export interface FontFamilyDoc {
   ownerId?: string;
   status: FamilyStatus;
   version: number; // bumped on each (re)write of served assets — used in CDN paths
+  searchText?: string;
+  searchTokens?: string[];
+  searchMeta?: SearchMeta;
   // Vector fields (Firestore VectorValue) — present only after enrichment.
   // Typed loosely because admin SDK writes them via FieldValue.vector(number[]).
   text_vec?: unknown;
+  mood_vec?: unknown;
+  use_case_vec?: unknown;
   image_vec?: unknown;
   createdAt?: FirebaseFirestore.Timestamp | Date | string;
   updatedAt?: FirebaseFirestore.Timestamp | Date | string;

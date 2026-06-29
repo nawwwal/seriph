@@ -8,7 +8,8 @@
         "deploy": "firebase deploy --only functions",
         "logs": "firebase functions:log",
         "lint": "tsc --noEmit",
-        "test": "vitest run"
+        "test": "vitest run",
+        "backfill:search": "npm run build && node lib/scripts/backfillSearchVectors.js"
     },
     "engines": {
         "node": "22"

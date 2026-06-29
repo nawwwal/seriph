@@ -5,6 +5,7 @@ import { getConfigValue } from "../../config/remoteConfig";
 import type { FontEnrichment, FontFamilyDoc } from "../../models/catalog.models";
 import type { GfCategory } from "../../storage/canonicalize";
 import { PROMPT_VERSION } from "./schema";
+import { isSearchIndexedAtVersion } from "../../search/searchDocument";
 
 /** Parse the model's JSON text into a FontEnrichment. Shared by realtime + batch. */
 export function parseAnalysis(family: FontFamilyDoc, text: string | undefined | null): FontEnrichment | null {
@@ -48,6 +49,7 @@ export function isEnrichedAtCurrentVersion(family: FontFamilyDoc): boolean {
     family.status === "enriched" &&
     prior?.promptVersion === v.promptVersion &&
     prior?.modelId === v.analysisModel &&
-    prior?.embeddingVersion === v.embedVersion
+    prior?.embeddingVersion === v.embedVersion &&
+    isSearchIndexedAtVersion(family, { embeddingVersion: v.embedVersion, promptVersion: v.promptVersion })
   );
 }

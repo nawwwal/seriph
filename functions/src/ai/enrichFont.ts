@@ -13,6 +13,8 @@ export {
   ANALYSIS_SCHEMA,
   buildPrompt,
   buildEmbeddingText,
+  buildMoodEmbeddingText,
+  buildUseCaseEmbeddingText,
 } from "./enrich/schema";
 export { parseAnalysis, currentEnrichmentVersions, isEnrichedAtCurrentVersion } from "./enrich/parse";
 export { renderFamilySpecimen, buildEnrichmentUpdate } from "./enrich/update";
