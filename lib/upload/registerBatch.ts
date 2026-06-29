@@ -26,7 +26,7 @@ export async function registerBatch(
 
   for (let i = 0; i < walked.length; i += REGISTER_CHUNK) {
     const slice = walked.slice(i, i + REGISTER_CHUNK);
-    const res = await fetch('/api/upload/register', {
+    const res = await fetch('/api/v1/uploads/registrations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
       body: JSON.stringify({
@@ -40,8 +40,8 @@ export async function registerBatch(
       }),
     });
     const json = await res.json();
-    batchId = json.batchId ?? batchId;
-    const results: RegisterResult[] = json.results ?? [];
+    batchId = json.data?.batchId ?? batchId;
+    const results: RegisterResult[] = json.data?.results ?? [];
     results.forEach((reg, idx) => {
       if (reg.success && reg.storagePath) registered.push({ walked: slice[idx], reg });
     });

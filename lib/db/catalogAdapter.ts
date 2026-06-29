@@ -1,12 +1,6 @@
-import { FontFamily, Font, Classification, FontFormat } from '@/models/font.models';
-
-/**
- * Adapts a rebuilt catalog document (faces[] + enrichment + CDN urls) into the
- * existing `FontFamily` shape the UI components consume — so the front-end design
- * and components stay unchanged while the back-end schema moves to the Google
- * Fonts model. CDN urls are surfaced on each font's metadata (`cdnUrl` for
- * rendering, `downloadUrl` for downloads).
- */
+import type { Classification, FontFamily } from '@/models/font.models';
+import { mapCatalogFaces } from '@/lib/db/catalogFaceAdapter';
+import { asRecord, text, textArray, toIso, type CatalogRecord } from '@/lib/db/catalogValues';
 
 const CATEGORY_TO_CLASS: Record<string, Classification> = {
   SANS_SERIF: 'Sans Serif',
@@ -15,78 +9,50 @@ const CATEGORY_TO_CLASS: Record<string, Classification> = {
   HANDWRITING: 'Script & Handwriting',
   MONOSPACE: 'Monospace',
 };
-
-function toIso(value: any): string {
-  if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value?.toDate === 'function') return value.toDate().toISOString();
-  if (typeof value?.seconds === 'number') return new Date(value.seconds * 1000).toISOString();
-  return '';
+export function isCatalogDoc(data: unknown): data is CatalogRecord & { faces: unknown[] } {
+  return Array.isArray(asRecord(data)?.faces);
 }
 
-/** True if a Firestore doc uses the rebuilt catalog schema. */
-export function isCatalogDoc(data: any): boolean {
-  return Array.isArray(data?.faces);
+export function mergedInto(data: unknown): string | null {
+  const record = asRecord(data);
+  const target = typeof record?.mergedInto === 'string' ? record.mergedInto : record?.aliasOf;
+  return typeof target === 'string' && target.trim() ? target : null;
 }
 
-export function mapCatalogDoc(data: any, id: string): FontFamily {
-  const faces: any[] = Array.isArray(data.faces) ? data.faces : [];
-  const fonts: Font[] = faces.map((f) => ({
-    id: f.id,
-    filename: f.filename || f.id,
-    format: ((f.format || 'OTF') as string).toUpperCase() as FontFormat,
-    subfamily: f.styleName || f.weightName || 'Regular',
-    weight: typeof f.weight === 'number' ? f.weight : 400,
-    style: (f.weightName || 'Regular') as Font['style'],
-    isVariable: !!f.isVariable,
-    variableAxes: Array.isArray(f.axes)
-      ? f.axes.map((a: any) => ({
-          tag: a.tag,
-          name: a.name || a.tag,
-          minValue: a.min,
-          maxValue: a.max,
-          defaultValue: a.default,
-        }))
-      : undefined,
-    fileSize: typeof f.fileSize === 'number' ? f.fileSize : 0,
-    metadata: {
-      postScriptName: f.postScriptName,
-      storagePath: null,
-      cdnUrl: f.woff2?.url,
-      downloadUrl: f.original?.url,
-      characterSetCoverage: f.meta?.characterSetCoverage,
-      openTypeFeatures: f.meta?.openTypeFeatures,
-      glyphCount: f.meta?.glyphCount,
-      languageSupport: f.meta?.languageSupport,
-      version: f.meta?.version,
-      license: f.meta?.license,
-    },
-  }));
+export function isCatalogAliasDoc(data: unknown): boolean {
+  const record = asRecord(data);
+  return record?.status === 'merged' || record?.hidden === true || mergedInto(record) !== null;
+}
 
-  const enr = data.enrichment || {};
+export function mapCatalogDoc(data: CatalogRecord, id: string): FontFamily {
+  const fonts = mapCatalogFaces(Array.isArray(data.faces) ? data.faces : []);
+  const enrichment = asRecord(data.enrichment) ?? {};
+  const category = text(data, 'category') ?? '';
+  const slug = text(data, 'slug') ?? id;
+  const moods = textArray(enrichment.moods);
   return {
-    id: data.slug || id,
-    name: data.name || id,
-    normalizedName: data.slug || id,
-    ownerId: data.ownerId,
-    foundry: data.foundry,
-    description: enr.summary || '',
-    tags: Array.isArray(enr.moods) ? enr.moods.slice(0, 6) : [],
-    classification: CATEGORY_TO_CLASS[data.category as string] || 'Sans Serif',
+    id: slug,
+    name: text(data, 'name') ?? id,
+    normalizedName: slug,
+    ownerId: text(data, 'ownerId'),
+    foundry: text(data, 'foundry'),
+    description: text(enrichment, 'summary') ?? '',
+    tags: moods?.slice(0, 6) ?? [],
+    classification: CATEGORY_TO_CLASS[category] || 'Sans Serif',
     metadata: {
-      foundry: data.foundry,
-      subClassification: enr.classification,
-      moods: enr.moods,
-      useCases: enr.useCases,
+      foundry: text(data, 'foundry'),
+      subClassification: text(enrichment, 'classification'),
+      moods,
+      useCases: textArray(enrichment.useCases),
     },
     fonts,
     uploadDate: toIso(data.createdAt),
     lastModified: toIso(data.updatedAt),
-  } as FontFamily;
+  };
 }
 
-/** Map any doc: catalog docs are adapted, legacy docs passed through. */
-export function adaptFamilyDoc(data: any, id: string): FontFamily {
+export function adaptFamilyDoc(data: unknown, id: string): FontFamily {
   if (isCatalogDoc(data)) return mapCatalogDoc(data, id);
-  return { ...(data as FontFamily), id: (data as any).id ?? id };
+  const legacy = (asRecord(data) ?? {}) as Partial<FontFamily>;
+  return { ...legacy, id: typeof legacy.id === 'string' ? legacy.id : id } as FontFamily;
 }

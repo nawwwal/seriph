@@ -1,22 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb, getAdminAuth } from '@/lib/firebase/admin';
 import { getUidFromRequest } from '@/lib/server/auth';
+import { fail, ok, unauthorized } from '@/lib/server/apiResponse';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   const uid = await getUidFromRequest(request);
-  if (!uid) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!uid) return unauthorized();
 
   try {
     const adminDb = getAdminDb();
-    // Get user record from Firebase Auth
     const userRecord = await getAdminAuth().getUser(uid);
-    
-    // Check if user document exists in Firestore
     const userRef = adminDb.collection('users').doc(uid);
     const userDoc = await userRef.get();
 
@@ -32,27 +28,21 @@ export async function POST(request: NextRequest) {
         createdAt: serverTimestamp,
         lastSeen: serverTimestamp,
       });
-      return NextResponse.json({ message: 'User profile created', created: true });
+      return ok({ message: 'User profile created', created: true });
     } else {
-      // Update lastSeen timestamp
       await userRef.update({
         lastSeen: serverTimestamp,
       });
-      return NextResponse.json({ message: 'User profile updated', created: false });
+      return ok({ message: 'User profile updated', created: false });
     }
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error ensuring user profile:', error);
-    console.error('Error details:', {
-      message: error?.message,
-      code: error?.code,
-      stack: error?.stack,
-    });
-    return NextResponse.json(
-      { 
-        error: 'Failed to ensure user profile',
-        details: process.env.NODE_ENV === 'development' ? error?.message : undefined
-      },
-      { status: 500 }
+    return fail(
+      'internal_error',
+      'Failed to ensure user profile',
+      500,
+      process.env.NODE_ENV === 'development' ? message : undefined
     );
   }
 }

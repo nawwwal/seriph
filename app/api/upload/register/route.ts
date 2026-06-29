@@ -1,50 +1,44 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { getAdminDb } from '@/lib/firebase/admin';
+import { readJsonObject } from '@/lib/server/apiRequest';
+import { fail, ok } from '@/lib/server/apiResponse';
 import { resolveUploadUid } from '@/lib/server/uploadAuth';
-import { registerOneFile, REGISTER_LIMITS, type FileInfo, type Registration } from '@/lib/upload/registerFiles';
+import { mapWithConcurrency } from '@/lib/upload/boundedConcurrency';
+import { isFileInfoArray } from '@/lib/upload/fileInfoGuards';
+import { REGISTER_LIMITS, registerOneFile, type Registration } from '@/lib/upload/registerFiles';
 
 export const runtime = 'nodejs';
-
-interface RegisterRequest {
-  batchId?: string;
-  files: FileInfo[];
-}
 
 /** Register uploads and return storage paths for client-side resumable uploads. */
 export async function POST(request: NextRequest) {
   const auth = await resolveUploadUid(request);
-  if ('error' in auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const uid = auth.uid;
+  if ('error' in auth) return fail('unauthorized', 'Unauthorized', 401);
 
   try {
-    const body: RegisterRequest = await request.json();
-    const files = body.files;
-    const batchId = body.batchId || uuidv4();
+    const body = await readJsonObject(request);
+    if (!body.ok) return fail('bad_request', body.message, 400);
+    const files = body.value.files;
+    const batchId = typeof body.value.batchId === 'string' ? body.value.batchId : uuidv4();
 
-    if (!files || files.length === 0) {
-      return NextResponse.json({ error: 'No files specified.' }, { status: 400 });
-    }
+    if (!isFileInfoArray(files) || files.length === 0) return fail('bad_request', 'No files specified.', 400);
     if (files.length > REGISTER_LIMITS.MAX_FILES_PER_REQUEST) {
-      return NextResponse.json({ error: `Too many files. Max ${REGISTER_LIMITS.MAX_FILES_PER_REQUEST}.` }, { status: 413 });
+      return fail('payload_too_large', `Too many files. Max ${REGISTER_LIMITS.MAX_FILES_PER_REQUEST}.`, 413);
     }
 
-    const firestore = getAdminDb();
-    const results: Registration[] = [];
-    for (const fileInfo of files) {
-      results.push(await registerOneFile(fileInfo, uid, batchId, firestore));
-    }
+    const db = getAdminDb();
+    const results: Registration[] = await mapWithConcurrency(files, 4, (fileInfo) => registerOneFile(fileInfo, auth.uid, batchId, db));
 
     if (results.every((r) => !r.success) && results.length > 0) {
-      return NextResponse.json({ message: 'All file registrations failed.', results }, { status: 400 });
+      return fail('bad_request', 'All file registrations failed.', 400, results);
     }
-    return NextResponse.json({
+    return ok({
       message: `Registered ${results.filter((r) => r.success).length} file(s) for upload.`,
       batchId,
       results,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('API Upload Register Route Error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to process registration request.' }, { status: 500 });
+    return fail('internal_error', 'Failed to process registration request.', 500);
   }
 }

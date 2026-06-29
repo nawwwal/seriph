@@ -52,9 +52,10 @@ export async function parseFilesForPreview(
         })
       );
       if (results.some((r) => r.success)) setShowPreview(true);
-    } catch (error: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown parse error';
       console.error('Failed to parse files:', error);
-      setFiles((prev) => prev.map((f) => ({ ...f, status: 'error', parseError: `Failed to parse: ${error.message}` })));
+      setFiles((prev) => prev.map((f) => ({ ...f, status: 'error', parseError: `Failed to parse: ${message}` })));
     }
   }
 

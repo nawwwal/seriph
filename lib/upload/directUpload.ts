@@ -16,6 +16,18 @@ export interface DirectUploadResult {
   ingestId?: string;
 }
 
+function uploadError(error: unknown): { code?: string; message: string } {
+  if (error instanceof Error) return { message: error.message };
+  if (error && typeof error === 'object') {
+    const value = error as { code?: unknown; message?: unknown };
+    return {
+      code: typeof value.code === 'string' ? value.code : undefined,
+      message: typeof value.message === 'string' ? value.message : 'Upload failed.',
+    };
+  }
+  return { message: 'Upload failed.' };
+}
+
 /** Validate one file, register an ingest doc, and upload it to the unprocessed prefix. */
 export async function uploadDirectFile(
   file: File,
@@ -49,8 +61,8 @@ export async function uploadDirectFile(
       uploadSource: 'web-app', contentType: file.type || null,
       createdAt: now, updatedAt: now, uploadedAt: now, events: [],
     });
-  } catch (e: any) {
-    console.error(`Error creating ingest for ${file.name}:`, e);
+  } catch (error) {
+    console.error(`Error creating ingest for ${file.name}:`, error);
     return { success: false, originalName: file.name, error: 'Failed to register upload. Please try again.' };
   }
 
@@ -64,16 +76,17 @@ export async function uploadDirectFile(
       },
     });
     return { success: true, originalName: file.name, message: 'File submitted for processing.', ingestId };
-  } catch (e: any) {
-    console.error(`Error uploading ${file.name}:`, e);
+  } catch (error) {
+    const failure = uploadError(error);
+    console.error(`Error uploading ${file.name}:`, error);
     try {
       await ingestRef.set(
-        { status: 'failed', error: e?.message || 'Upload failed.', errorCode: e?.code || 'upload_failed', updatedAt: FieldValue.serverTimestamp() },
+        { status: 'failed', error: failure.message, errorCode: failure.code || 'upload_failed', updatedAt: FieldValue.serverTimestamp() },
         { merge: true }
       );
     } catch (updateError) {
       console.error(`Failed to mark ingest ${ingestId} failed:`, updateError);
     }
-    return { success: false, originalName: file.name, error: `Failed to submit file: ${e.code || e.message}` };
+    return { success: false, originalName: file.name, error: `Failed to submit file: ${failure.code || failure.message}` };
   }
 }

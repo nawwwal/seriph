@@ -1,0 +1,729 @@
+# Contract artifact exception: kept as one OpenAPI document so local tests and
+# generated clients resolve a single source of truth.
+openapi: 3.1.0
+info:
+  title: Seriph App API
+  version: 1.0.0
+  description: Versioned REST API for the authenticated Seriph web app.
+servers:
+  - url: /
+security:
+  - firebaseBearer: []
+components:
+  securitySchemes:
+    firebaseBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: Firebase ID token
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Unauthorized:
+      description: Missing or invalid Firebase bearer token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: The authenticated user cannot access the resource
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    PayloadTooLarge:
+      description: Upload request exceeds configured limits
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    InternalError:
+      description: Unexpected server failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+  schemas:
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details: {}
+    ShelfCoverFace:
+      type: object
+      required: [id, subfamily, weight, italic, isVariable]
+      properties:
+        id:
+          type: string
+        subfamily:
+          type: string
+        weight:
+          type: integer
+        italic:
+          type: boolean
+        isVariable:
+          type: boolean
+        cdnUrl:
+          type: string
+          format: uri
+    ShelfFamily:
+      type: object
+      required: [id, name, normalizedName, classification, styleCount, isVariable, updatedAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        normalizedName:
+          type: string
+        classification:
+          type: string
+        styleCount:
+          type: integer
+        isVariable:
+          type: boolean
+        updatedAt:
+          type: string
+        coverFace:
+          $ref: '#/components/schemas/ShelfCoverFace'
+    FontFace:
+      type: object
+      required: [id, filename, subfamily, weight, isVariable]
+      properties:
+        id:
+          type: string
+        filename:
+          type: string
+        subfamily:
+          type: string
+        weight:
+          type: integer
+        isVariable:
+          type: boolean
+        cdnUrl:
+          type: string
+    FontFamilyDetail:
+      type: object
+      required: [id, name, normalizedName, classification, fonts]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        normalizedName:
+          type: string
+        classification:
+          type: string
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        fonts:
+          type: array
+          items:
+            $ref: '#/components/schemas/FontFace'
+    FamilyListEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [families, hasMore, nextCursor]
+          properties:
+            families:
+              type: array
+              items:
+                $ref: '#/components/schemas/ShelfFamily'
+            hasMore:
+              type: boolean
+            nextCursor:
+              type: [string, 'null']
+    FamilyDetailEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [family]
+          properties:
+            family:
+              $ref: '#/components/schemas/FontFamilyDetail'
+    FamilyPatchRequest:
+      type: object
+      properties:
+        description:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        classification:
+          type: string
+        metadata:
+          type: object
+        foundry:
+          type: string
+    FontDeleteEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [message, faces]
+          properties:
+            message:
+              type: string
+            faces:
+              type: array
+              items:
+                $ref: '#/components/schemas/FontFace'
+    FamilyMergeRequest:
+      type: object
+      required: [familyIds, targetFamilyId]
+      properties:
+        familyIds:
+          type: array
+          minItems: 2
+          items:
+            type: string
+        targetFamilyId:
+          type: string
+    FamilyMergeResponse:
+      type: object
+      required: [mergeId, targetFamilyId, undoExpiresAt]
+      properties:
+        mergeId:
+          type: string
+        targetFamilyId:
+          type: string
+        undoExpiresAt:
+          type: string
+          format: date-time
+        family:
+          $ref: '#/components/schemas/FontFamilyDetail'
+    FamilyMergeEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/FamilyMergeResponse'
+    FamilyMergeUndoResponse:
+      type: object
+      required: [restoredFamilyIds]
+      properties:
+        restoredFamilyIds:
+          type: array
+          items:
+            type: string
+    FamilyMergeUndoEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/FamilyMergeUndoResponse'
+    BulkFamilyDeleteRequest:
+      type: object
+      required: [familyIds, confirm]
+      properties:
+        familyIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        confirm:
+          type: string
+          const: DELETE
+    BulkFamilyDeleteResponse:
+      type: object
+      required: [deletedFamilyIds, deletedAssetCount]
+      properties:
+        deletedFamilyIds:
+          type: array
+          items:
+            type: string
+        deletedAssetCount:
+          type: integer
+    BulkFamilyDeleteEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/BulkFamilyDeleteResponse'
+    UploadRegistrationRequest:
+      type: object
+      required: [files]
+      properties:
+        batchId:
+          type: string
+        files:
+          type: array
+          items:
+            type: object
+    UploadRegistrationResult:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        ingestId:
+          type: string
+        storagePath:
+          type: string
+        error:
+          type: string
+    UploadRegistrationEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [message, batchId, results]
+          properties:
+            message:
+              type: string
+            batchId:
+              type: string
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/UploadRegistrationResult'
+    DirectUploadEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [message, results]
+          properties:
+            message:
+              type: string
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/UploadRegistrationResult'
+    IngestRecord:
+      type: object
+      required: [id, ingestId, ownerId, originalName, status]
+      properties:
+        id:
+          type: string
+        ingestId:
+          type: string
+        ownerId:
+          type: string
+        originalName:
+          type: string
+        status:
+          type: string
+        uploadState:
+          type: string
+        analysisState:
+          type: string
+    ActiveUploadsEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [ingests]
+          properties:
+            ingests:
+              type: array
+              items:
+                $ref: '#/components/schemas/IngestRecord'
+    IngestEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [ingest]
+          properties:
+            ingest:
+              $ref: '#/components/schemas/IngestRecord'
+    SearchRequest:
+      type: object
+      required: [q]
+      properties:
+        q:
+          type: string
+        limit:
+          type: integer
+        filters:
+          type: object
+    SearchResponse:
+      type: object
+      required: [results]
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+    SearchEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/SearchResponse'
+    ShareRequest:
+      type: object
+      properties:
+        familyId:
+          type: string
+        familyIds:
+          type: array
+          items:
+            type: string
+    ShareEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [families]
+          properties:
+            families:
+              type: array
+              items:
+                $ref: '#/components/schemas/FontFamilyDetail'
+paths:
+  /api/v1/families:
+    get:
+      summary: List paginated shelf families
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 48
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated family summaries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyListEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/families/{familyId}:
+    get:
+      summary: Get full family detail
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Family detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyDetailEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      summary: Update editable family metadata
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FamilyPatchRequest'
+      responses:
+        '200':
+          description: Updated family
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyDetailEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/families/bulk-delete:
+    post:
+      summary: Permanently delete owned families and their assets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BulkFamilyDeleteRequest'
+      responses:
+        '200':
+          description: Deleted families and asset count
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BulkFamilyDeleteEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/families/{familyId}/fonts/{fontId}:
+    delete:
+      summary: Remove one font face from a family
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fontId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Font removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FontDeleteEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/family-merges:
+    post:
+      summary: Merge selected owned families into one visible family
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FamilyMergeRequest'
+      responses:
+        '200':
+          description: Merge operation and undo window
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyMergeEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/family-merges/{mergeId}/undo:
+    post:
+      summary: Undo a recent family merge
+      parameters:
+        - name: mergeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Restored family IDs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyMergeUndoEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/search:
+    post:
+      summary: Search owned families
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: Search service rate limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/uploads/registrations:
+    post:
+      summary: Register files for resumable upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadRegistrationRequest'
+      responses:
+        '200':
+          description: Registration result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadRegistrationEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/uploads/direct-submissions:
+    post:
+      summary: Submit small files directly
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [fonts]
+              properties:
+                fonts:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200':
+          description: Direct upload result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DirectUploadEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/uploads/active:
+    get:
+      summary: List active upload and analysis rows
+      responses:
+        '200':
+          description: Active ingest records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveUploadsEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/uploads/{ingestId}:
+    get:
+      summary: Get one ingest record
+      parameters:
+        - name: ingestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ingest record
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/shares:
+    post:
+      summary: Resolve owned family share payloads
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShareRequest'
+      responses:
+        '200':
+          description: Sanitized share payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShareEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'

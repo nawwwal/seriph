@@ -1,63 +1,30 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
+import { NextRequest } from 'next/server';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { getUidFromRequest } from '@/lib/server/auth';
-import { FontFamily } from '@/models/font.models';
+import { fail, ok, unauthorized } from '@/lib/server/apiResponse';
+import { deleteOwnedFamilyFace } from '@/lib/server/catalogFamilies';
 
 export const runtime = 'nodejs';
 
 type RouteContext = {
-  params: {
+  params: Promise<{
     familyId: string;
     fontId: string;
-  };
+  }>;
 };
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
-  const { familyId, fontId } = context.params;
   const uid = await getUidFromRequest(request);
-  if (!uid) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!uid) return unauthorized();
+  const { familyId, fontId } = await context.params;
 
   try {
-    const db = getAdminDb();
-    const familyRef = db.collection('users').doc(uid).collection('fontfamilies').doc(familyId);
-    const snapshot = await familyRef.get();
-
-    if (!snapshot.exists) {
-      return NextResponse.json({ error: 'Family not found' }, { status: 404 });
-    }
-
-    const family = snapshot.data() as FontFamily;
-    if (family.ownerId && family.ownerId !== uid) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const currentFonts = family.fonts || [];
-    const nextFonts = currentFonts.filter((font) => font.id !== fontId);
-
-    if (nextFonts.length === currentFonts.length) {
-      return NextResponse.json({ error: 'Font not found' }, { status: 404 });
-    }
-
-    await familyRef.set(
-      {
-        fonts: nextFonts,
-        lastModified: FieldValue.serverTimestamp(),
-      },
-      { merge: true }
-    );
-
-    return NextResponse.json({ message: 'Font removed', fonts: nextFonts });
-  } catch (error: any) {
-    console.error(
-      `DELETE /api/families/${familyId}/fonts/${fontId} failed`,
-      error
-    );
-    return NextResponse.json(
-      { error: 'Failed to delete font from family' },
-      { status: 500 }
-    );
+    const result = await deleteOwnedFamilyFace({ db: getAdminDb(), uid, familyId, fontId });
+    if (!result) return fail('not_found', 'Family not found', 404);
+    if (!result.deleted) return fail('not_found', 'Font not found', 404);
+    return ok({ message: 'Font removed', faces: result.faces });
+  } catch (error) {
+    console.error(`DELETE /api/families/${familyId}/fonts/${fontId} failed`, error);
+    return fail('internal_error', 'Failed to delete font from family', 500);
   }
 }

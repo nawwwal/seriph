@@ -3,6 +3,7 @@ import type { User } from 'firebase/auth';
 import type { UploadTask } from 'firebase/storage';
 import { uploadFileResumable, getRetryDelay } from '@/lib/utils/resumableUpload';
 import { NORMALIZATION_SPEC_VERSION } from '@/utils/normalizationSpec';
+import { findRegistration } from './registrationResponse';
 import { patchFile, type SetFiles, type UploadableFile } from './uploadTypes';
 
 interface Ctx {
@@ -13,7 +14,7 @@ interface Ctx {
 
 async function register(file: UploadableFile, user: User) {
   const idToken = await user.getIdToken();
-  const res = await fetch('/api/upload/register', {
+  const res = await fetch('/api/v1/uploads/registrations', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
     body: JSON.stringify({
@@ -32,10 +33,10 @@ async function register(file: UploadableFile, user: User) {
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Registration failed: ${res.status}`);
+    throw new Error(err?.error?.message || `Registration failed: ${res.status}`);
   }
-  const data = await res.json();
-  return data.results?.find((r: any) => r.originalName === file.file.name);
+  const data: unknown = await res.json();
+  return findRegistration(data, file.file.name);
 }
 
 function startUpload(file: UploadableFile, storagePath: string, ingestId: string, attempt: number, ctx: Ctx) {
@@ -73,10 +74,12 @@ export async function runResumableUpload(file: UploadableFile, ctx: Ctx, retryAt
       return;
     }
     if (!registration.success) throw new Error(registration.error || 'Failed to register upload');
+    if (!registration.storagePath || !registration.ingestId) throw new Error('Upload registration was incomplete');
     startUpload(file, registration.storagePath, registration.ingestId, 0, ctx);
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Upload failed.';
     const next = retryAttempt + 1;
-    const retriable = error.message?.includes('network') || error.message?.includes('Failed to fetch');
+    const retriable = message.includes('network') || message.includes('Failed to fetch');
     if (next < 4 && retriable) {
       patchFile(setFiles, file.id, { status: 'retrying', retryCount: next, error: `Retrying register... (attempt ${next})` });
       setTimeout(() => {
@@ -85,7 +88,7 @@ export async function runResumableUpload(file: UploadableFile, ctx: Ctx, retryAt
         );
       }, getRetryDelay(next - 1));
     } else {
-      patchFile(setFiles, file.id, { status: 'error', error: error.message || 'Upload failed.' });
+      patchFile(setFiles, file.id, { status: 'error', error: message });
     }
   }
 }

@@ -1,6 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { getUidFromRequest } from '@/lib/server/auth';
+import { readJsonObject } from '@/lib/server/apiRequest';
+import { fail, ok, unauthorized } from '@/lib/server/apiResponse';
+import { getOwnedFamily } from '@/lib/server/catalogFamilies';
 import type { FontFamily } from '@/models/font.models';
 
 export const runtime = 'nodejs';
@@ -14,63 +17,49 @@ function sanitize(family: FontFamily): SharedFamily {
   return out as SharedFamily;
 }
 
-async function getOwnedFamily(
-  uid: string,
-  familyId: string
-): Promise<FontFamily | null> {
-  const db = getAdminDb();
-  const snap = await db.collection('fontfamilies').doc(familyId).get();
-  if (!snap.exists) return null;
-  const data = snap.data() as FontFamily;
-  if (data.ownerId !== uid) return null;
-  return { ...data, id: data.id ?? snap.id };
+function familyIdsFromBody(body: Record<string, unknown>): string[] {
+  if (Array.isArray(body.familyIds)) {
+    return body.familyIds.filter((id): id is string => typeof id === 'string');
+  }
+  return typeof body.familyId === 'string' ? [body.familyId] : [];
 }
 
 export async function GET(request: NextRequest) {
   const uid = await getUidFromRequest(request);
-  if (!uid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!uid) return unauthorized();
 
   const familyId = request.nextUrl.searchParams.get('familyId') || '';
-  if (!familyId) {
-    return NextResponse.json({ error: 'familyId is required' }, { status: 400 });
-  }
+  if (!familyId) return fail('bad_request', 'familyId is required', 400);
 
   try {
-    const family = await getOwnedFamily(uid, familyId);
-    if (!family) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    return NextResponse.json({ family: sanitize(family) });
+    const family = await getOwnedFamily(getAdminDb(), uid, familyId);
+    if (!family) return fail('not_found', 'Family not found', 404);
+    return ok({ family: sanitize(family) });
   } catch (err: unknown) {
     console.error('GET /api/share failed', err);
-    return NextResponse.json({ error: 'Failed to fetch share payload' }, { status: 500 });
+    return fail('internal_error', 'Failed to fetch share payload', 500);
   }
 }
 
 export async function POST(request: NextRequest) {
   const uid = await getUidFromRequest(request);
-  if (!uid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!uid) return unauthorized();
 
   try {
-    const body = await request.json();
-    const ids: string[] = Array.isArray(body?.familyIds)
-      ? body.familyIds
-      : body?.familyId
-      ? [body.familyId]
-      : [];
-    if (ids.length === 0) {
-      return NextResponse.json({ error: 'familyId or familyIds required' }, { status: 400 });
-    }
+    const body = await readJsonObject(request);
+    if (!body.ok) return fail('bad_request', body.message, 400);
+    const ids = familyIdsFromBody(body.value);
+    if (ids.length === 0) return fail('bad_request', 'familyId or familyIds required', 400);
 
     const families: SharedFamily[] = [];
     for (const id of ids) {
-      const f = await getOwnedFamily(uid, id);
+      const f = await getOwnedFamily(getAdminDb(), uid, id);
       if (f) families.push(sanitize(f));
     }
-    if (families.length === 0) {
-      return NextResponse.json({ error: 'No matching families found' }, { status: 404 });
-    }
-    return NextResponse.json({ families });
+    if (families.length === 0) return fail('not_found', 'No matching families found', 404);
+    return ok({ families });
   } catch (err: unknown) {
     console.error('POST /api/share failed', err);
-    return NextResponse.json({ error: 'Failed to fetch share payload' }, { status: 500 });
+    return fail('internal_error', 'Failed to fetch share payload', 500);
   }
 }

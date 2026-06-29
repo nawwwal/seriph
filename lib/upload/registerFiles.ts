@@ -65,7 +65,7 @@ export async function registerOneFile(
   const ingestId = ingestRef.id;
   const requestId = uuidv4();
   const relPath = sanitizeRel(fileInfo.relativePath || fileInfo.originalName);
-  const destPath = `${INTAKE_PATH}/${batchId}/${processingId}-${fileInfo.originalName}`;
+  const destPath = `${INTAKE_PATH}/${uid}/${batchId}/${processingId}-${fileInfo.originalName}`;
 
   try {
     const now = FieldValue.serverTimestamp();
@@ -81,7 +81,7 @@ export async function registerOneFile(
       analysisState: 'not_started', uploadState: 'pending', uploadProgress: 0,
     });
     return { success: true, originalName: fileInfo.originalName, ingestId, storagePath: destPath, processingId, requestId };
-  } catch (error: any) {
+  } catch (error) {
     console.error(`Error creating ingest for ${fileInfo.originalName}:`, error);
     return { success: false, originalName: fileInfo.originalName, error: 'Failed to register upload. Please try again.' };
   }

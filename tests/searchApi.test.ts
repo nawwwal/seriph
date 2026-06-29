@@ -4,7 +4,7 @@ import { searchFontsForUser } from '@/lib/search/searchApi';
 describe('searchFontsForUser', () => {
   it('posts the search query with the Firebase bearer token', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ results: [{ id: 'serif', name: 'Serif' }] }), {
+      new Response(JSON.stringify({ data: { results: [{ id: 'serif', name: 'Serif' }] } }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       })
@@ -17,7 +17,7 @@ describe('searchFontsForUser', () => {
     });
 
     expect(results).toEqual([{ id: 'serif', name: 'Serif' }]);
-    expect(fetchMock).toHaveBeenCalledWith('/api/search', {
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-123' },
       body: JSON.stringify({ q: 'editorial' }),
