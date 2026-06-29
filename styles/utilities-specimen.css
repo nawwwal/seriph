@@ -1,0 +1,39 @@
+.specimen-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.specimen-text {
+  transition: transform 0.3s ease;
+}
+
+.specimen-container:hover .specimen-text {
+  transform: translateY(-50%);
+}
+
+.specimen-pangram {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+}
+
+.specimen-container:hover .specimen-pangram {
+  transform: translateY(0);
+}
+
+.style-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.style-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 0 var(--ink);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

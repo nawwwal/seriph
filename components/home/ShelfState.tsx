@@ -1,41 +1,60 @@
 'use client';
 
 import { FontFamily } from '@/models/font.models';
+import type { ShelfFamily } from '@/models/shelf.models';
 import { IngestRecord } from '@/models/ingest.models';
-import FamilyCover from '@/components/font/FamilyCover';
 import ShelfUploadCard from './ShelfUploadCard';
-import { getCombinedStatus } from '@/lib/upload/combinedStatus';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import { useEffect } from 'react';
-import { announceStatus } from '@/lib/utils/statusAnnouncer';
+import { AnimatePresence, useReducedMotion } from 'framer-motion';
+import { useCallback, useEffect, useState } from 'react';
+import { useInViewport } from '@/lib/hooks/useInViewport';
+import type { ShelfSelectionState } from '@/lib/shelf/selectionState';
+import FamilyContextMenu from './FamilyContextMenu';
+import ShelfFamilyGrid from './ShelfFamilyGrid';
+import { useShelfUploadAnnouncements } from './useShelfUploadAnnouncements';
+import AddFontsCard from './AddFontsCard';
 
 interface ShelfStateProps {
-  families: FontFamily[];
+  families: Array<FontFamily | ShelfFamily>;
   pendingIngests: IngestRecord[];
   shelfMode: 'spines' | 'covers';
   onAddFonts: () => void;
   coverSeed?: number;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  isRefreshing?: boolean;
+  onLoadMore?: () => void;
+  selectionState?: ShelfSelectionState;
+  onEnterSelection?: (familyId: string) => void;
+  onToggleSelected?: (familyId: string) => void;
+  onDeleteFamilies?: (familyIds: string[]) => void;
 }
 
-// Above this many families, per-item layout animations (FLIP tracking on every
-// card) cost more than they're worth — render plain cards so big shelves stay
-// responsive while small libraries keep the springy entrance.
-const LAYOUT_ANIMATION_LIMIT = 60;
-
-export default function ShelfState({ families, pendingIngests, shelfMode, onAddFonts, coverSeed = 0 }: ShelfStateProps) {
-  const activeUploads = pendingIngests.filter((ingest) => ingest.status !== 'completed');
+export default function ShelfState({
+  families,
+  pendingIngests,
+  shelfMode,
+  onAddFonts,
+  coverSeed = 0,
+  hasMore = false,
+  isLoadingMore = false,
+  isRefreshing = false,
+  onLoadMore,
+  selectionState = { mode: 'idle' },
+  onEnterSelection,
+  onToggleSelected,
+  onDeleteFamilies,
+}: ShelfStateProps) {
+  const activeUploads = useShelfUploadAnnouncements(pendingIngests);
   const shouldReduceMotion = useReducedMotion() ?? false;
-  const animateCards = !shouldReduceMotion && families.length <= LAYOUT_ANIMATION_LIMIT;
+  const { ref: sentinelRef, inView } = useInViewport<HTMLDivElement>('900px');
+  const [contextMenu, setContextMenu] = useState<{ familyId: string; x: number; y: number } | null>(null);
+  const openContextMenu = useCallback((event: { familyId: string; x: number; y: number }) => {
+    setContextMenu(event);
+  }, []);
 
-  // Announce status changes for accessibility.
   useEffect(() => {
-    activeUploads.forEach((ingest) => {
-      const s = getCombinedStatus(ingest.uploadState, ingest.analysisState);
-      if (s.analysisState === 'complete' || s.uploadState === 'uploaded') {
-        announceStatus(`${ingest.originalName}: ${s.displayText}`);
-      }
-    });
-  }, [activeUploads]);
+    if (inView && hasMore && !isLoadingMore) onLoadMore?.();
+  }, [hasMore, inView, isLoadingMore, onLoadMore]);
 
   return (
     <main className="mt-6 sm:mt-8 md:mt-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 grid-poster-gap auto-rows-fr">
@@ -45,42 +64,32 @@ export default function ShelfState({ families, pendingIngests, shelfMode, onAddF
         ))}
       </AnimatePresence>
 
-      {animateCards ? (
-        <AnimatePresence mode="popLayout">
-          {families.map((family) => (
-            <motion.div
-              key={family.id}
-              layout
-              layoutId={`family-${family.id}`}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="h-full"
-            >
-              <FamilyCover family={family} mode={shelfMode} coverSeed={coverSeed} />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      ) : (
-        families.map((family) => (
-          <div key={family.id} className="h-full">
-            <FamilyCover family={family} mode={shelfMode} coverSeed={coverSeed} />
-          </div>
-        ))
-      )}
+      <ShelfFamilyGrid
+        families={families}
+        shelfMode={shelfMode}
+        coverSeed={coverSeed}
+        isRefreshing={isRefreshing}
+        selectionState={selectionState}
+        onToggleSelected={onToggleSelected}
+        onOpenContextMenu={openContextMenu}
+      />
 
-      <div
-        className="relative rule p-4 sm:p-5 md:p-6 rounded-[var(--radius)] flex flex-col justify-between group cursor-pointer"
-        onClick={onAddFonts}
-      >
-        <div>
-          <div className="uppercase font-extrabold text-2xl sm:text-3xl md:text-4xl cap-tight">Drop Fonts</div>
-          <p className="mt-2 text-sm sm:text-base">Drag files here or use Add Fonts.</p>
+      <AddFontsCard onAddFonts={onAddFonts} />
+      {(hasMore || isLoadingMore) && (
+        <div ref={sentinelRef} className="col-span-full h-16 flex items-center justify-center uppercase text-xs font-bold opacity-70">
+          {isLoadingMore ? 'Loading more families...' : 'More families ready'}
         </div>
-        <div className="mt-6 rule-t pt-3 uppercase text-sm font-bold caret">TTF, OTF, WOFF, WOFF2</div>
-        <div className="absolute inset-0 bg-[var(--accent)] opacity-0 transition-opacity pointer-events-none group-hover:opacity-5 rounded-[var(--radius)]"></div>
-      </div>
+      )}
+      {contextMenu && (
+        <FamilyContextMenu
+          familyId={contextMenu.familyId}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onSelect={(familyId) => onEnterSelection?.(familyId)}
+          onDelete={(familyIds) => onDeleteFamilies?.(familyIds)}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </main>
   );
 }

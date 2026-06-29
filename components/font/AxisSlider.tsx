@@ -1,9 +1,9 @@
 import type { VariableAxis } from '@/models/font.models';
 
 const SLIDER_CLASS =
-  'w-full h-2 bg-[var(--muted)] rounded-lg appearance-none cursor-pointer accent-[var(--accent)] focus:outline-none focus:ring-2 focus:ring-offset-1 focus-visible:ring-[var(--focus)]';
+  'theme-range w-full focus:outline-none focus:ring-2 focus:ring-offset-1 focus-visible:ring-[var(--focus)]';
 const VALUE_CLASS =
-  'text-sm text-[var(--info)] font-mono bg-[color-mix(in_srgb,var(--info)_12%,transparent)] px-2 py-0.5 rounded';
+  'theme-value text-sm font-mono px-2 py-0.5 rounded-[var(--radius)]';
 
 export default function AxisSlider({
   axis,

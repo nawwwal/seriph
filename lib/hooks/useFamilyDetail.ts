@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Timestamp } from 'firebase/firestore';
 import type { FontFamily } from '@/models/font.models';
-import { getFontFamilyById } from '@/lib/db/firestoreUtils';
-import { cacheFamily, getCachedFamily } from '@/lib/cache/familyCache';
+import { cacheFamily, clearFamilyCacheForUser, getCachedFamily } from '@/lib/cache/familyCache';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
 function serialize(family: any): FontFamily | null {
@@ -26,10 +25,12 @@ export function useFamilyDetail(familyId: string | undefined) {
     family: FontFamily | null;
     error: string | null;
   }>({ familyId: null, family: null, error: null });
+  const previousUid = useRef<string | null>(null);
   const activeFamilyId = familyId ?? null;
-  // The shelf loads every family into the shared cache, so in-app navigation can
-  // render the detail instantly without a refetch (back/forward feels immediate).
-  const cached = user ? getCachedFamily(activeFamilyId ?? undefined) : undefined;
+  const activeUid = user?.uid;
+  // Detail navigation can still be instant when a full family was already loaded
+  // in this session; the shelf itself now stores only lightweight summaries.
+  const cached = getCachedFamily(activeUid, activeFamilyId ?? undefined);
   const routeError = !authLoading && user && !activeFamilyId ? 'Font family ID is not available in the route.' : null;
   const hasCurrentFamilyState = state.familyId === activeFamilyId;
   const family = user ? (hasCurrentFamilyState ? state.family : cached ?? null) : null;
@@ -37,17 +38,32 @@ export function useFamilyDetail(familyId: string | undefined) {
   const isLoading = authLoading || Boolean(user && activeFamilyId && !hasCurrentFamilyState && !cached);
 
   useEffect(() => {
-    if (authLoading || !user || !familyId) return;
+    const previous = previousUid.current;
+    if (previous && previous !== activeUid) clearFamilyCacheForUser(previous);
+    previousUid.current = activeUid ?? null;
+  }, [activeUid]);
 
-    // Already in the shared cache → the derived value renders it; skip the fetch.
-    if (getCachedFamily(familyId)) return;
+  useEffect(() => {
+    if (authLoading || !user || !familyId) return;
+    // Already in the shared cache -> the derived value renders it; skip the fetch.
+    if (getCachedFamily(user.uid, familyId)) return;
 
     let isActive = true;
-    getFontFamilyById(familyId)
+    user.getIdToken()
+      .then((token) =>
+        fetch(`/api/v1/families/${encodeURIComponent(familyId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      )
+      .then(async (response) => {
+        const json = await response.json();
+        if (!response.ok) throw new Error(json?.error?.message || `Family request failed: ${response.status}`);
+        return json?.data?.family ?? null;
+      })
       .then((raw) => {
         if (!isActive) return;
         const serialized = raw ? serialize(raw) : null;
-        if (serialized) cacheFamily(serialized);
+        if (serialized) cacheFamily(user.uid, serialized);
         setState({
           familyId,
           family: serialized,

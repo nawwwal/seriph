@@ -1,7 +1,8 @@
 import type { FontFamily } from '@/models/font.models';
+import type { ShelfFamily } from '@/models/shelf.models';
 import { exportCatalogCsv } from '@/lib/utils/exportCatalog';
 
-export default function HomeFooter({ families }: { families: FontFamily[] }) {
+export default function HomeFooter({ families }: { families: Array<FontFamily | ShelfFamily> }) {
   return (
     <footer className="mt-8 sm:mt-10 md:mt-12 rule-t pt-4 sm:pt-5 md:pt-6 text-sm sm:text-base">
       <div className="grid sm:grid-cols-3 gap-4">

@@ -1,0 +1,59 @@
+/* Sanctuary theme — The Sanctuary */
+[data-theme="sanctuary"] {
+  --paper: #371722;
+  --ink: #BBAB9B;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --accent: #FFFFFF;
+  --muted: #BEA1A5;
+  --surface: #1C0E14;
+  --shadow: rgba(0, 0, 0, 0.5);
+  --focus: #FFFFFF;
+  --success: #85CEBA;
+  --danger: #E75153;
+  --warning: #F0CF61;
+  --info: #A6CFE2;
+  --surface-muted: #2A121B;
+  --on-surface: #F3EFEA;
+}
+
+/* Baguette theme — Fresh Baguette */
+[data-theme="baguette"] {
+  --paper: #FFEFE5;
+  --ink: #181A27;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --accent: #1FC8A9;
+  --muted: #FEDCCC;
+  --surface: #FFFFFF;
+  --shadow: color-mix(in srgb, var(--ink) 17%, transparent);
+  --focus: #F87C4C;
+  --success: #17C37B;
+  --danger: #EF3E4A;
+  --warning: #F0CF61;
+  --info: #0BBCD6;
+  --surface-muted: color-mix(in srgb, var(--ink) 7%, var(--surface));
+  --on-surface: #181A27;
+}
+
+/* Cathedral theme — The Cathedral */
+[data-theme="cathedral"] {
+  --paper: #424E22;
+  --ink: #FFAD67;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --accent: #FDFF50;
+  --muted: #9AB79A;
+  --surface: #252C16;
+  --shadow: rgba(0, 0, 0, 0.42);
+  --focus: #FDFF50;
+  --success: #9EE6B5;
+  --danger: #FF9966;
+  --warning: #FEEA0D;
+  --info: #B1FDEB;
+  --surface-muted: #333C1C;
+  --on-surface: #FFE3C8;
+}

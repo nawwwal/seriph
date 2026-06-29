@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import SearchResultCard from '@/components/search/SearchResultCard';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useFontSearch } from '@/lib/hooks/useFontSearch';
+import { notifySearchQueryChange, searchHref } from '@/lib/search/searchRouteEvents';
 
 function SearchView() {
   const router = useRouter();
@@ -16,7 +17,10 @@ function SearchView() {
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = q.trim();
-    if (trimmed) router.push(`/search?q=${encodeURIComponent(trimmed)}`);
+    if (trimmed) {
+      notifySearchQueryChange(trimmed);
+      router.push(searchHref(trimmed));
+    }
   }
 
   return (

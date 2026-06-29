@@ -1,0 +1,59 @@
+/* Rose theme — Switched Twins */
+[data-theme="rose"] {
+  --paper: #F8EBEE;
+  --ink: #0C3934;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --accent: #FF6090;
+  --muted: #EDB5BD;
+  --surface: #FFFFFF;
+  --shadow: color-mix(in srgb, var(--ink) 16%, transparent);
+  --focus: #FF6090;
+  --success: #3B755F;
+  --danger: #E75153;
+  --warning: #FFD37A;
+  --info: #008FD3;
+  --surface-muted: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  --on-surface: #0C3934;
+}
+
+/* Shake theme — Melted Shake */
+[data-theme="shake"] {
+  --paper: #DABAAF;
+  --ink: #CF2F89;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --accent: #0B0C11;
+  --muted: #BEA1A5;
+  --surface: #F8E8E2;
+  --shadow: color-mix(in srgb, var(--ink) 18%, transparent);
+  --focus: #0B0C11;
+  --success: #3B755F;
+  --danger: #E75153;
+  --warning: #F0CF61;
+  --info: #0BBCD6;
+  --surface-muted: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  --on-surface: #0B0C11;
+}
+
+/* Bodega theme — Favorite Bodega */
+[data-theme="bodega"] {
+  --paper: #0BBCD6;
+  --ink: #1B1D1C;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --accent: #E6625E;
+  --muted: #72AEC5;
+  --surface: #FFFFFF;
+  --shadow: color-mix(in srgb, var(--ink) 18%, transparent);
+  --focus: #E6625E;
+  --success: #17C37B;
+  --danger: #D31B33;
+  --warning: #F0CF61;
+  --info: #005397;
+  --surface-muted: color-mix(in srgb, var(--paper) 10%, var(--surface));
+  --on-surface: #1B1D1C;
+}

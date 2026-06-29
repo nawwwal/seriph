@@ -1,12 +1,10 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase/config';
+import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import type { IngestRecord } from '@/models/ingest.models';
 import { isActiveIngest } from '@/lib/upload/activeIngests';
-import { mapIngest } from '@/lib/upload/mapIngest';
+import { useActiveUploadPolling } from '@/lib/contexts/useActiveUploadPolling';
 
 interface UploadContextValue {
   ingests: IngestRecord[];
@@ -23,37 +21,12 @@ const UploadContext = createContext<UploadContextValue | undefined>(undefined);
 
 export function UploadProvider({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
-  const [ingests, setIngests] = useState<IngestRecord[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [uploadProgress, setProgress] = useState<Record<string, number>>({});
   const completedCbs = useRef(new Set<() => void>());
-  const reloadTimer = useRef<NodeJS.Timeout | null>(null);
   const canReadIngests = !isLoading && Boolean(user?.uid);
-
-  useEffect(() => {
-    if (!canReadIngests || !user?.uid) return;
-
-    const col = collection(db, 'users', user.uid, 'ingests');
-    const unsub = onSnapshot(
-      col,
-      (snap) => {
-        const all = snap.docs.map((d) => mapIngest(d.id, d.data() as any, user.uid));
-        const visible = all.filter((ing) => isActiveIngest(ing));
-        setIngests(visible);
-        if (all.some((ing) => ing.status === 'completed')) {
-          if (reloadTimer.current) clearTimeout(reloadTimer.current);
-          reloadTimer.current = setTimeout(() => {
-            completedCbs.current.forEach((cb) => cb());
-          }, 800);
-        }
-      },
-      (err) => console.error('Upload snapshot error', err)
-    );
-    return () => {
-      if (reloadTimer.current) clearTimeout(reloadTimer.current);
-      unsub();
-    };
-  }, [user?.uid, canReadIngests]);
+  const notifyCompleted = useCallback(() => completedCbs.current.forEach((cb) => cb()), []);
+  const ingests = useActiveUploadPolling({ user, isAuthLoading: isLoading, uploadProgress, onCompleted: notifyCompleted });
 
   const setUploadProgress = useCallback((ingestId: string, percent: number) => {
     setProgress((prev) => ({ ...prev, [ingestId]: percent }));

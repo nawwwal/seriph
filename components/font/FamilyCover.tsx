@@ -1,65 +1,75 @@
 'use client';
 
 import { FontFamily } from '@/models/font.models';
+import type { ShelfFamily } from '@/models/shelf.models';
 import Link from 'next/link';
+import { useMemo } from 'react';
+import { Check } from 'lucide-react';
 import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
 import { useInViewport } from '@/lib/hooks/useInViewport';
+import { GeneratedCoverArt, getSampleChars, isFullFamily, toShelfFamily, useRegisterShelfFace } from './FamilyCoverArt';
+import { deriveCoverDna } from '@/lib/covers/coverDna';
 
 interface FamilyCoverProps {
-  family: FontFamily;
+  family: FontFamily | ShelfFamily;
   mode: 'spines' | 'covers';
   /** Bump to re-pick the deterministic cover pattern ("Regenerate Covers"). */
   coverSeed?: number;
+  isSelectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelected?: (familyId: string) => void;
+  onOpenContextMenu?: (event: { familyId: string; x: number; y: number }) => void;
 }
 
-// Generate a deterministic pattern based on family name (offset by an optional seed)
-function getFamilyPattern(familyName: string, seed = 0): string {
-  const hash = familyName.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  const patterns = [
-    'linear-gradient(180deg, var(--ink) 0%, transparent 10%, transparent 90%, var(--ink) 100%)',
-    'repeating-linear-gradient(45deg, color-mix(in srgb, var(--ink) 15%, transparent) 0, color-mix(in srgb, var(--ink) 15%, transparent) 6px, transparent 6px, transparent 14px)',
-    'linear-gradient(90deg, color-mix(in srgb, var(--ink) 10%, transparent) 0 50%, transparent 50% 100%), linear-gradient(color-mix(in srgb, var(--ink) 10%, transparent), color-mix(in srgb, var(--ink) 10%, transparent))',
-    'radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--ink) 15%, transparent) 0%, transparent 70%)',
-  ];
-  return patterns[(hash + seed) % patterns.length];
-}
-
-// Get sample characters based on classification
-function getSampleChars(classification: string): string {
-  const samples: Record<string, string> = {
-    Sans: 'Aa',
-    Serif: 'Rg',
-    Mono: '{ }',
-    Display: 'Qq',
-    Script: 'Sz',
-  };
-  return samples[classification] || 'Aa';
-}
-
-export default function FamilyCover({ family, mode, coverSeed = 0 }: FamilyCoverProps) {
+export default function FamilyCover({
+  family,
+  mode,
+  coverSeed = 0,
+  isSelectionMode = false,
+  isSelected = false,
+  onToggleSelected,
+  onOpenContextMenu,
+}: FamilyCoverProps) {
   // Only register (download) the family's fonts once the card nears the viewport,
   // so a shelf of hundreds of families doesn't load every font up front.
   const { ref, inView } = useInViewport<HTMLAnchorElement>('500px');
-  useRegisterFamilyFonts(family, { enabled: inView, representativeOnly: true });
-  const pattern = getFamilyPattern(family.name, coverSeed);
+  useRegisterFamilyFonts(isFullFamily(family) ? family : null, { enabled: inView, representativeOnly: true });
+  useRegisterShelfFace(family, inView);
   const sampleChars = getSampleChars(family.classification);
-  const isVariable = family.fonts?.some((f) => f.isVariable);
+  const isVariable = isFullFamily(family) ? family.fonts?.some((f) => f.isVariable) : family.isVariable;
+  const styleCount = isFullFamily(family) ? family.fonts.length : family.styleCount;
+  const shelfFamily = useMemo(() => toShelfFamily(family), [family]);
+  const dna = useMemo(() => deriveCoverDna(shelfFamily, coverSeed), [coverSeed, shelfFamily]);
 
   return (
     <Link
       ref={ref}
       href={`/family/${family.id}`}
-      className="relative h-full rule rounded-[var(--radius)] overflow-hidden flex flex-col cursor-pointer transition-transform hover:scale-[1.02]"
-      style={{ background: pattern }}
+      onClick={(event) => {
+        if (!isSelectionMode) return;
+        event.preventDefault();
+        onToggleSelected?.(family.id);
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onOpenContextMenu?.({ familyId: family.id, x: event.clientX, y: event.clientY });
+      }}
+      className={`relative h-full rule rounded-[var(--radius)] overflow-hidden flex flex-col cursor-pointer transition-transform hover:scale-[1.02] ${isSelected ? 'ring-2 ring-[var(--ink)]' : ''}`}
+      aria-pressed={isSelectionMode ? isSelected : undefined}
     >
-      <div className="relative flex-1 flex items-end p-4 sm:p-5 md:p-6">
-        <div className="cover-stripe absolute inset-0"></div>
-        <div className="w-full relative z-10">
+      {isSelectionMode && (
+        <div className={`absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rule rounded-[var(--radius)] bg-[var(--paper)] ${isSelected ? 'ink-bg' : ''}`}>
+          {isSelected && <Check size={17} aria-hidden="true" />}
+        </div>
+      )}
+      <div className="relative flex-1 flex items-end p-4 sm:p-5 md:p-6 bg-[color-mix(in_srgb,var(--ink)_6%,var(--paper))]">
+        <GeneratedCoverArt family={family} coverSeed={coverSeed} />
+        <div className="w-full relative z-10" style={{ transform: `translate(${dna.specimenX - 16}%, ${dna.specimenY - 46}%) scale(${dna.specimenScale})`, transformOrigin: 'left bottom' }}>
           <div
-            className="text-[11vw] sm:text-[7vw] lg:text-[4vw] xl:text-[3.2vw] 2xl:text-[2.8vw] leading-none font-black uppercase tracking-tight family-sample truncate-2"
+            className="text-6xl sm:text-7xl lg:text-6xl xl:text-7xl leading-none font-black uppercase tracking-normal family-sample truncate-2"
             style={{
               fontFamily: family.name,
-              letterSpacing: '-0.015em',
+              letterSpacing: '0',
             }}
           >
             {sampleChars}
@@ -71,7 +81,7 @@ export default function FamilyCover({ family, mode, coverSeed = 0 }: FamilyCover
         <div className="text-xl font-extrabold truncate family-name">{family.name}</div>
         <div className="mt-1 flex justify-between items-center text-xs uppercase">
           <div>
-            <span className="font-bold">Styles:</span> <span>{family.fonts.length}</span>
+            <span className="font-bold">Styles:</span> <span>{styleCount}</span>
           </div>
           <div className="flex items-center gap-1.5">
             {isVariable && (

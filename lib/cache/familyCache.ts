@@ -1,21 +1,25 @@
 import type { FontFamily } from '@/models/font.models';
 
 /**
- * Process-wide in-memory cache of fully-adapted families, keyed by id. The shelf
- * loads every family into memory anyway, so family-detail navigation can be
- * served instantly from here instead of refetching by id on each visit. Survives
- * client-side route changes (module singleton); cleared on full reload.
+ * Process-wide in-memory cache of fully-adapted families, scoped by owner uid.
+ * Family ids can be shared across users, so uid is part of the cache key.
  */
 const familiesById = new Map<string, FontFamily>();
 
-export function cacheFamilies(families: FontFamily[]): void {
-  for (const family of families) familiesById.set(family.id, family);
+function cacheKey(uid: string, familyId: string): string {
+  return `${uid}:${familyId}`;
 }
 
-export function cacheFamily(family: FontFamily): void {
-  familiesById.set(family.id, family);
+export function cacheFamily(uid: string, family: FontFamily): void {
+  familiesById.set(cacheKey(uid, family.id), family);
 }
 
-export function getCachedFamily(id: string | undefined): FontFamily | undefined {
-  return id ? familiesById.get(id) : undefined;
+export function getCachedFamily(uid: string | undefined, id: string | undefined): FontFamily | undefined {
+  return uid && id ? familiesById.get(cacheKey(uid, id)) : undefined;
+}
+
+export function clearFamilyCacheForUser(uid: string): void {
+  for (const key of familiesById.keys()) {
+    if (key.startsWith(`${uid}:`)) familiesById.delete(key);
+  }
 }

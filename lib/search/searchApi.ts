@@ -27,7 +27,7 @@ export async function searchFontsForUser({
   query,
 }: SearchFontsForUserInput): Promise<SearchResultItem[]> {
   const idToken = await getIdToken();
-  const response = await fetcher('/api/search', {
+  const response = await fetcher('/api/v1/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
     body: JSON.stringify({ q: query }),
@@ -35,9 +35,11 @@ export async function searchFontsForUser({
   const data = await readSearchResponse(response);
 
   if (!response.ok) {
-    const message = isRecord(data) && typeof data.error === 'string' ? data.error : `Search failed: ${response.status}`;
+    const error = isRecord(data) && isRecord(data.error) ? data.error : null;
+    const message = error && typeof error.message === 'string' ? error.message : `Search failed: ${response.status}`;
     throw new Error(message);
   }
 
-  return isRecord(data) && Array.isArray(data.results) ? data.results : [];
+  const envelope = isRecord(data) && isRecord(data.data) ? data.data : data;
+  return isRecord(envelope) && Array.isArray(envelope.results) ? envelope.results : [];
 }

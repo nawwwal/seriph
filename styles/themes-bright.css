@@ -1,0 +1,79 @@
+/* Moss theme — Hidden Garden */
+[data-theme="moss"] {
+  --paper: #D1E1CB;
+  --ink: #094436;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --accent: #FDFF50;
+  --muted: #9AB79A;
+  --surface: #F6FAF0;
+  --shadow: color-mix(in srgb, var(--ink) 18%, transparent);
+  --focus: #9AB79A;
+  --success: #32B67A;
+  --danger: #E44A66;
+  --warning: #F0CF61;
+  --info: #62BFAD;
+  --surface-muted: color-mix(in srgb, var(--ink) 7%, var(--surface));
+  --on-surface: #094436;
+}
+
+/* Volt theme — Open Book */
+[data-theme="volt"] {
+  --paper: #EED974;
+  --ink: #28292B;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --accent: #0B64C0;
+  --muted: #F0CF61;
+  --surface: #FFFFFF;
+  --shadow: color-mix(in srgb, var(--ink) 22%, transparent);
+  --focus: #0B64C0;
+  --success: #168A4A;
+  --danger: #D31B33;
+  --warning: #8A6500;
+  --info: #005397;
+  --surface-muted: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  --on-surface: #28292B;
+}
+
+/* Lilac theme — Nightingale */
+[data-theme="lilac"] {
+  --paper: #BEA1A5;
+  --ink: #000000;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --accent: #2D1FE8;
+  --muted: #BFB5D7;
+  --surface: #FFFFFF;
+  --shadow: color-mix(in srgb, var(--ink) 16%, transparent);
+  --focus: #2D1FE8;
+  --success: #2E8B57;
+  --danger: #B83A54;
+  --warning: #9C7416;
+  --info: #162BF4;
+  --surface-muted: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  --on-surface: #000000;
+}
+
+/* Copper theme — Dad's Old Wallet */
+[data-theme="copper"] {
+  --paper: #3B465C;
+  --ink: #E9E8D4;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --accent: #BF8351;
+  --muted: #C5BEAA;
+  --surface: #202838;
+  --shadow: rgba(0, 0, 0, 0.46);
+  --focus: #BF8351;
+  --success: #8BD67F;
+  --danger: #FF7A7A;
+  --warning: #F7C35E;
+  --info: #9ED7FF;
+  --surface-muted: #2A3448;
+  --on-surface: #E9E8D4;
+}

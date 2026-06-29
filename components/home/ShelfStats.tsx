@@ -1,15 +1,16 @@
 import type { FontFamily } from '@/models/font.models';
+import type { ShelfFamily } from '@/models/shelf.models';
 import Stat from '@/components/ui/Stat';
 
 interface ShelfStatsProps {
-  families: FontFamily[];
+  families: Array<FontFamily | ShelfFamily>;
   pendingCount: number;
   shelfMode: 'spines' | 'covers';
   setShelfMode: (mode: 'spines' | 'covers') => void;
 }
 
 export default function ShelfStats({ families, pendingCount, shelfMode, setShelfMode }: ShelfStatsProps) {
-  const totalStyles = families.reduce((sum, family) => sum + family.fonts.length, 0);
+  const totalStyles = families.reduce((sum, family) => sum + ('fonts' in family ? family.fonts.length : family.styleCount), 0);
   const recentFamily = families.length > 0 ? families[0].name : '—';
   const modeBtn = (mode: 'spines' | 'covers') =>
     `uppercase text-xs font-bold rule px-2 py-1 rounded-[var(--radius)] ${shelfMode === mode ? 'ink-bg' : 'btn-ink'}`;

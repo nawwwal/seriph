@@ -1,12 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import NavBar from '@/components/layout/NavBar';
-import { useAuth } from '@/lib/contexts/AuthContext';
 import { DEMO_SPECIMENS, VALUE_PROPS } from './landingContent';
 
 export default function LandingPage() {
-  const { signInWithGoogle, isLoading } = useAuth();
-
   return (
     <div className="w-screen min-h-screen flex flex-col">
       <NavBar />
@@ -21,13 +19,12 @@ export default function LandingPage() {
               A visual, semantically searchable home for your type. Turn a scattered attic of
               font files into a library you can actually see and search.
             </p>
-            <button
-              onClick={() => signInWithGoogle()}
-              disabled={isLoading}
+            <Link
+              href="/login"
               className="shrink-0 uppercase font-bold rule px-5 py-3 rounded-[var(--radius)] text-base btn-ink ink-bg shimmer"
             >
-              Sign in with Google <span className="caret"></span>
-            </button>
+              Sign in <span className="caret"></span>
+            </Link>
           </div>
         </header>
 
@@ -73,13 +70,12 @@ export default function LandingPage() {
           <p className="text-lg sm:text-xl font-bold uppercase tracking-tight">
             Your fonts, finally findable.
           </p>
-          <button
-            onClick={() => signInWithGoogle()}
-            disabled={isLoading}
+          <Link
+            href="/login"
             className="shrink-0 uppercase font-bold rule px-5 py-3 rounded-[var(--radius)] text-base btn-ink"
           >
             Get started <span className="caret"></span>
-          </button>
+          </Link>
         </section>
 
         <footer className="mt-10 sm:mt-12 rule-t pt-4 text-sm opacity-70">
