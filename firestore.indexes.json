@@ -55,6 +55,106 @@
         { "fieldPath": "category", "order": "ASCENDING" },
         { "fieldPath": "text_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
       ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "density": "SPARSE_ALL",
+      "fields": [
+        { "fieldPath": "mood_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "mood_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "mood_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "density": "SPARSE_ALL",
+      "fields": [
+        { "fieldPath": "use_case_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "use_case_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "use_case_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "text_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "mood_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "use_case_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "searchTokens", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "searchTokens", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "searchTokens", "arrayConfig": "CONTAINS" }
+      ]
     }
   ],
   "fieldOverrides": [

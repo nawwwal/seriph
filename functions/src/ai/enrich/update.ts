@@ -5,7 +5,8 @@ import { renderSpecimen } from "../../render/specimen";
 import { embedText, embeddingModelId, embeddingDims } from "../embeddings";
 import { publicBucketName } from "../../config/catalogConfig";
 import type { FontEnrichment, FontFamilyDoc } from "../../models/catalog.models";
-import { buildEmbeddingText } from "./schema";
+import { PROMPT_VERSION, buildEmbeddingText, buildMoodEmbeddingText, buildUseCaseEmbeddingText } from "./schema";
+import { buildSearchDocument } from "../../search/searchDocument";
 
 /** Download the cover face and render its specimen PNG (null on any failure). */
 export async function renderFamilySpecimen(family: FontFamilyDoc): Promise<Buffer | null> {
@@ -25,17 +26,38 @@ export async function buildEnrichmentUpdate(
   family: FontFamilyDoc,
   enrichment: FontEnrichment
 ): Promise<Record<string, unknown>> {
-  const vec = await embedText(buildEmbeddingText(family, enrichment), "RETRIEVAL_DOCUMENT");
+  const [textVec, moodVec, useCaseVec] = await Promise.all([
+    embedText(buildEmbeddingText(family, enrichment), "RETRIEVAL_DOCUMENT"),
+    embedText(buildMoodEmbeddingText(family, enrichment), "RETRIEVAL_DOCUMENT"),
+    embedText(buildUseCaseEmbeddingText(family, enrichment), "RETRIEVAL_DOCUMENT"),
+  ]);
+  const hasAnyVector = Boolean(textVec || moodVec || useCaseVec);
+  const embeddingModel = hasAnyVector ? embeddingModelId() : undefined;
+  const embeddingVersion = hasAnyVector ? `${embeddingModelId()}:${embeddingDims()}` : undefined;
+  const searchDoc = embeddingVersion
+    ? buildSearchDocument({ ...family, enrichment }, { embeddingModel, embeddingVersion, promptVersion: enrichment.promptVersion ?? PROMPT_VERSION })
+    : {};
   const update: Record<string, unknown> = {
     enrichment: {
       ...enrichment,
-      embeddingModel: vec ? embeddingModelId() : undefined,
-      embeddingVersion: vec ? `${embeddingModelId()}:${embeddingDims()}` : undefined,
+      embeddingModel,
+      embeddingVersion,
       enrichedAt: FieldValue.serverTimestamp(),
     },
+    ...searchDoc,
+    ...(searchDoc.searchMeta
+      ? {
+          searchMeta: {
+            ...searchDoc.searchMeta,
+            generatedAt: FieldValue.serverTimestamp(),
+          },
+        }
+      : {}),
     status: "enriched",
     updatedAt: FieldValue.serverTimestamp(),
   };
-  if (vec) update.text_vec = FieldValue.vector(vec);
+  if (textVec) update.text_vec = FieldValue.vector(textVec);
+  if (moodVec) update.mood_vec = FieldValue.vector(moodVec);
+  if (useCaseVec) update.use_case_vec = FieldValue.vector(useCaseVec);
   return update;
 }

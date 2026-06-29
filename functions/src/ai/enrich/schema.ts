@@ -1,4 +1,5 @@
 import type { FontEnrichment, FontFamilyDoc } from "../../models/catalog.models";
+import { buildLaneEmbeddingText } from "../../search/searchDocument";
 
 export const PROMPT_VERSION = "enrich-v1";
 
@@ -40,16 +41,13 @@ export function buildPrompt(family: FontFamilyDoc, hasImage: boolean, withKey = 
 }
 
 export function buildEmbeddingText(family: FontFamilyDoc, e: FontEnrichment): string {
-  return [
-    family.name,
-    e.classification || family.classification,
-    e.summary,
-    e.voice,
-    (e.moods || []).join(", "),
-    (e.useCases || []).join(", "),
-    (e.pairingHints || []).join(", "),
-    family.foundry,
-  ]
-    .filter(Boolean)
-    .join(". ");
+  return buildLaneEmbeddingText({ ...family, enrichment: e }, "text");
+}
+
+export function buildMoodEmbeddingText(family: FontFamilyDoc, e: FontEnrichment): string {
+  return buildLaneEmbeddingText({ ...family, enrichment: e }, "mood");
+}
+
+export function buildUseCaseEmbeddingText(family: FontFamilyDoc, e: FontEnrichment): string {
+  return buildLaneEmbeddingText({ ...family, enrichment: e }, "useCase");
 }
