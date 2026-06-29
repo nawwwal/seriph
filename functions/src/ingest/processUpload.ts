@@ -35,7 +35,11 @@ export async function handleUnprocessedObject(event: { data: StorageObjectData }
   const ownerId = event.data.metadata?.ownerId || null;
 
   const srcFile = storage.bucket(event.data.bucket).file(filePath);
-  await updateIngestState(processingId, ownerId, { analysisState: "queued" });
+  await updateIngestState(processingId, ownerId, {
+    uploadState: "uploaded",
+    uploadProgress: 100,
+    analysisState: "queued",
+  });
 
   const t0 = Date.now();
   try {

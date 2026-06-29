@@ -5,7 +5,7 @@ import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import type { IngestRecord } from '@/models/ingest.models';
-import { getCombinedStatus } from '@/lib/upload/combinedStatus';
+import { isActiveIngest } from '@/lib/upload/activeIngests';
 import { mapIngest } from '@/lib/upload/mapIngest';
 
 interface UploadContextValue {
@@ -38,7 +38,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       col,
       (snap) => {
         const all = snap.docs.map((d) => mapIngest(d.id, d.data() as any, user.uid));
-        const visible = all.filter((ing) => (ing.status ?? 'uploaded') !== 'completed');
+        const visible = all.filter((ing) => isActiveIngest(ing));
         setIngests(visible);
         if (all.some((ing) => ing.status === 'completed')) {
           if (reloadTimer.current) clearTimeout(reloadTimer.current);
@@ -67,11 +67,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
   const visibleIngests = useMemo(() => (canReadIngests ? ingests : []), [canReadIngests, ingests]);
 
   const activeCount = useMemo(
-    () =>
-      visibleIngests.filter((ing) => {
-        const { stage } = getCombinedStatus(ing.uploadState, ing.analysisState, uploadProgress[ing.ingestId]);
-        return stage !== 'complete' && stage !== 'error' && stage !== 'canceled';
-      }).length,
+    () => visibleIngests.filter((ing) => isActiveIngest(ing, uploadProgress[ing.ingestId])).length,
     [visibleIngests, uploadProgress]
   );
 

@@ -32,6 +32,19 @@ function mergeAxes(a: CanonicalAxis[] = [], b: CanonicalAxis[] = []): CanonicalA
 /** Is this the canonical "cover" face? (Regular, upright.) */
 const isCover = (face: FontFace): boolean => face.weight === 400 && !face.italic;
 
+/** Decide whether a face merge invalidates the current enrichment/search doc. */
+export function nextFamilyStatusAfterFaceMerge(existing: FontFamilyDoc, incomingFace: FontFace): FontFamilyDoc['status'] {
+  if (existing.status !== 'enriched') return 'ready';
+
+  const represented = existing.faces?.some((face) => {
+    if (face.id !== incomingFace.id) return false;
+    if (incomingFace.contentHash) return face.contentHash === incomingFace.contentHash;
+    return true;
+  });
+
+  return represented ? 'enriched' : 'ready';
+}
+
 /** Create or update the family doc, merging in one face. Returns the resulting doc. */
 export async function upsertFace(
   input: UpsertFaceInput,
@@ -90,7 +103,7 @@ export async function upsertFace(
       faces,
       coverFaceId,
       ownerId: existing.ownerId ?? input.ownerId,
-      status: existing.status === 'enriched' ? 'enriched' : 'ready', // keep enriched, else ready
+      status: nextFamilyStatusAfterFaceMerge(existing, input.face),
       version: (existing.version ?? 1) + 1,
       updatedAt: now as unknown as string,
     };

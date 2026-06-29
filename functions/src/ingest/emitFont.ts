@@ -16,25 +16,41 @@ export async function emitFont(params: {
   batchId: string | null;
   relPath: string;
   unprocessedPrefix: string;
+  sourceProcessingId?: string | null;
 }): Promise<void> {
-  const { bucket, buffer, fileName, ownerId, batchId, relPath, unprocessedPrefix } = params;
+  const { bucket, buffer, fileName, ownerId, batchId, relPath, unprocessedPrefix, sourceProcessingId } = params;
 
   const contentHash = createHash("sha256").update(buffer).digest("hex");
   if (await isDuplicate(ownerId, contentHash)) {
+    if (sourceProcessingId) {
+      await updateSourceIngest(ownerId, sourceProcessingId, {
+        contentHash,
+        status: "completed",
+        uploadState: "uploaded",
+        uploadProgress: 100,
+        analysisState: "complete",
+        error: null,
+        uploadSource: "direct-upload-duplicate",
+      });
+    }
     await bumpLedger(ownerId, batchId, "dupes");
     return;
   }
 
-  const processingId = db.collection("_").doc().id;
+  const plan = planFontEmission({
+    fileName,
+    sourceProcessingId: sourceProcessingId || undefined,
+    allocatedProcessingId: db.collection("_").doc().id,
+  });
 
-  if (ownerId) {
+  if (ownerId && plan.shouldCreateIngest) {
     const ingestRef = db.collection("users").doc(ownerId).collection("ingests").doc();
     const now = admin.firestore.FieldValue.serverTimestamp();
     await ingestRef.set({
       ingestId: ingestRef.id,
       ownerId,
-      processingId,
-      originalName: fileName,
+      processingId: plan.processingId,
+      originalName: plan.originalName,
       relPath,
       batchId,
       contentHash,
@@ -48,12 +64,65 @@ export async function emitFont(params: {
       updatedAt: now,
       uploadedAt: now,
     });
+  } else if (ownerId) {
+    await updateSourceIngest(ownerId, plan.processingId, {
+      originalName: plan.originalName,
+      relPath,
+      batchId,
+      contentHash,
+      status: "uploaded",
+      uploadState: "uploaded",
+      uploadProgress: 100,
+      analysisState: "queued",
+      error: null,
+      uploadSource: "direct-upload",
+      uploadedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
   }
 
-  const dest = `${unprocessedPrefix}/${processingId}-${fileName}`;
+  const dest = `${unprocessedPrefix}/${plan.processingId}-${plan.originalName}`;
   await storage.bucket(bucket).file(dest).save(buffer, {
     resumable: false,
-    metadata: { metadata: { ownerId: ownerId || "", batchId: batchId || "", relPath } },
+    metadata: { metadata: { ownerId: ownerId || "", batchId: batchId || "", relPath, processingId: plan.processingId } },
   });
   await bumpLedger(ownerId, batchId, "fonts");
+}
+
+export function planFontEmission(params: {
+  fileName: string;
+  sourceProcessingId?: string;
+  allocatedProcessingId?: string;
+}): { processingId: string; originalName: string; shouldCreateIngest: boolean } {
+  const { fileName, sourceProcessingId, allocatedProcessingId } = params;
+  if (sourceProcessingId) {
+    const prefix = `${sourceProcessingId}-`;
+    return {
+      processingId: sourceProcessingId,
+      originalName: fileName.startsWith(prefix) ? fileName.slice(prefix.length) : fileName,
+      shouldCreateIngest: false,
+    };
+  }
+
+  return {
+    processingId: allocatedProcessingId ?? db.collection("_").doc().id,
+    originalName: fileName,
+    shouldCreateIngest: true,
+  };
+}
+
+async function updateSourceIngest(
+  ownerId: string | null,
+  processingId: string,
+  fields: Record<string, unknown>
+): Promise<void> {
+  if (!ownerId) return;
+  const snap = await db.collection("users").doc(ownerId).collection("ingests")
+    .where("processingId", "==", processingId)
+    .limit(1)
+    .get();
+  if (snap.empty) return;
+  await snap.docs[0].ref.update({
+    ...fields,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
 }

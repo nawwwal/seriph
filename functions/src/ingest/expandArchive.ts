@@ -48,7 +48,16 @@ export async function expandIntakeObject(event: { data: StorageObjectData }): Pr
 
   if (FONT_EXTS.includes(ext)) {
     const [buffer] = await srcFile.download();
-    await emitFont({ bucket: bucketName, buffer, fileName, ownerId, batchId, relPath, unprocessedPrefix: UNPROCESSED });
+    await emitFont({
+      bucket: bucketName,
+      buffer,
+      fileName,
+      ownerId,
+      batchId,
+      relPath,
+      unprocessedPrefix: UNPROCESSED,
+      sourceProcessingId: (meta.processingId as string) || null,
+    });
     await srcFile.delete({ ignoreNotFound: true });
     return null;
   }
