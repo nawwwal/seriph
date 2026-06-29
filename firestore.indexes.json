@@ -33,6 +33,14 @@
       ]
     },
     {
+      "collectionGroup": "ingests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "analysisState", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "fontfamilies",
       "queryScope": "COLLECTION",
       "density": "SPARSE_ALL",
@@ -225,6 +233,28 @@
     {
       "collectionGroup": "ingests",
       "fieldPath": "analysisState",
+      "indexes": [
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION"
+        },
+        {
+          "order": "ASCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        },
+        {
+          "order": "DESCENDING",
+          "queryScope": "COLLECTION_GROUP"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "ingests",
+      "fieldPath": "familyId",
       "indexes": [
         {
           "order": "ASCENDING",

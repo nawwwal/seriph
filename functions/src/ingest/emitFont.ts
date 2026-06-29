@@ -2,6 +2,9 @@ import { createHash } from "crypto";
 import * as admin from "firebase-admin";
 import { db, storage } from "../bootstrap/adminApp";
 import { bumpLedger, isDuplicate } from "./intakeLedger";
+import { planFontEmission, updateSourceIngest } from "./emitFontHelpers";
+
+export { planFontEmission } from "./emitFontHelpers";
 
 /**
  * Create an ingest doc for a font extracted from an archive (never pre-registered
@@ -86,43 +89,4 @@ export async function emitFont(params: {
     metadata: { metadata: { ownerId: ownerId || "", batchId: batchId || "", relPath, processingId: plan.processingId } },
   });
   await bumpLedger(ownerId, batchId, "fonts");
-}
-
-export function planFontEmission(params: {
-  fileName: string;
-  sourceProcessingId?: string;
-  allocatedProcessingId?: string;
-}): { processingId: string; originalName: string; shouldCreateIngest: boolean } {
-  const { fileName, sourceProcessingId, allocatedProcessingId } = params;
-  if (sourceProcessingId) {
-    const prefix = `${sourceProcessingId}-`;
-    return {
-      processingId: sourceProcessingId,
-      originalName: fileName.startsWith(prefix) ? fileName.slice(prefix.length) : fileName,
-      shouldCreateIngest: false,
-    };
-  }
-
-  return {
-    processingId: allocatedProcessingId ?? db.collection("_").doc().id,
-    originalName: fileName,
-    shouldCreateIngest: true,
-  };
-}
-
-async function updateSourceIngest(
-  ownerId: string | null,
-  processingId: string,
-  fields: Record<string, unknown>
-): Promise<void> {
-  if (!ownerId) return;
-  const snap = await db.collection("users").doc(ownerId).collection("ingests")
-    .where("processingId", "==", processingId)
-    .limit(1)
-    .get();
-  if (snap.empty) return;
-  await snap.docs[0].ref.update({
-    ...fields,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  });
 }

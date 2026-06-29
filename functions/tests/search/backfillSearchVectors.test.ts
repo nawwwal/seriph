@@ -14,6 +14,7 @@ function family(overrides: Partial<FontFamilyDoc> = {}): FontFamilyDoc {
     version: 1,
     searchText: "Editorial Sans",
     searchTokens: ["editorial", "sans"],
+    searchIndexState: "ready",
     searchMeta: {
       embeddingModel: "gemini-embedding-2-preview",
       embeddingVersion: "gemini-embedding-2-preview:768",

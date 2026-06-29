@@ -4,8 +4,8 @@ service firebase.storage {
     // Authenticated users can write to their own intake prefix only.
     // Reads are denied — all serving goes through the admin SDK or the
     // seriph-fonts public CDN bucket (a separate bucket not governed here).
-    match /intake/{batchId}/{rest=**} {
-      allow write: if request.auth != null;
+    match /intake/{uid}/{batchId}/{rest=**} {
+      allow write: if request.auth != null && request.auth.uid == uid;
       allow read: if false;
     }
 

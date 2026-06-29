@@ -8,8 +8,13 @@ interface JobDoc {
   jobName: string;
   state: string;
   slugs: string[];
+  familyIds?: string[];
   bucket: string;
   outputPrefix: string;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**
@@ -28,8 +33,8 @@ export async function pollEnrichmentBatches(): Promise<{ checked: number; comple
     try {
       const live = await batchClient().batches.get({ name: job.jobName });
       state = (live.state as string) ?? state;
-    } catch (e: any) {
-      logger.warn(`[batch] get failed for ${job.jobName}`, { message: e?.message });
+    } catch (error) {
+      logger.warn(`[batch] get failed for ${job.jobName}`, { message: errorMessage(error) });
       continue;
     }
 
@@ -51,25 +56,33 @@ export async function pollEnrichmentBatches(): Promise<{ checked: number; comple
           finishedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
         });
         logger.info(`[batch] ${job.jobName} ${state}: applied ${applied}/${rows.length} rows.`);
-      } catch (e: any) {
-        logger.error(`[batch] failed processing output for ${job.jobName}`, { message: e?.message });
-        await jobDoc.ref.update({ state, error: e?.message, updatedAt: FieldValue.serverTimestamp() });
+      } catch (error) {
+        const message = errorMessage(error);
+        logger.error(`[batch] failed processing output for ${job.jobName}`, { message });
+        await jobDoc.ref.update({ state, error: message, updatedAt: FieldValue.serverTimestamp() });
       }
       continue;
     }
 
     if (FAIL_STATES.includes(state)) {
       const writer = db.batch();
-      for (const slug of job.slugs ?? []) {
+      const ids = job.familyIds ?? job.slugs ?? [];
+      for (const id of ids) {
         writer.set(
-          db.collection(FAMILIES_COLLECTION).doc(slug),
-          { status: "ready", updatedAt: FieldValue.serverTimestamp() },
+          db.collection(FAMILIES_COLLECTION).doc(id),
+          {
+            status: "ready",
+            enrichmentJobId: FieldValue.delete(),
+            enrichmentJobVersion: FieldValue.delete(),
+            enrichmentLeaseExpiresAt: FieldValue.delete(),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
           { merge: true }
         );
       }
       writer.update(jobDoc.ref, { state, finishedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
       await writer.commit();
-      logger.warn(`[batch] ${job.jobName} ${state}; returned ${job.slugs?.length ?? 0} families to ready.`);
+      logger.warn(`[batch] ${job.jobName} ${state}; returned ${ids.length} families to ready.`);
     }
   }
 

@@ -1,80 +1,80 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions";
-import { CATALOG_KEY_PREFIX, parseAnalysis, buildEnrichmentUpdate } from "../../ai/enrichFont";
+import { parseAnalysis, buildEnrichmentUpdate } from "../../ai/enrichFont";
 import { FAMILIES_COLLECTION } from "../../storage/familyStore";
 import type { FontFamilyDoc, FontEnrichment } from "../../models/catalog.models";
+import { parseBatchCatalogKey } from "./key";
+import { catalogKeyFromOutputRow, textFromOutputRow, type BatchOutputRow } from "./outputRows";
+export { readOutputLines } from "./outputRows";
 
 /** Mark every ingest pointing at a family as fully complete (best-effort). */
-export async function finalizeIngestsForFamily(familyId: string): Promise<void> {
+export async function finalizeIngestsForFamily(familyId: string, jobId?: string, version?: number): Promise<void> {
   const db = getFirestore();
   try {
-    const snap = await db.collectionGroup("ingests").where("familyId", "==", familyId).get();
+    let query = db.collectionGroup("ingests").where("familyId", "==", familyId);
+    if (jobId && version !== undefined) {
+      query = query.where("enrichmentJobId", "==", jobId).where("enrichmentJobVersion", "==", version);
+    }
+    const snap = await query.get();
     await Promise.all(
       snap.docs.map((d) =>
-        d.ref.update({ analysisState: "complete", status: "completed", updatedAt: FieldValue.serverTimestamp() })
+        d.ref.update({
+          analysisState: "complete",
+          status: "completed",
+          enrichmentJobId: FieldValue.delete(),
+          enrichmentJobVersion: FieldValue.delete(),
+          updatedAt: FieldValue.serverTimestamp(),
+        })
       )
     );
-  } catch (e: any) {
-    logger.warn(`[batch] failed to finalize ingests for ${familyId}`, { message: e?.message });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn(`[batch] failed to finalize ingests for ${familyId}`, { message });
   }
-}
-
-/** Pull the slug back out of an echoed batch request via the Catalog-Key marker. */
-function slugFromRequest(request: any): string | null {
-  const parts = request?.contents?.[0]?.parts ?? [];
-  for (const p of parts) {
-    const t: string | undefined = p?.text;
-    if (t && t.includes(CATALOG_KEY_PREFIX)) {
-      const m = t.match(new RegExp(`${CATALOG_KEY_PREFIX}\\s*(\\S+)`));
-      if (m) return m[1];
-    }
-  }
-  return null;
-}
-
-/** Read every JSONL line written under a finished job's output prefix. */
-export async function readOutputLines(bucket: string, outputPrefix: string): Promise<any[]> {
-  const [files] = await getStorage().bucket(bucket).getFiles({ prefix: outputPrefix });
-  const jsonl = files.filter((f) => f.name.endsWith(".jsonl"));
-  const rows: any[] = [];
-  for (const file of jsonl) {
-    const [buf] = await file.download();
-    for (const line of buf.toString("utf8").split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      try {
-        rows.push(JSON.parse(trimmed));
-      } catch {
-        // skip malformed line
-      }
-    }
-  }
-  return rows;
 }
 
 /** Apply one batch output row to its family: parse analysis, embed inline, write. */
-export async function applyOutputRow(row: any): Promise<boolean> {
-  const slug = slugFromRequest(row?.request);
-  if (!slug) {
+export async function applyOutputRow(row: BatchOutputRow): Promise<boolean> {
+  const catalogKey = catalogKeyFromOutputRow(row);
+  if (!catalogKey) {
     logger.warn("[batch] output row missing Catalog-Key; cannot map to family.");
     return false;
   }
+  const key = parseBatchCatalogKey(catalogKey);
   const db = getFirestore();
-  const ref = db.collection(FAMILIES_COLLECTION).doc(slug);
+  const ref = db.collection(FAMILIES_COLLECTION).doc(key.familyId);
   const snap = await ref.get();
   if (!snap.exists) return false;
-  const family = snap.data() as FontFamilyDoc;
+  const family = { ...snap.data(), id: snap.id } as FontFamilyDoc;
+  if (family.status === "merged" || family.hidden === true || family.mergedInto || family.aliasOf) {
+    logger.info(`[batch] skipping merged alias ${catalogKey}.`);
+    return false;
+  }
+  if (key.jobId && (family.enrichmentJobId !== key.jobId || family.enrichmentJobVersion !== key.version)) {
+    logger.warn("[batch] stale output row ignored", { familyId: key.familyId, jobId: key.jobId });
+    return false;
+  }
 
-  const text: string | undefined = row?.response?.candidates?.[0]?.content?.parts?.[0]?.text;
+  const text = textFromOutputRow(row);
   const enrichment: FontEnrichment | null = parseAnalysis(family, text);
   if (!enrichment) {
-    await ref.set({ status: "ready", updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    await ref.set({
+      status: "ready",
+      enrichmentJobId: FieldValue.delete(),
+      enrichmentJobVersion: FieldValue.delete(),
+      enrichmentLeaseExpiresAt: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
     return false;
   }
 
   const update = await buildEnrichmentUpdate(family, enrichment);
-  await ref.set(update, { merge: true });
-  await finalizeIngestsForFamily(slug);
+  await ref.set({
+    ...update,
+    enrichmentJobId: FieldValue.delete(),
+    enrichmentJobVersion: FieldValue.delete(),
+    enrichmentLeaseExpiresAt: FieldValue.delete(),
+  }, { merge: true });
+  await finalizeIngestsForFamily(family.id, key.jobId, key.version);
   return true;
 }

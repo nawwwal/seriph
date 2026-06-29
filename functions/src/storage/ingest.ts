@@ -7,7 +7,7 @@
 import * as crypto from "crypto";
 import { logger } from "firebase-functions";
 import { serverParseFontFile } from "../parser/fontParser";
-import { familySlug, familyFileBase, parseStyle, canonicalFilename, gfCategory } from "./canonicalize";
+import { parseStyle, canonicalFilename, gfCategory, resolveCanonicalFontIdentity, canonicalFaceId } from "./canonicalize";
 import { FontFormat } from "./transcode";
 import { upsertFace } from "./familyStore";
 import { writeArtifacts } from "./writeArtifacts";
@@ -30,18 +30,17 @@ export async function ingestFont(params: {
   const parsed = await serverParseFontFile(fileBuffer, originalFilename);
   if (!parsed) return null;
 
-  const familyName: string = parsed.familyName || "Unknown Family";
-  const slug = familySlug(familyName);
-  const fileBase = familyFileBase(familyName);
+  const identity = resolveCanonicalFontIdentity(parsed);
+  const { familyName, slug, fileBase, styleName } = identity;
 
   const isVariable = !!parsed.isVariable;
   const axisTags = (parsed.variableAxes || []).map((a: any) => a.tag).filter(Boolean);
-  const { weight, weightName, italic } = parseStyle(parsed.subfamilyName, parsed.weight);
+  const { weight, weightName, italic } = parseStyle(styleName, parsed.weight);
   const format = (parsed.format || "OTF") as FontFormat;
   const origExt = format.toLowerCase();
   const category = gfCategory(parsed.classification, !!parsed.isFixedPitch);
 
-  const nameOpts = { variable: isVariable, italic, weight, axisTags };
+  const nameOpts = { variable: isVariable, italic, weight, axisTags, styleName };
   const woff2Filename = canonicalFilename(familyName, nameOpts, "woff2");
   const origFilename = canonicalFilename(familyName, nameOpts, origExt);
 
@@ -59,7 +58,7 @@ export async function ingestFont(params: {
     : undefined;
 
   const face = buildFace({
-    parsed, weight, weightName, italic, isVariable, axes, format,
+    parsed, faceId: canonicalFaceId(styleName, isVariable), styleName, weight, weightName, italic, isVariable, axes, format,
     fileSize: fileBuffer.byteLength, servedFilename, servedStoragePath, origStoragePath, contentHash: hash,
   });
 

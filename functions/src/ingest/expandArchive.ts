@@ -6,6 +6,8 @@ import { RC_KEYS, RC_DEFAULTS } from "../config/rcKeys";
 import { extOf, bumpLedger } from "./intakeLedger";
 import { emitFont } from "./emitFont";
 import { FONT_EXTS, MAX_EXPAND_DEPTH, MAX_INLINE_ZIP_BYTES, expandZip } from "./expandZip";
+import { parseIntakePath, processingIdFromObjectName } from "./intakePath";
+import { loadRegisteredIntake } from "./intakeRegistration";
 
 /**
  * Handle one object landing in the intake prefix:
@@ -24,16 +26,20 @@ export async function expandIntakeObject(event: { data: StorageObjectData }): Pr
   const UNPROCESSED = getConfigValue(RC_KEYS.unprocessedBucketPath, RC_DEFAULTS[RC_KEYS.unprocessedBucketPath]);
 
   const filePath = event.data.name;
-  if (!filePath || !filePath.startsWith(`${INTAKE}/`) || filePath.endsWith("/")) return null;
+  if (!filePath || filePath.endsWith("/")) return null;
+  const intakePath = parseIntakePath(filePath, INTAKE);
+  if (!intakePath) return null;
   if (event.data.metadata?.processed === "true") return null;
 
   const meta = event.data.metadata || {};
-  const ownerId = (meta.ownerId as string) || null;
-  const batchId = (meta.batchId as string) || null;
-  const relPath = (meta.relPath as string) || filePath.split("/").pop()!;
+  const processingId = (meta.processingId as string) || processingIdFromObjectName(intakePath.objectName);
+  const registered = await loadRegisteredIntake(intakePath.ownerId, processingId);
+  const ownerId = registered?.ownerId || intakePath.ownerId || (meta.ownerId as string) || null;
+  const batchId = registered?.batchId || intakePath.batchId || (meta.batchId as string) || null;
+  const relPath = registered?.relPath || (meta.relPath as string) || intakePath.objectName;
   const depth = Number.parseInt((meta.expandDepth as string) || "0", 10) || 0;
 
-  const fileName = filePath.split("/").pop()!;
+  const fileName = intakePath.objectName.split("/").pop()!;
   const ext = extOf(fileName);
   const bucketName = event.data.bucket;
   const srcFile = storage.bucket(bucketName).file(filePath);
@@ -56,7 +62,7 @@ export async function expandIntakeObject(event: { data: StorageObjectData }): Pr
       batchId,
       relPath,
       unprocessedPrefix: UNPROCESSED,
-      sourceProcessingId: (meta.processingId as string) || null,
+      sourceProcessingId: processingId,
     });
     await srcFile.delete({ ignoreNotFound: true });
     return null;

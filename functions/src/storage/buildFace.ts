@@ -11,6 +11,8 @@ export function faceId(weightName: string, italic: boolean, isVariable: boolean)
 /** Assemble the FontFace document from parsed metadata and written asset paths. */
 export function buildFace(params: {
   parsed: any;
+  faceId?: string;
+  styleName?: string;
   weight: number;
   weightName: string;
   italic: boolean;
@@ -25,10 +27,10 @@ export function buildFace(params: {
 }): FontFace {
   const { parsed, weight, weightName, italic, isVariable, axes, format, fileSize } = params;
   return {
-    id: faceId(weightName, italic, isVariable),
-    styleName: isVariable
+    id: params.faceId ?? faceId(weightName, italic, isVariable),
+    styleName: params.styleName ?? (isVariable
       ? italic ? "Italic Variable" : "Variable"
-      : `${weightName}${italic ? " Italic" : ""}`,
+      : `${weightName}${italic ? " Italic" : ""}`),
     weight,
     weightName,
     italic,

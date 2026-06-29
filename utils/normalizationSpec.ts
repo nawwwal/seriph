@@ -9,6 +9,7 @@ export const NORMALIZATION_SPEC_VERSION = "1.0.0";
 const STYLE_TOKENS = [
   "regular", "italic", "bold", "black", "condensed", "extended", "narrow", "wide",
   "thin", "extralight", "light", "medium", "semibold", "extrabold", "ultra", "heavy",
+  "hairline", "variable", "vf",
 ];
 
 const NUMERIC_WEIGHT_PATTERN = /\b\d{3,4}\b/g;

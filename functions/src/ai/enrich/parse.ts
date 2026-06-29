@@ -7,25 +7,41 @@ import type { GfCategory } from "../../storage/canonicalize";
 import { PROMPT_VERSION } from "./schema";
 import { isSearchIndexedAtVersion } from "../../search/searchDocument";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringField(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function stringArray(record: Record<string, unknown>, key: string): string[] {
+  const value = record[key];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
+}
+
 /** Parse the model's JSON text into a FontEnrichment. Shared by realtime + batch. */
 export function parseAnalysis(family: FontFamilyDoc, text: string | undefined | null): FontEnrichment | null {
   const trimmed = text?.trim?.();
   if (!trimmed) return null;
-  let data: any;
+  let data: unknown;
   try {
     data = JSON.parse(trimmed.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim());
   } catch {
     logger.warn(`[enrich ${family.slug}] analysis returned non-JSON`);
     return null;
   }
+  if (!isRecord(data)) return null;
   return {
-    category: (data.category as GfCategory) || family.category,
-    classification: data.classification,
-    summary: data.summary,
-    moods: Array.isArray(data.moods) ? data.moods : [],
-    voice: data.voice,
-    useCases: Array.isArray(data.useCases) ? data.useCases : [],
-    pairingHints: Array.isArray(data.pairingHints) ? data.pairingHints : [],
+    category: (stringField(data, "category") as GfCategory | undefined) || family.category,
+    suggestedDisplayName: stringField(data, "suggestedDisplayName"),
+    classification: stringField(data, "classification"),
+    summary: stringField(data, "summary"),
+    moods: stringArray(data, "moods"),
+    voice: stringField(data, "voice"),
+    useCases: stringArray(data, "useCases"),
+    pairingHints: stringArray(data, "pairingHints"),
     confidence: typeof data.confidence === "number" ? data.confidence : undefined,
     modelId: getConfigValue(RC_KEYS.analysisModelName, ""),
     promptVersion: PROMPT_VERSION,

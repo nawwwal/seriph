@@ -3,6 +3,7 @@ import * as unzipper from "unzipper";
 import { db, storage } from "../bootstrap/adminApp";
 import { extOf, bumpLedger } from "./intakeLedger";
 import { emitFont } from "./emitFont";
+import { buildIntakePath } from "./intakePath";
 
 export const FONT_EXTS = ["ttf", "otf", "woff", "woff2", "eot"];
 export const MAX_EXPAND_DEPTH = 4;
@@ -43,7 +44,15 @@ export async function expandZip(buffer: Buffer, ctx: ZipContext): Promise<void> 
         ownerId: ctx.ownerId, batchId: ctx.batchId, relPath: entryRel, unprocessedPrefix: ctx.unprocessed,
       });
     } else if (entryExt === "zip") {
-      const nestedDest = `${ctx.intake}/${ctx.batchId || "nested"}/${db.collection("_").doc().id}-${entryName}`;
+      const objectName = `${db.collection("_").doc().id}-${entryName}`;
+      const nestedDest = ctx.ownerId
+        ? buildIntakePath({
+            intakePrefix: ctx.intake,
+            ownerId: ctx.ownerId,
+            batchId: ctx.batchId || "nested",
+            objectName,
+          })
+        : `${ctx.intake}/${ctx.batchId || "nested"}/${objectName}`;
       await storage.bucket(ctx.bucket).file(nestedDest).save(await entry.buffer(), {
         resumable: false,
         metadata: {

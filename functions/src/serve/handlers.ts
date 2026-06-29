@@ -10,9 +10,8 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
 import { logger } from 'firebase-functions';
 import { parseCss2Query, buildCss2 } from './css2';
+import { loadCssFamiliesBySlug } from './css2Lookup';
 import { publicBucketName } from '../config/catalogConfig';
-import { FAMILIES_COLLECTION } from '../storage/familyStore';
-import type { FontFamilyDoc } from '../models/catalog.models';
 
 function queryString(req: Request): URLSearchParams {
   const qs = (req.url || '').split('?')[1] || '';
@@ -34,12 +33,7 @@ export async function css2Handler(req: Request, res: Response): Promise<void> {
   }
 
   const db = getFirestore();
-  const snaps = await db.getAll(...slugs.map((s) => db.collection(FAMILIES_COLLECTION).doc(s)));
-  const bySlug = new Map<string, FontFamilyDoc>();
-  for (const snap of snaps) {
-    if (snap.exists) bySlug.set(snap.id, snap.data() as FontFamilyDoc);
-  }
-
+  const bySlug = await loadCssFamiliesBySlug(db, slugs);
   const css = buildCss2(families, display, (slug) => bySlug.get(slug));
   res
     .status(200)

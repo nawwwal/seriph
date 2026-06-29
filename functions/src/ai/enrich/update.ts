@@ -8,6 +8,17 @@ import type { FontEnrichment, FontFamilyDoc } from "../../models/catalog.models"
 import { PROMPT_VERSION, buildEmbeddingText, buildMoodEmbeddingText, buildUseCaseEmbeddingText } from "./schema";
 import { buildSearchDocument } from "../../search/searchDocument";
 
+export function buildManualMergeDisplayNameUpdate(
+  family: FontFamilyDoc,
+  enrichment: FontEnrichment
+): Record<string, unknown> {
+  if (family.manualMerge?.displayNamePending !== true || !enrichment.suggestedDisplayName?.trim()) return {};
+  return {
+    name: enrichment.suggestedDisplayName.trim(),
+    manualMerge: { displayNamePending: false },
+  };
+}
+
 /** Download the cover face and render its specimen PNG (null on any failure). */
 export async function renderFamilySpecimen(family: FontFamilyDoc): Promise<Buffer | null> {
   const cover = family.faces.find((f) => f.id === family.coverFaceId) || family.faces[0];
@@ -31,12 +42,27 @@ export async function buildEnrichmentUpdate(
     embedText(buildMoodEmbeddingText(family, enrichment), "RETRIEVAL_DOCUMENT"),
     embedText(buildUseCaseEmbeddingText(family, enrichment), "RETRIEVAL_DOCUMENT"),
   ]);
-  const hasAnyVector = Boolean(textVec || moodVec || useCaseVec);
-  const embeddingModel = hasAnyVector ? embeddingModelId() : undefined;
-  const embeddingVersion = hasAnyVector ? `${embeddingModelId()}:${embeddingDims()}` : undefined;
-  const searchDoc = embeddingVersion
-    ? buildSearchDocument({ ...family, enrichment }, { embeddingModel, embeddingVersion, promptVersion: enrichment.promptVersion ?? PROMPT_VERSION })
-    : {};
+  const embeddingModel = embeddingModelId();
+  const embeddingVersion = `${embeddingModel}:${embeddingDims()}`;
+  if (!textVec || !moodVec || !useCaseVec) {
+    return {
+      enrichment: { ...enrichment, embeddingModel, embeddingVersion, enrichedAt: FieldValue.serverTimestamp() },
+      searchText: FieldValue.delete(),
+      searchTokens: FieldValue.delete(),
+      searchMeta: FieldValue.delete(),
+      text_vec: FieldValue.delete(),
+      mood_vec: FieldValue.delete(),
+      use_case_vec: FieldValue.delete(),
+      searchIndexState: "retry",
+      searchIndexError: "missing_vector_lane",
+      status: "ready",
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+  }
+  const searchDoc = buildSearchDocument(
+    { ...family, enrichment },
+    { embeddingModel, embeddingVersion, promptVersion: enrichment.promptVersion ?? PROMPT_VERSION }
+  );
   const update: Record<string, unknown> = {
     enrichment: {
       ...enrichment,
@@ -53,11 +79,14 @@ export async function buildEnrichmentUpdate(
           },
         }
       : {}),
+    searchIndexState: "ready",
+    searchIndexError: FieldValue.delete(),
     status: "enriched",
     updatedAt: FieldValue.serverTimestamp(),
+    ...buildManualMergeDisplayNameUpdate(family, enrichment),
   };
-  if (textVec) update.text_vec = FieldValue.vector(textVec);
-  if (moodVec) update.mood_vec = FieldValue.vector(moodVec);
-  if (useCaseVec) update.use_case_vec = FieldValue.vector(useCaseVec);
+  update.text_vec = FieldValue.vector(textVec);
+  update.mood_vec = FieldValue.vector(moodVec);
+  update.use_case_vec = FieldValue.vector(useCaseVec);
   return update;
 }

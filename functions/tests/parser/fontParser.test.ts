@@ -3,41 +3,25 @@ import * as fs from 'fs';
 
 // Mock fontkit to avoid parsing real binaries
 vi.mock('fontkit', () => {
-  return {
-    default: {
-      create: vi.fn(() => ({
-        familyName: 'Mock Family',
-        subfamilyName: 'Regular',
-        postscriptName: 'MockPSName',
-        version: 'Version 1.000',
-        names: {
-          fontFamily: { en: 'Mock Family' },
-          fontSubfamily: { en: 'Regular' },
-          postScriptName: { en: 'MockPSName' },
-          version: { en: 'Version 1.000' },
-          manufacturer: { en: 'Mock Foundry' },
-        },
-        glyphs: { length: 1234 },
-        GPOS: {},
-        GSUB: {},
-      })),
+  const font = {
+    familyName: 'Mock Family',
+    subfamilyName: 'Regular',
+    postscriptName: 'MockPSName',
+    version: 'Version 1.000',
+    names: {
+      fontFamily: { en: 'Mock Family' },
+      fontSubfamily: { en: 'Regular' },
+      postScriptName: { en: 'MockPSName' },
+      version: { en: 'Version 1.000' },
+      manufacturer: { en: 'Mock Foundry' },
     },
-    create: vi.fn(() => ({
-      familyName: 'Mock Family',
-      subfamilyName: 'Regular',
-      postscriptName: 'MockPSName',
-      version: 'Version 1.000',
-      names: {
-        fontFamily: { en: 'Mock Family' },
-        fontSubfamily: { en: 'Regular' },
-        postScriptName: { en: 'MockPSName' },
-        version: { en: 'Version 1.000' },
-        manufacturer: { en: 'Mock Foundry' },
-      },
-      glyphs: { length: 1234 },
-      GPOS: {},
-      GSUB: {},
-    })),
+    glyphs: { length: 1234 },
+    GPOS: {},
+    GSUB: {},
+  };
+  return {
+    default: { create: vi.fn(() => font) },
+    create: vi.fn(() => font),
   };
 });
 
@@ -65,7 +49,6 @@ describe('serverParseFontFile', () => {
   });
 
   it('sets sensible defaults when fields are missing', async () => {
-    // Remock fontkit.create to return minimal shape
     const fontkit = await import('fontkit');
     (fontkit as any).create.mockImplementationOnce(() => ({
       postscriptName: 'MinimalPS',
@@ -78,6 +61,33 @@ describe('serverParseFontFile', () => {
     expect(result.subfamilyName).toBeTruthy();
     expect(result.glyphCount).toBeGreaterThan(0);
   });
+
+  it('extracts typographic family names from fontkit name records', async () => {
+    const fontkit = await import('fontkit');
+    (fontkit as any).create.mockImplementationOnce(() => ({
+      familyName: 'ABC Ginto Nord Black',
+      subfamilyName: 'Regular',
+      postscriptName: 'ABCGintoNord-Black',
+      name: {
+        records: {
+          preferredFamily: { en: 'ABC Ginto Nord' },
+          preferredSubfamily: { en: 'Black' },
+          wwsFamilyName: { en: 'ABC Ginto Nord' },
+          wwsSubfamilyName: { en: 'Regular' },
+          fullName: { en: 'ABC Ginto Nord Black' },
+        },
+      },
+      'OS/2': {
+        usWeightClass: 800,
+      },
+      glyphs: { length: 10 },
+    }));
+
+    const result = await serverParseFontFile(Buffer.from('abc-ginto'), 'ABCGintoNord-Black.otf');
+
+    expect(result.preferredFamily).toBe('ABC Ginto Nord');
+    expect(result.preferredSubfamily).toBe('Black');
+    expect(result.wwsFamilyName).toBe('ABC Ginto Nord');
+    expect(result.weight).toBe(800);
+  });
 });
-
-
