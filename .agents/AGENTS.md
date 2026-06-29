@@ -61,4 +61,6 @@ directory. Read the relevant doc before changing its area.
 - `firebase-admin` is intentionally pinned to 13.x inside `functions/`.
 - The vector index dimension is 1536; if `embedding_dimensions` changes, recreate
   the Firestore vector indexes to match.
-- Existing old-schema fonts still require migration or re-ingest.
+- Existing old-schema fonts should be migrated with the admin workflow in
+  `functions/src/scripts/migrateOldSchemaFonts.ts`; run it in dry-run mode first,
+  then commit for the intended owner/all-owner scope.

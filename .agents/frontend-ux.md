@@ -7,7 +7,8 @@ front-end surface. The existing editorial feel is the fixed point.
 
 | Route | File | Purpose |
 | --- | --- | --- |
-| `/` (logged out) | `components/home/LandingPage.tsx` | Marketing landing: hero wordmark, tagline, live specimen showcase, value props, Google sign-in CTA. No catalogue, no Firestore reads. |
+| `/` (logged out) | `components/home/LandingPage.tsx` | Marketing landing: hero wordmark, tagline, live specimen showcase, value props, email/password sign-in CTA. No catalogue, no Firestore reads. |
+| `/login` | `app/login/page.tsx` | Email/password auth form with sign-in, create-account, and password-reset modes. Redirects signed-in users home. |
 | `/` (logged in) | `app/page.tsx` → `WelcomeState` / `ShelfState` | The shelf/catalogue. `WelcomeState` when empty, `ShelfState` grid otherwise. |
 | `/import` | `app/(main)/import/page.tsx` | Upload journey. Hard auth gate. Consumes pending fonts from `utils/pendingFonts`, posts to `/api/upload`. |
 | `/search` | `app/(main)/search/page.tsx` | Semantic search results. Auth-gated. Reads `?q=` and auto-runs (driven by the nav search field). |
@@ -15,18 +16,19 @@ front-end surface. The existing editorial feel is the fixed point.
 
 ## Auth gate model (catalogue is private)
 
-The catalogue and everything behind it are only shown after Google sign-in.
+The catalogue and everything behind it are only shown after Firebase email/password sign-in.
 
 - `app/page.tsx`: while `authLoading` show spinner; if `!user` return
   `<LandingPage />`; `loadFamilies()` early-returns when `!user` so no Firestore
   read fires logged out.
+- `/login` handles sign-in, account creation, and Firebase password reset email.
 - `/search` and `/family/[familyId]` each render a sign-in prompt (link home)
   when `!user`, and skip their fetches.
 - Public CDN routes (`/s`, `/d`, `/css2`) and `/api/share` stay public on purpose.
 
 ## NavBar (`components/layout/NavBar.tsx`)
 
-- Logged out: brand wordmark + `ThemeSwitcher` + Sign in only.
+- Logged out: brand wordmark + `ThemeSwitcher` + Sign in link to `/login`.
 - Logged in: Shelf + Import links, an **inline search field** (replaced the old
   Search nav link), profile menu, theme switcher.
 - The inline search submits to `/search?q=...`. It syncs its value from the URL
@@ -75,3 +77,7 @@ The catalogue and everything behind it are only shown after Google sign-in.
 - Regenerate Covers (home) → bumps a `coverSeed` threaded into `FamilyCover`,
   re-picking the deterministic cover pattern. Covers are purely client-side
   (deterministic from family name); there is no server-generated cover.
+- Right-click a shelf cover → context menu with Open, Select, and Delete.
+  Select enters shelf selection mode; selected covers can be merged into one
+  canonical family or hard-deleted after confirmation. Merge writes hidden alias
+  docs and shows a short undo toast; delete is permanent.

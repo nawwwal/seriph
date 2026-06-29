@@ -20,6 +20,20 @@ Live endpoints:
 - Font CDN / CSS API: `https://seriph.web.app`
 - Search function: `https://asia-southeast1-seriph.cloudfunctions.net/searchFontsHttp`
 
+## Shelf grouping and destructive family actions (local, 2026-06-30)
+
+- Shelf cards now support a right-click context menu. `Select` enters
+  multi-select mode; selected visible families can be merged or hard-deleted.
+- Merge is exposed as `/api/v1/family-merges` plus
+  `/api/v1/family-merges/{mergeId}/undo`. It verifies owner scope, merges
+  `faces[]`, hides source families as aliases, clears stale enrichment/vector
+  fields, and marks the target `ready` for scheduled enrichment.
+- Hard delete is exposed as `/api/v1/families/bulk-delete`; it requires
+  `confirm: "DELETE"` and removes owned family docs plus referenced original and
+  woff2 assets.
+- AI enrichment now accepts `suggestedDisplayName` and applies it only when a
+  manual merge has `displayNamePending`.
+
 ## What shipped
 
 ### Backend (`functions/src/`)
@@ -164,6 +178,19 @@ currently using code defaults (`seriph-fonts`, `gemini-2.5-flash`,
 - Previously-dead buttons wired (Test in Text, Add Style, Download zip via
   `jszip`, Share, Regenerate Covers).
 
+## Auth provider update (2026-06-29)
+- **Google popup UI replaced with email/password auth.** `components/auth/AuthForm.tsx`
+  backs `/login` with sign-in, create-account, and password-reset modes using
+  Firebase Auth email/password APIs. Logged-out CTAs route to `/login`; the
+  Firebase ID-token contract for API routes, Firestore rules, and Storage rules is
+  unchanged.
+- **Firebase Auth email/password provider enabled** on project `seriph` via
+  `npx -y firebase-tools@latest deploy --only auth --project seriph --non-interactive`.
+- **UID-preserving cutover helper added:** `npm run auth:set-password --prefix
+  functions -- --uid=<existing-uid> --password=<new-password> --dryRun` checks
+  the target, and the same command without `--dryRun` sets a password on the
+  existing Firebase Auth user so owner-scoped font data remains attached.
+
 ## Security hardening + code-health pass (2026-06-28)
 - **Firestore rules**: removed the world-readable `match /{document=**}` catch-all;
   `fontfamilies` reads are now **owner-scoped** (`userOwns(resource.data.ownerId)`),
@@ -189,10 +216,25 @@ currently using code defaults (`seriph-fonts`, `gemini-2.5-flash`,
   remoteConfig threshold helpers, and trimmed `contracts.ts`/`font.models.ts`.
 
 ## Deferred follow-ups (none block launch)
-- **Migration/reprocess** of existing fonts into the new schema (old
-  `batchReprocessFonts` was removed). Existing old-schema fonts won't appear
-  until re-ingested or migrated. **Also re-ingest to correct stale `isVariable`
-  flags from the pre-fix parser.**
+- **Migration/reprocess** of existing fonts into the new schema: admin workflow
+  exists at `functions/src/scripts/migrateOldSchemaFonts.ts` and is exposed as
+  `npm run migrate:old-schema-fonts --prefix functions -- ...`. It scans legacy
+  `users/{uid}/fontfamilies/*` docs, downloads each legacy font
+  `metadata.storagePath`, re-ingests through the current parser/canonical CDN
+  path, fixes stale `isVariable` flags by requiring non-empty axes, maps useful
+  legacy description/tags/use-case metadata into current enrichment, recomputes
+  `searchText`, `searchTokens`, `searchMeta`, `text_vec`, `mood_vec`, and
+  `use_case_vec` unless `--skipVectors` is passed, and stamps the legacy doc with
+  `oldSchemaMigration` so reruns are idempotent unless `--force` is used.
+  Production run shape:
+  `npm run migrate:old-schema-fonts --prefix functions -- --ownerId=<uid> --dryRun --skipVectors`,
+  then
+  `npm run migrate:old-schema-fonts --prefix functions -- --ownerId=<uid>`.
+  For a full production sweep, use explicit `--allOwners` instead of `--ownerId`.
+  Dry-run smoke on 2026-06-29 found
+  `users/j2oQFEPASOWu0YrS4Vw3UV1zDx02/fontfamilies/nunito-sans-12pt-extralight`
+  would migrate to `fontfamilies/nunito-sans-12pt-extralight` with 1 font and 0
+  writes.
 - **Image (multimodal) embeddings** — `image_vec` stubbed; currently text-only.
 - **WOFF1 → woff2** (currently serves original for WOFF1 input).
 - **Per-subset woff2** and **per-weight vectors** (currently full-face + family-level).
