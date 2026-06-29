@@ -17,9 +17,15 @@ interface ShelfStateProps {
   coverSeed?: number;
 }
 
+// Above this many families, per-item layout animations (FLIP tracking on every
+// card) cost more than they're worth — render plain cards so big shelves stay
+// responsive while small libraries keep the springy entrance.
+const LAYOUT_ANIMATION_LIMIT = 60;
+
 export default function ShelfState({ families, pendingIngests, shelfMode, onAddFonts, coverSeed = 0 }: ShelfStateProps) {
   const activeUploads = pendingIngests.filter((ingest) => ingest.status !== 'completed');
   const shouldReduceMotion = useReducedMotion() ?? false;
+  const animateCards = !shouldReduceMotion && families.length <= LAYOUT_ANIMATION_LIMIT;
 
   // Announce status changes for accessibility.
   useEffect(() => {
@@ -39,22 +45,30 @@ export default function ShelfState({ families, pendingIngests, shelfMode, onAddF
         ))}
       </AnimatePresence>
 
-      <AnimatePresence mode="popLayout">
-        {families.map((family) => (
-          <motion.div
-            key={family.id}
-            layout={!shouldReduceMotion}
-            layoutId={shouldReduceMotion ? undefined : `family-${family.id}`}
-            initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.9 }}
-            animate={shouldReduceMotion ? {} : { opacity: 1, scale: 1 }}
-            exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.9 }}
-            transition={shouldReduceMotion ? {} : { type: 'spring', damping: 25, stiffness: 300 }}
-            className="h-full"
-          >
+      {animateCards ? (
+        <AnimatePresence mode="popLayout">
+          {families.map((family) => (
+            <motion.div
+              key={family.id}
+              layout
+              layoutId={`family-${family.id}`}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              className="h-full"
+            >
+              <FamilyCover family={family} mode={shelfMode} coverSeed={coverSeed} />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      ) : (
+        families.map((family) => (
+          <div key={family.id} className="h-full">
             <FamilyCover family={family} mode={shelfMode} coverSeed={coverSeed} />
-          </motion.div>
-        ))}
-      </AnimatePresence>
+          </div>
+        ))
+      )}
 
       <div
         className="relative rule p-4 sm:p-5 md:p-6 rounded-[var(--radius)] flex flex-col justify-between group cursor-pointer"

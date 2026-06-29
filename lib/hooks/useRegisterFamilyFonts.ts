@@ -45,7 +45,33 @@ function buildFontFaceRule(
   }`;
 }
 
-export function useRegisterFamilyFonts(family: FontFamily | null | undefined) {
+/**
+ * Injects `@font-face` rules for a family's faces into the document head.
+ *
+ * `enabled` lets callers defer the work until a card is actually on screen, so a
+ * shelf of hundreds of families doesn't download every font at once. The rules
+ * are removed when disabled or unmounted, keeping the head and the set of active
+ * font downloads bounded as the user scrolls or navigates (the browser HTTP
+ * cache makes re-registration cheap on the way back).
+ *
+ * `representativeOnly` registers a single face (a variable face if present, else
+ * the boldest static one) — enough for a cover's display sample, so a shelf card
+ * pulls one font file instead of the whole family.
+ */
+function pickRepresentativeFace(fonts: FontVariant[]): FontVariant[] {
+  if (fonts.length <= 1) return fonts;
+  const variable = fonts.find((f) => f.isVariable);
+  if (variable) return [variable];
+  const boldest = fonts.reduce((a, b) => ((b.weight || 0) > (a.weight || 0) ? b : a));
+  return [boldest];
+}
+
+export function useRegisterFamilyFonts(
+  family: FontFamily | null | undefined,
+  options?: { enabled?: boolean; representativeOnly?: boolean }
+) {
+  const enabled = options?.enabled ?? true;
+  const representativeOnly = options?.representativeOnly ?? false;
   const styleId = family ? `seriph-fonts-${family.id}` : null;
   const fontFaceRules = useMemo(() => {
     if (!family || !family.fonts || family.fonts.length === 0) return '';
@@ -53,7 +79,8 @@ export function useRegisterFamilyFonts(family: FontFamily | null | undefined) {
     // Build rules for each variant, proxying URLs through our API to avoid CORS
     const rules: string[] = [];
     const seen = new Set<string>();
-    for (const v of family.fonts) {
+    const faces = representativeOnly ? pickRepresentativeFace(family.fonts) : family.fonts;
+    for (const v of faces) {
       // Prefer the stable CDN url (woff2); fall back to the legacy proxy.
       const cdn = (v?.metadata as any)?.cdnUrl as string | undefined;
       const storagePath = v?.metadata?.storagePath || null;
@@ -66,10 +93,10 @@ export function useRegisterFamilyFonts(family: FontFamily | null | undefined) {
     }
 
     return rules.join('\n\n');
-  }, [family]);
+  }, [family, representativeOnly]);
 
   useEffect(() => {
-    if (!styleId || !fontFaceRules) return;
+    if (!styleId || !fontFaceRules || !enabled) return;
 
     let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
     if (!styleEl) {
@@ -77,9 +104,12 @@ export function useRegisterFamilyFonts(family: FontFamily | null | undefined) {
       styleEl.id = styleId;
       document.head.appendChild(styleEl);
     }
-
     styleEl.innerHTML = fontFaceRules;
 
-    // No cleanup to persist loaded fonts; updating is handled by replacing innerHTML
-  }, [styleId, fontFaceRules]);
+    // Drop the rules when this card scrolls away / unmounts so the active set of
+    // font downloads stays bounded. Re-registering on return is cheap (HTTP cache).
+    return () => {
+      document.getElementById(styleId)?.remove();
+    };
+  }, [styleId, fontFaceRules, enabled]);
 }

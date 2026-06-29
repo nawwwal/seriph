@@ -1,5 +1,11 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  getFirestore,
+  type Firestore,
+} from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 // Firebase project configuration using environment variables
@@ -31,7 +37,22 @@ if (!getApps().length) {
   app = getApp();
 }
 
-const db = getFirestore(app);
+// Firestore with an IndexedDB-backed offline cache in the browser: repeat reads
+// (the family list, family-detail revisits) serve instantly from local cache and
+// dedupe network fetches. Falls back to the default in-memory cache on the server
+// or when persistence is unavailable (e.g. private-mode / HMR re-init).
+function createDb(): Firestore {
+  if (typeof window === "undefined") return getFirestore(app);
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    });
+  } catch {
+    return getFirestore(app);
+  }
+}
+
+const db = createDb();
 const storage = getStorage(app);
 
 export { app, db, storage };
