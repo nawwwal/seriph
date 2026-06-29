@@ -5,6 +5,7 @@ import { Timestamp } from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 import type { FontFamily } from '@/models/font.models';
 import { getAllFontFamilies } from '@/lib/db/firestoreUtils';
+import { cacheFamilies } from '@/lib/cache/familyCache';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useUploads } from '@/lib/contexts/UploadContext';
 
@@ -31,7 +32,9 @@ async function loadFamiliesForUser(user: User): Promise<FontFamily[]> {
   if (cached) {
     const { timestamp, data } = JSON.parse(cached);
     if (Date.now() - timestamp < CACHE_TTL_MS && data.length > 0) {
-      return serialize(data);
+      const families = serialize(data);
+      cacheFamilies(families);
+      return families;
     }
   }
 
@@ -47,7 +50,17 @@ async function loadFamiliesForUser(user: User): Promise<FontFamily[]> {
     throw new Error(errorMessage || 'Failed to load font families.');
   }
 
-  if (result.length > 0) localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data: result }));
+  if (result.length > 0) {
+    cacheFamilies(result);
+    // Best-effort persistence: the full catalog can exceed the localStorage quota
+    // at scale, so never let a write failure break loading (Firestore's IndexedDB
+    // cache is the durable cross-reload layer).
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), data: result }));
+    } catch {
+      /* quota exceeded — rely on the Firestore offline cache instead */
+    }
+  }
   return result;
 }
 

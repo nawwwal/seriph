@@ -3,6 +3,7 @@
 import { FontFamily } from '@/models/font.models';
 import Link from 'next/link';
 import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
+import { useInViewport } from '@/lib/hooks/useInViewport';
 
 interface FamilyCoverProps {
   family: FontFamily;
@@ -36,14 +37,17 @@ function getSampleChars(classification: string): string {
 }
 
 export default function FamilyCover({ family, mode, coverSeed = 0 }: FamilyCoverProps) {
-  // Ensure fonts are registered so samples render with the actual family
-  useRegisterFamilyFonts(family);
+  // Only register (download) the family's fonts once the card nears the viewport,
+  // so a shelf of hundreds of families doesn't load every font up front.
+  const { ref, inView } = useInViewport<HTMLAnchorElement>('500px');
+  useRegisterFamilyFonts(family, { enabled: inView, representativeOnly: true });
   const pattern = getFamilyPattern(family.name, coverSeed);
   const sampleChars = getSampleChars(family.classification);
   const isVariable = family.fonts?.some((f) => f.isVariable);
 
   return (
     <Link
+      ref={ref}
       href={`/family/${family.id}`}
       className="relative h-full rule rounded-[var(--radius)] overflow-hidden flex flex-col cursor-pointer transition-transform hover:scale-[1.02]"
       style={{ background: pattern }}
