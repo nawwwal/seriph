@@ -9,6 +9,7 @@ import {
   semanticScoreFromDistance,
 } from "./scoring";
 import { SEARCH_VECTOR_LANES } from "./searchDocument";
+import { canonicalSearchClassification } from "./searchClassification";
 import { matchesSearchFilters } from "./searchFilters";
 import type { SearchRequest, SearchResultItem } from "./searchTypes";
 
@@ -19,11 +20,14 @@ export function toSearchItem(family: FontFamilyDoc, score?: number, scoreBreakdo
     slug: family.slug,
     name: family.name,
     category: family.category,
-    classification: family.enrichment?.classification ?? family.classification,
+    classification: canonicalSearchClassification(family.enrichment?.classification) ?? canonicalSearchClassification(family.classification) ?? family.classification,
     summary: family.enrichment?.summary,
     moods: family.enrichment?.moods,
+    useCases: family.enrichment?.useCases,
     coverUrl: cover?.woff2?.url,
     styleCount: family.faces?.length ?? 0,
+    isVariable: family.faces?.some((face) => face.isVariable) ?? false,
+    updatedAt: typeof family.updatedAt === "string" ? family.updatedAt : "",
     score,
     ...(scoreBreakdown ? { scoreBreakdown } : {}),
   };

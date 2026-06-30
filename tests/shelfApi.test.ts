@@ -66,6 +66,30 @@ describe('family shelf API helpers', () => {
     expect(JSON.stringify(family)).not.toContain('text_vec');
   });
 
+  it('falls back to stored classification before the generic category default', () => {
+    const family = mapCatalogDocToShelfFamily({
+      slug: 'ivar-display',
+      name: 'Ivar Display',
+      classification: 'Serif',
+      faces: [],
+    }, 'ivar-display');
+
+    expect(family.classification).toBe('Serif');
+  });
+
+  it('repairs stale category voice from enrichment classification text', () => {
+    const family = mapCatalogDocToShelfFamily({
+      slug: 'ivar-display',
+      name: 'Ivar Display',
+      category: 'SANS_SERIF',
+      classification: 'Sans Serif',
+      enrichment: { classification: 'high-contrast transitional display serif' },
+      faces: [],
+    }, 'ivar-display');
+
+    expect(family.classification).toBe('Serif');
+  });
+
   it('round-trips stable pagination cursors', () => {
     const cursor = encodeFamilyCursor({ sortValue: 'ABC Ginto Nord', id: 'abc-ginto-nord' });
     expect(decodeFamilyCursor(cursor)).toEqual({
@@ -74,4 +98,5 @@ describe('family shelf API helpers', () => {
     });
     expect(decodeFamilyCursor('not-valid')).toBeNull();
   });
+
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { searchFontsForUser } from '@/lib/search/searchApi';
+import { fetchSearchIndexForUser, searchFontsForUser } from '@/lib/search/searchApi';
 
 describe('searchFontsForUser', () => {
   it('posts the search query with the Firebase bearer token', async () => {
@@ -16,7 +16,25 @@ describe('searchFontsForUser', () => {
       query: 'editorial',
     });
 
-    expect(results).toEqual([{ id: 'serif', name: 'Serif' }]);
+    expect(results).toEqual([{
+      id: 'serif',
+      slug: 'serif',
+      normalizedName: 'serif',
+      name: 'Serif',
+      category: '',
+      classification: 'Sans Serif',
+      summary: undefined,
+      moods: undefined,
+      useCases: undefined,
+      styleCount: 0,
+      isVariable: false,
+      updatedAt: '',
+      coverUrl: undefined,
+      coverFace: undefined,
+      score: undefined,
+      scoreBreakdown: undefined,
+      source: 'semantic',
+    }]);
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer token-123' },
@@ -39,5 +57,52 @@ describe('searchFontsForUser', () => {
         query: 'editorial',
       })
     ).rejects.toThrow('Search failed: 500');
+  });
+
+  it('coarsens semantic classification phrases for filterable voice labels', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { results: [{ id: 'ivar', name: 'Ivar', classification: 'high-contrast transitional display serif' }] } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+
+    const results = await searchFontsForUser({ fetcher: fetchMock, getIdToken: async () => 'token-123', query: 'ivar' });
+
+    expect(results[0]?.classification).toBe('Serif');
+  });
+
+  it('sends structured filters to the semantic search endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: { results: [] } }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    }));
+
+    await searchFontsForUser({
+      fetcher: fetchMock,
+      getIdToken: async () => 'token-123',
+      query: 'warm sans',
+      filters: { classifications: ['Sans Serif'], moods: ['warm'], styleRanges: ['5-8'], variable: 'variable' },
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/search', expect.objectContaining({
+      body: JSON.stringify({ q: 'warm sans', filters: { classifications: ['Sans Serif'], moods: ['warm'], styleRanges: ['5-8'], variable: 'variable' } }),
+    }));
+  });
+
+  it('loads the compact local search index', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { generatedAt: 'now', items: [{ id: 'ivar', slug: 'ivar', name: 'Ivar', searchText: 'ivar editorial serif', searchTokens: ['ivar', 'editorial'] }] } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    );
+
+    const index = await fetchSearchIndexForUser({ fetcher: fetchMock, getIdToken: async () => 'token-123' });
+
+    expect(index.items).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/search-index', {
+      headers: { Authorization: 'Bearer token-123' },
+    });
   });
 });

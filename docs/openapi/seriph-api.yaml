@@ -103,6 +103,19 @@ components:
           type: string
         coverFace:
           $ref: '#/components/schemas/ShelfCoverFace'
+    ShelfStatsSummary:
+      type: object
+      required: [familyCount, styleCount, recentFamilyName, generatedAt]
+      properties:
+        familyCount:
+          type: integer
+        styleCount:
+          type: integer
+        recentFamilyName:
+          type: [string, 'null']
+        generatedAt:
+          type: string
+          format: date-time
     FontFace:
       type: object
       required: [id, filename, subfamily, weight, isVariable]
@@ -157,6 +170,14 @@ components:
               type: boolean
             nextCursor:
               type: [string, 'null']
+            stats:
+              $ref: '#/components/schemas/ShelfStatsSummary'
+    FamilyStatsEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/components/schemas/ShelfStatsSummary'
     FamilyDetailEnvelope:
       type: object
       required: [data]
@@ -369,7 +390,50 @@ components:
         limit:
           type: integer
         filters:
-          type: object
+          $ref: '#/components/schemas/SearchFilters'
+    SearchFilters:
+      type: object
+      properties:
+        classifications:
+          type: array
+          items:
+            type: string
+        moods:
+          type: array
+          items:
+            type: string
+        styleRanges:
+          type: array
+          items:
+            type: string
+            enum: ['1', '2-4', '5-8', '9+']
+        variable:
+          type: string
+          enum: [any, variable, static]
+    SearchResultItem:
+      allOf:
+        - $ref: '#/components/schemas/ShelfFamily'
+        - type: object
+          properties:
+            slug:
+              type: string
+            category:
+              type: string
+            summary:
+              type: string
+            moods:
+              type: array
+              items:
+                type: string
+            useCases:
+              type: array
+              items:
+                type: string
+            score:
+              type: number
+            source:
+              type: string
+              enum: [local, semantic]
     SearchResponse:
       type: object
       required: [results]
@@ -377,13 +441,58 @@ components:
         results:
           type: array
           items:
-            type: object
+            $ref: '#/components/schemas/SearchResultItem'
     SearchEnvelope:
       type: object
       required: [data]
       properties:
         data:
           $ref: '#/components/schemas/SearchResponse'
+    SearchIndexItem:
+      allOf:
+        - $ref: '#/components/schemas/ShelfFamily'
+        - type: object
+          required: [slug, category, searchText, searchTokens]
+          properties:
+            slug:
+              type: string
+            category:
+              type: string
+            summary:
+              type: string
+            moods:
+              type: array
+              items:
+                type: string
+            useCases:
+              type: array
+              items:
+                type: string
+            searchText:
+              type: string
+            searchPrimaryText:
+              type: string
+            searchSecondaryText:
+              type: string
+            searchTokens:
+              type: array
+              items:
+                type: string
+    SearchIndexEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [items, generatedAt]
+          properties:
+            generatedAt:
+              type: string
+              format: date-time
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/SearchIndexItem'
     ShareRequest:
       type: object
       properties:
@@ -419,6 +528,12 @@ paths:
           in: query
           schema:
             type: string
+        - name: stats
+          in: query
+          description: Include the cached shelf summary on the first page.
+          schema:
+            type: integer
+            enum: [1]
       responses:
         '200':
           description: Paginated family summaries
@@ -426,6 +541,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FamilyListEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/families/stats:
+    get:
+      summary: Get stable shelf aggregate counts
+      responses:
+        '200':
+          description: Shelf aggregate summary independent of pagination
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyStatsEnvelope'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '500':
@@ -610,6 +739,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/search-index:
+    get:
+      summary: Get compact owner-scoped search index for instant local search
+      responses:
+        '200':
+          description: Search index
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchIndexEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/uploads/registrations:

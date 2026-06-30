@@ -1,4 +1,5 @@
 import type { Classification } from '@/models/font.models';
+import { canonicalSearchClassification } from '@/lib/search/searchClassification';
 import type { FamilyCursor, ShelfCoverFace, ShelfFamily } from '@/models/shelf.models';
 
 const CATEGORY_TO_CLASS: Record<string, Classification> = {
@@ -53,13 +54,15 @@ export function mapCatalogDocToShelfFamily(data: Record<string, unknown>, id: st
   const coverFaceId = typeof data.coverFaceId === 'string' ? data.coverFaceId : null;
   const coverFace = faces.find((face) => face.id === coverFaceId) ?? faces[0] ?? null;
   const category = typeof data.category === 'string' ? data.category : '';
+  const enrichment = isObject(data.enrichment) ? data.enrichment : {};
+  const styleCount = typeof data.styleCount === 'number' ? data.styleCount : faces.length;
 
   return {
     id: typeof data.slug === 'string' ? data.slug : id,
     name: typeof data.name === 'string' ? data.name : id,
     normalizedName: typeof data.slug === 'string' ? data.slug : id,
-    classification: CATEGORY_TO_CLASS[category] ?? 'Sans Serif',
-    styleCount: faces.length,
+    classification: canonicalSearchClassification(enrichment.classification) ?? canonicalSearchClassification(data.classification) ?? CATEGORY_TO_CLASS[category] ?? 'Sans Serif',
+    styleCount,
     isVariable: faces.some((face) => Boolean(face.isVariable)),
     updatedAt: toIso(data.updatedAt),
     coverFace: mapCoverFace(coverFace),

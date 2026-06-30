@@ -56,4 +56,23 @@ describe("searchFonts", () => {
 
     expect(response.results.map((result) => result.id)).toEqual(["editorial-grotesk", "warm-sans"]);
   });
+
+  it("coarsens enrichment classification phrases for result labels and filters", async () => {
+    const { toSearchItem } = await import("../../src/search/searchResults");
+    const { matchesSearchFilters } = await import("../../src/search/searchFilters");
+    const family = {
+      id: "ivar-display",
+      slug: "ivar-display",
+      name: "Ivar Display",
+      category: "SANS_SERIF",
+      classification: "Sans Serif",
+      faces: [],
+      status: "enriched",
+      version: 1,
+      enrichment: { classification: "high-contrast transitional display serif" },
+    };
+
+    expect(toSearchItem(family).classification).toBe("Serif");
+    expect(matchesSearchFilters(family, { filters: { classifications: ["Serif"] } })).toBe(true);
+  });
 });
