@@ -11,7 +11,11 @@ function cacheKey(uid: string, familyId: string): string {
 }
 
 export function cacheFamily(uid: string, family: FontFamily): void {
-  familiesById.set(cacheKey(uid, family.id), family);
+  cacheFamilyById(uid, family.id, family);
+}
+
+export function cacheFamilyById(uid: string, familyId: string, family: FontFamily): void {
+  familiesById.set(cacheKey(uid, familyId), family);
 }
 
 export function getCachedFamily(uid: string | undefined, id: string | undefined): FontFamily | undefined {
