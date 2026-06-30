@@ -20,6 +20,13 @@ export interface ShelfFamily {
   coverFace?: ShelfCoverFace;
 }
 
+export interface ShelfStatsSummary {
+  familyCount: number;
+  styleCount: number;
+  recentFamilyName: string | null;
+  generatedAt: string;
+}
+
 export interface FamilyCursor {
   sortValue: string;
   id: string;
@@ -29,4 +36,5 @@ export interface PaginatedFamiliesResponse {
   families: ShelfFamily[];
   nextCursor: string | null;
   hasMore: boolean;
+  stats?: ShelfStatsSummary;
 }

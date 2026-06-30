@@ -15,6 +15,7 @@ export interface FontFamilyDoc {
   subsets?: string[];
   axes?: CanonicalAxis[];
   faces: FontFace[];
+  styleCount?: number;
   coverFaceId?: string;
   enrichment?: FontEnrichment;
   ownerId?: string;

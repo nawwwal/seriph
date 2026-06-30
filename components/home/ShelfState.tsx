@@ -9,9 +9,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { useInViewport } from '@/lib/hooks/useInViewport';
 import type { ShelfSelectionState } from '@/lib/shelf/selectionState';
 import FamilyContextMenu from './FamilyContextMenu';
-import ShelfFamilyGrid from './ShelfFamilyGrid';
+import ShelfFamilySections from './ShelfFamilySections';
 import { useShelfUploadAnnouncements } from './useShelfUploadAnnouncements';
 import AddFontsCard from './AddFontsCard';
+import { ShelfCardSkeletonGrid } from './ShelfSkeleton';
+import { LOAD_MORE_SKELETON_COUNT, SHELF_GRID_CLASS } from './shelfGrid';
+
+const PREFETCH_ROOT_MARGIN = '2800px 0px';
 
 interface ShelfStateProps {
   families: Array<FontFamily | ShelfFamily>;
@@ -46,7 +50,7 @@ export default function ShelfState({
 }: ShelfStateProps) {
   const activeUploads = useShelfUploadAnnouncements(pendingIngests);
   const shouldReduceMotion = useReducedMotion() ?? false;
-  const { ref: sentinelRef, inView } = useInViewport<HTMLDivElement>('900px');
+  const { ref: sentinelRef, inView } = useInViewport<HTMLDivElement>(PREFETCH_ROOT_MARGIN);
   const [contextMenu, setContextMenu] = useState<{ familyId: string; x: number; y: number } | null>(null);
   const openContextMenu = useCallback((event: { familyId: string; x: number; y: number }) => {
     setContextMenu(event);
@@ -57,14 +61,18 @@ export default function ShelfState({
   }, [hasMore, inView, isLoadingMore, onLoadMore]);
 
   return (
-    <main className="mt-6 sm:mt-8 md:mt-10 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 grid-poster-gap auto-rows-fr">
-      <AnimatePresence mode="popLayout">
-        {activeUploads.map((ingest) => (
-          <ShelfUploadCard key={`ingest-${ingest.id}`} ingest={ingest} reduceMotion={shouldReduceMotion} />
-        ))}
-      </AnimatePresence>
+    <main className="mt-6 sm:mt-8 md:mt-10 space-y-8">
+      {activeUploads.length > 0 && (
+        <div className={SHELF_GRID_CLASS}>
+          <AnimatePresence mode="popLayout">
+            {activeUploads.map((ingest) => (
+              <ShelfUploadCard key={`ingest-${ingest.id}`} ingest={ingest} reduceMotion={shouldReduceMotion} />
+            ))}
+          </AnimatePresence>
+        </div>
+      )}
 
-      <ShelfFamilyGrid
+      <ShelfFamilySections
         families={families}
         shelfMode={shelfMode}
         coverSeed={coverSeed}
@@ -74,12 +82,11 @@ export default function ShelfState({
         onOpenContextMenu={openContextMenu}
       />
 
-      <AddFontsCard onAddFonts={onAddFonts} />
-      {(hasMore || isLoadingMore) && (
-        <div ref={sentinelRef} className="col-span-full h-16 flex items-center justify-center uppercase text-xs font-bold opacity-70">
-          {isLoadingMore ? 'Loading more families...' : 'More families ready'}
-        </div>
-      )}
+      <div className={SHELF_GRID_CLASS}>
+        <AddFontsCard onAddFonts={onAddFonts} />
+      </div>
+      {hasMore && <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />}
+      {(hasMore || isLoadingMore) && <ShelfCardSkeletonGrid count={LOAD_MORE_SKELETON_COUNT} />}
       {contextMenu && (
         <FamilyContextMenu
           familyId={contextMenu.familyId}

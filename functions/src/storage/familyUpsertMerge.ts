@@ -23,6 +23,7 @@ export function newFamilyDoc(input: UpsertFaceInput, docId: string, now: FieldVa
     subsets: input.subsets,
     axes: input.familyAxes,
     faces: [input.face],
+    styleCount: 1,
     coverFaceId: input.face.id,
     ownerId: input.ownerId,
     status: "ready",
@@ -47,6 +48,7 @@ export function mergeFaceIntoFamily(existing: FontFamilyDoc, input: UpsertFaceIn
     subsets: input.subsets ?? existing.subsets,
     axes: mergeAxes(existing.axes, input.familyAxes),
     faces,
+    styleCount: faces.length,
     coverFaceId: existing.coverFaceId && existing.faces?.some((face) => face.id === existing.coverFaceId && isCoverFace(face))
       ? existing.coverFaceId
       : (faces.find(isCoverFace)?.id ?? faces[0]?.id ?? input.face.id),

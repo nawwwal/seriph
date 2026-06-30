@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
       uid,
       limitParam: request.nextUrl.searchParams.get('limit'),
       cursorParam: request.nextUrl.searchParams.get('cursor'),
+      includeStats: request.nextUrl.searchParams.get('stats') === '1',
     });
     return ok(data);
   } catch (error) {

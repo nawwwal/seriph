@@ -1,4 +1,6 @@
 import type { PaginatedFamiliesResponse, ShelfFamily } from '@/models/shelf.models';
+import { parseShelfFamilyPage, parseShelfStats } from '@/lib/shelf/familyPageParsing';
+export { parseShelfFamilyPage, parseShelfStats } from '@/lib/shelf/familyPageParsing';
 
 const CACHE_KEY = 'seriphShelfFamilies_v1';
 const CACHE_TTL_MS = 60 * 60 * 1000;
@@ -10,28 +12,6 @@ function cacheKey(uid: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object';
-}
-
-function isShelfFamily(value: unknown): value is ShelfFamily {
-  return isRecord(value)
-    && typeof value.id === 'string'
-    && typeof value.name === 'string'
-    && typeof value.normalizedName === 'string'
-    && typeof value.classification === 'string'
-    && typeof value.styleCount === 'number'
-    && typeof value.isVariable === 'boolean'
-    && typeof value.updatedAt === 'string';
-}
-
-export function parseShelfFamilyPage(value: unknown): PaginatedFamiliesResponse | null {
-  if (!isRecord(value)) return null;
-  const page = value;
-  if (!Array.isArray(page.families) || !page.families.every(isShelfFamily)) return null;
-  return {
-    families: page.families,
-    nextCursor: typeof page.nextCursor === 'string' ? page.nextCursor : null,
-    hasMore: page.hasMore === true,
-  };
 }
 
 export function readShelfFamilyCache(uid: string): PaginatedFamiliesResponse | null {
@@ -54,6 +34,39 @@ export function writeShelfFamilyCache(uid: string, data: PaginatedFamiliesRespon
   } catch {
     /* localStorage quota can be exhausted; the network path remains canonical. */
   }
+}
+
+export function appendShelfFamilyPage(
+  current: PaginatedFamiliesResponse,
+  page: PaginatedFamiliesResponse
+): PaginatedFamiliesResponse {
+  const seen = new Set<string>();
+  const families: ShelfFamily[] = [];
+  for (const family of [...current.families, ...page.families]) {
+    if (seen.has(family.id)) continue;
+    seen.add(family.id);
+    families.push(family);
+  }
+  return {
+    families,
+    nextCursor: page.nextCursor,
+    hasMore: page.hasMore,
+    ...(current.stats ?? page.stats ? { stats: current.stats ?? page.stats } : {}),
+  };
+}
+
+export function mergeShelfRefreshPage(
+  cached: PaginatedFamiliesResponse | null,
+  page: PaginatedFamiliesResponse
+): PaginatedFamiliesResponse {
+  if (!cached || cached.families.length <= page.families.length) return page;
+  const seen = new Set(page.families.map((family) => family.id));
+  return {
+    families: [...page.families, ...cached.families.filter((family) => !seen.has(family.id))],
+    nextCursor: cached.nextCursor,
+    hasMore: cached.hasMore,
+    ...(cached.stats ?? page.stats ? { stats: cached.stats ?? page.stats } : {}),
+  };
 }
 
 export function clearShelfFamilyCache(uid: string): void {

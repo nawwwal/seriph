@@ -30,7 +30,7 @@ function FamilyCard({
   const isSelectionMode = selectionState.mode === 'selecting';
   const selectedIds = isSelectionMode ? selectionState.selectedFamilyIds : [];
   return (
-    <div className={className}>
+    <div className={className} data-shelf-family-id={family.id}>
       <FamilyCover
         family={family}
         mode={props.shelfMode}

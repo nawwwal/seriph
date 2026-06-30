@@ -4,6 +4,7 @@ import { getUidFromRequest } from '@/lib/server/auth';
 import { readJsonObject } from '@/lib/server/apiRequest';
 import { fail, ok, unauthorized } from '@/lib/server/apiResponse';
 import { getOwnedFamily, patchOwnedFamily } from '@/lib/server/catalogFamilies';
+import { clearShelfStatsCache } from '@/lib/server/catalogFamilyStats';
 
 export const runtime = 'nodejs';
 
@@ -43,6 +44,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       payload: body.value,
     });
     if (!family) return fail('not_found', 'Family not found', 404);
+    clearShelfStatsCache(uid);
     return ok({ family });
   } catch (error) {
     console.error(`PATCH /api/v1/families/${familyId} failed`, error);
