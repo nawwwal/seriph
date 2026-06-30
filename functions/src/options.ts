@@ -31,9 +31,9 @@ export const BATCH_POLL_OPTIONS = {
 export const SEARCH_FUNCTION_OPTIONS = {
   region: "asia-southeast1",
   cors: true,
-  memory: "512MiB" as const,
+  memory: "1GiB" as const,
   timeoutSeconds: 90,
-  concurrency: 2,
+  concurrency: 1,
   maxInstances: 4,
 };
 
