@@ -30,6 +30,7 @@ npm run dev          # start Next.js (http://localhost:3000)
 
 ### Quality Gates
 ```bash
+npm run lint:lines     # fail if any code file exceeds 100 non-empty source lines
 npm run lint:web         # ESLint over the web app (Next + TypeScript rules)
 npm run lint:functions   # Delegate linting to the Firebase Functions package
 npm run typecheck        # Strict TypeScript check (no emit)
@@ -37,7 +38,8 @@ npm test                 # Vitest unit tests
 npm run build            # Production Next.js build
 ```
 
-The `lint` script runs both lint jobs to mirror CI behaviour.
+The `lint` script runs the line-count, web, and Functions lint jobs to mirror CI
+behaviour. Split large files by responsibility instead of bypassing the limit.
 
 ### Firebase Functions
 Functions live in the `functions/` directory with their own TypeScript configuration and npm project. To work on functions:

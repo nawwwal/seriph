@@ -49,8 +49,32 @@ directory. Read the relevant doc before changing its area.
 5. Use Plane as the canonical execution roadmap when configured; use this
    `.agents/` directory for product, architecture, and operational context.
 
+## Code Organization Rules
+
+- `npm run lint:lines` enforces a hard limit of **100 non-empty source lines per
+  code file** across TS/TSX/JS/JSX/MJS/CJS/CSS, excluding generated/vendor output.
+  `npm run lint` runs this before web and Functions lint.
+- Treat the 100-line limit as modularity pressure, not code golf. Split by real
+  responsibility: route handlers into auth/parsing/storage helpers, components
+  into controller/state/presentation pieces, hooks into state/request/cache
+  helpers, tests by behavior family, and CSS by utility family.
+- Reuse existing helpers and contracts before creating parallel implementations.
+  Seriph code should feel like a kit of small parts that can be recombined.
+- Prefer domain-oriented modules with explicit entry points over generic dumping
+  grounds. A module should answer "what domain role does this serve?"
+- Use object-oriented TypeScript when it clarifies a real domain object with
+  identity, lifecycle, or invariants. Otherwise prefer typed functions, plain
+  objects, and interfaces. Avoid static-class namespaces; top-level functions or
+  regular objects are usually clearer in TypeScript.
+- External references checked for this policy: Google Engineering Practices on
+  [small CLs](https://google.github.io/eng-practices/review/developer/small-cls.html),
+  Next.js [project organization](https://nextjs.org/docs/app/getting-started/project-structure),
+  Uber's [domain-oriented architecture](https://www.uber.com/en-IN/blog/microservice-architecture/),
+  and the TypeScript Handbook on [classes](https://www.typescriptlang.org/docs/handbook/2/classes.html).
+
 ## Quality Gates
 
+- Shared: `npm run lint:lines`
 - Web: `npm run typecheck`, `npm run lint:web`, `npm test`, `npm run build`
 - Functions: `npm run build --prefix functions`, `npm run lint:functions`,
   `npm test --prefix functions`
