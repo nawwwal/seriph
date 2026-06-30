@@ -186,6 +186,19 @@ Live endpoints:
   produced max paint delay about 27 ms, average about 20 ms, and 0 long tasks;
   typing `ivar` in nav preview kept the URL unchanged until Enter, produced max
   paint delay about 3 ms, and rendered suggestion names in their own font faces.
+- Production incident RCA on 2026-07-01: after the search workspace reached
+  production, `searchFontsHttp` repeatedly exceeded the default 256 MiB Gen2
+  memory limit under multi-lane semantic requests, terminating the instance and
+  surfacing `Search failed` on `/search`. Fix commits `25bf90c` and `a7e09a7`
+  set the search function to 512 MiB / 90s / concurrency 2 / maxInstances 4,
+  made semantic refinement failures non-blocking when the local index can render,
+  and added a compact local mood bridge so natural queries such as `happy`
+  produce instant local candidates while semantic ranking refines. Production
+  verification: Firebase lists `searchFontsHttp` at 512 MiB, Vercel deployment
+  `dpl_GynmwXqQBtdxp5wnHcPcTKw2SEuG` is Ready on `https://seriph.naw.al`, live
+  `happy` search rendered 24 local cards with no `Search failed`, and post-deploy
+  function logs showed successful `search complete` entries rather than memory
+  kills.
 - Hover-state standardization on 2026-07-01: style cards, `FamilyCover` catalog
   cards, search result cards, and the Drop Fonts catalog tile now use the shared
   `.seriph-card-hover` utility. The canonical hover is the screenshot-approved

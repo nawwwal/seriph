@@ -56,6 +56,11 @@ The UI search contract is split into separate lanes:
 4. **Responsiveness budget** — keystrokes are urgent UI work. Ranking, semantic
    fetches, and result-grid rendering must be deferred, debounced, cached, or
    precomputed so typing does not create long tasks.
+5. **Availability boundary** — the local compact index owns the first usable
+   result render. Semantic search is a refinement lane; its errors must not
+   blank the page when local results can render. The search Cloud Function must
+   declare explicit memory, timeout, concurrency, and max-instance limits rather
+   than relying on the default 256 MiB container.
 
 Do not "fix" search latency by weakening relevance. Serious search systems use
 write-time indexes, typeahead indexes, retrieval fan-out, ranking/fusion, facets,
