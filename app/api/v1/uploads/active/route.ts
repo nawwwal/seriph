@@ -2,8 +2,7 @@ import { NextRequest } from 'next/server';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { getUidFromRequest } from '@/lib/server/auth';
 import {
-  ACTIVE_ANALYSIS_STATES,
-  ACTIVE_UPLOAD_QUERY_LIMIT,
+  queryActiveIngestRows,
   selectActiveIngests,
 } from '@/lib/server/activeUploads';
 import { fail, ok, unauthorized } from '@/lib/server/apiResponse';
@@ -15,15 +14,8 @@ export async function GET(request: NextRequest) {
   if (!uid) return unauthorized();
 
   try {
-    const snap = await getAdminDb()
-      .collection('users')
-      .doc(uid)
-      .collection('ingests')
-      .where('analysisState', 'in', ACTIVE_ANALYSIS_STATES)
-      .orderBy('updatedAt', 'desc')
-      .limit(ACTIVE_UPLOAD_QUERY_LIMIT)
-      .get();
-    const ingests = selectActiveIngests(snap.docs, uid);
+    const rows = await queryActiveIngestRows(getAdminDb().collection('users').doc(uid).collection('ingests'));
+    const ingests = selectActiveIngests(rows, uid);
     return ok({ ingests });
   } catch (error) {
     console.error('GET /api/v1/uploads/active failed', error);

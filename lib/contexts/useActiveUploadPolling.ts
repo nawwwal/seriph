@@ -11,6 +11,44 @@ interface UseActiveUploadPollingInput {
   onCompleted: () => void;
 }
 
+type ActiveUploadResponse =
+  | { kind: 'available'; ingests: IngestRecord[] }
+  | { kind: 'unavailable' };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
+}
+
+function isIngestRecord(value: unknown): value is IngestRecord {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === 'string' &&
+    typeof value.ingestId === 'string' &&
+    typeof value.ownerId === 'string' &&
+    typeof value.originalName === 'string' &&
+    typeof value.status === 'string'
+  );
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  const contentType = response.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) return null;
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function readActiveUploadResponse(response: Response): Promise<ActiveUploadResponse> {
+  const json = await readJson(response);
+  if (!response.ok) return { kind: 'unavailable' };
+  if (!isRecord(json) || !isRecord(json.data) || !Array.isArray(json.data.ingests)) {
+    return { kind: 'available', ingests: [] };
+  }
+  return { kind: 'available', ingests: json.data.ingests.filter(isIngestRecord) };
+}
+
 export function useActiveUploadPolling({
   user,
   isAuthLoading,
@@ -43,16 +81,18 @@ export function useActiveUploadPolling({
         const response = await fetch('/api/v1/uploads/active', {
           headers: { Authorization: `Bearer ${token}` },
         });
-        const json = await response.json();
-        if (!response.ok) throw new Error(json?.error?.message || `Upload status failed: ${response.status}`);
-        const visible = Array.isArray(json?.data?.ingests) ? json.data.ingests : [];
+        const result = await readActiveUploadResponse(response);
+        if (result.kind === 'unavailable') {
+          scheduleNextRefresh(previousActiveCount.current > 0 || hasClientUploads);
+          return;
+        }
+        const visible = result.ingests;
         if (cancelled) return;
         setIngests(visible);
         if (previousActiveCount.current > 0 && visible.length === 0) onCompleted();
         previousActiveCount.current = visible.length;
         scheduleNextRefresh(visible.length > 0 || hasClientUploads);
-      } catch (err) {
-        if (!cancelled) console.error('Upload status refresh error', err);
+      } catch {
         scheduleNextRefresh(previousActiveCount.current > 0 || hasClientUploads);
       }
     };

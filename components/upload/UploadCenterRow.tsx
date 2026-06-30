@@ -18,8 +18,8 @@ export default function UploadCenterRow({ ing, status }: { ing: IngestRecord; st
           {status.displayText}
         </span>
       </div>
-      <div className="mt-2 h-1.5 w-full bg-[var(--muted)] rounded-full overflow-hidden">
-        <div className="h-full bg-[var(--accent)] transition-all" style={{ width: `${status.percent}%` }} />
+      <div className="mt-2 h-1.5 w-full bg-[var(--control-track)] rounded-full overflow-hidden">
+        <div className="h-full bg-[var(--ink)] transition-all" style={{ width: `${status.percent}%` }} />
       </div>
       {ing.error && <div className="mt-1 text-xs text-[var(--danger)] truncate">{ing.error}</div>}
     </div>

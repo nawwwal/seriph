@@ -47,4 +47,5 @@ describe('active upload selection', () => {
 
     expect(selectActiveIngests(rows, 'user-1')).toHaveLength(ACTIVE_UPLOAD_LIMIT);
   });
+
 });
