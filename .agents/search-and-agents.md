@@ -36,6 +36,31 @@ Real queries mix intent. The retrieval flow:
 Weight image-embedding vs text-embedding similarity independently; "looks like"
 leans on the image vector, "feels like / for X use-case" leans on the text vector.
 
+## Interactive search architecture
+
+The UI search contract is split into separate lanes:
+
+1. **Typeahead / preview** — the top nav search is an ephemeral preview surface.
+   It uses the cached compact owner index, prepared normalized tokens, and live
+   font-name previews. It must not continuously drive the full `/search` route.
+   Enter or the commit row routes to the full workspace.
+2. **Committed workspace** — `/search` owns committed query and filter state.
+   Its URL carries `q`, `classification`, `mood`, `styles`, and `variable`
+   params. The page can search by text, browse with filters, and show semantic
+   refinement status.
+3. **Retrieval lanes** — local lexical/fuzzy matching gives instant feedback;
+   the Cloud Function runs hybrid text/mood/use-case/exact-token retrieval and
+   returns richer semantic candidates. Client filtering is defense in depth; the
+   backend filter contract also accepts classification, mood, style-range, and
+   variable/static facets.
+4. **Responsiveness budget** — keystrokes are urgent UI work. Ranking, semantic
+   fetches, and result-grid rendering must be deferred, debounced, cached, or
+   precomputed so typing does not create long tasks.
+
+Do not "fix" search latency by weakening relevance. Serious search systems use
+write-time indexes, typeahead indexes, retrieval fan-out, ranking/fusion, facets,
+and UI scheduling as separate responsibilities.
+
 ## RAG, where it helps
 
 Pure retrieval answers "which fonts." RAG answers "which fonts *and why, and what
