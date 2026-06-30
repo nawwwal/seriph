@@ -24,6 +24,14 @@ export interface PreparedSearchItem {
 }
 
 const itemCache = new WeakMap<SearchIndexItem, PreparedSearchItem>();
+const queryTokenExpansions: Record<string, string[]> = {
+  happy: ['playful', 'friendly', 'warm'],
+  cheerful: ['playful', 'friendly', 'bright'],
+  joyful: ['playful', 'friendly', 'bright'],
+  fun: ['playful', 'friendly', 'expressive'],
+  luxurious: ['elegant', 'sophisticated', 'refined', 'luxury'],
+  luxury: ['elegant', 'sophisticated', 'refined', 'luxurious'],
+};
 
 function normalizedTokenList(tokens: string[]): string[] {
   return uniqueSearchTokens(tokens.join(' '));
@@ -43,10 +51,14 @@ function tokenGramMap(tokens: string[]): Map<string, Set<string>> {
   return grams;
 }
 
+function expandedQueryTokens(tokens: string[]): string[] {
+  return [...new Set(tokens.flatMap((token) => [token, ...(queryTokenExpansions[token] ?? [])]))];
+}
+
 export function prepareSearchQuery(query: string): PreparedSearchQuery | null {
   const text = normalizeSearchInput(query);
   if (!text) return null;
-  const tokens = uniqueSearchTokens(text);
+  const tokens = expandedQueryTokens(uniqueSearchTokens(text));
   return { text, tokens, grams: searchTrigrams(text), tokenGrams: tokenGramMap(tokens) };
 }
 

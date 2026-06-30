@@ -24,6 +24,14 @@ describe('rankLocalSearch', () => {
 
     expect(results[0]?.id).toBe('ivar');
   });
+
+  it('expands common feeling words into indexed mood matches', () => {
+    const results = rankLocalSearch([
+      { id: 'play', slug: 'play', normalizedName: 'play', name: 'Play Sans', category: 'SANS_SERIF', classification: 'Sans Serif', styleCount: 1, isVariable: false, updatedAt: '', moods: ['playful', 'friendly'], searchText: 'play sans playful friendly', searchTokens: ['play', 'sans', 'playful', 'friendly'] },
+    ], 'happy');
+
+    expect(results[0]?.id).toBe('play');
+  });
 });
 
 describe('search filters and facets', () => {
