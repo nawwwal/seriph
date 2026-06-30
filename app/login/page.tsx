@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AuthForm from '@/components/auth/AuthForm';
 import NavBar from '@/components/layout/NavBar';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import LoadingSplash from '@/components/ui/LoadingSplash';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
 export default function LoginPage() {
@@ -20,7 +20,7 @@ export default function LoginPage() {
       <div className="w-screen min-h-screen flex flex-col">
         <NavBar />
         <main className="flex-1 flex items-center justify-center p-8">
-          <LoadingSpinner text="Loading Seriph..." size="large" />
+          <LoadingSplash text="Loading Seriph..." />
         </main>
       </div>
     );

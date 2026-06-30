@@ -1,0 +1,58 @@
+.loading-splash {
+  align-items: center;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 10rem;
+}
+
+.splash-wordmark {
+  --splash-wave-duration: 1350ms;
+  --splash-wave-ease: cubic-bezier(0.645, 0.045, 0.355, 1);
+  --splash-wave-rise: -0.34em;
+  --splash-wave-stagger: 82ms;
+
+  color: var(--ink);
+  display: inline-flex;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+
+.splash-wordmark-letter {
+  animation: splash-letter-wave var(--splash-wave-duration) var(--splash-wave-ease) infinite;
+  animation-delay: calc(var(--wave-index) * var(--splash-wave-stagger));
+  display: inline-block;
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+@keyframes splash-letter-wave {
+  0%,
+  12%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  24% {
+    transform: translate3d(0, var(--splash-wave-rise), 0);
+  }
+
+  38% {
+    transform: translate3d(0, 0.045em, 0);
+  }
+
+  52% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-wordmark-letter {
+    animation: none;
+    transform: translate3d(0, 0, 0);
+    will-change: auto;
+  }
+}

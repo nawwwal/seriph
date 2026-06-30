@@ -1,7 +1,7 @@
 'use client';
 
 import CenteredShell from '@/components/layout/CenteredShell';
-import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import LoadingSplash from '@/components/ui/LoadingSplash';
 import LandingPage from '@/components/home/LandingPage';
 import HomePageContent from '@/components/home/HomePageContent';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -11,7 +11,7 @@ export default function HomePage() {
   if (authLoading) {
     return (
       <CenteredShell>
-        <LoadingSpinner text="Loading Seriph..." size="large" />
+        <LoadingSplash text="Loading Seriph..." />
       </CenteredShell>
     );
   }
