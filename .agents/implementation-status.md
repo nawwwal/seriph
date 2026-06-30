@@ -2,7 +2,7 @@
 
 > Living record of what's actually built vs. the target in
 > [architecture.md](./architecture.md) / [models-and-stack.md](./models-and-stack.md).
-> Last updated: 2026-06-28. Update this whenever the build state changes.
+> Last updated: 2026-07-01. Update this whenever the build state changes.
 
 ## Status at a glance
 
@@ -19,6 +19,197 @@ Live endpoints:
 - App: `https://seriph.naw.al`
 - Font CDN / CSS API: `https://seriph.web.app`
 - Search function: `https://asia-southeast1-seriph.cloudfunctions.net/searchFontsHttp`
+
+## Code modularity lint (local, 2026-07-01)
+
+- Root `package.json` now has `npm run lint:lines`, and `npm run lint` runs it
+  before web and Functions lint. The checker fails any TS/TSX/JS/JSX/MJS/CJS/CSS
+  source file over 100 non-empty lines, excluding generated/vendor output.
+- Existing over-limit files were split by responsibility: shelf rendering,
+  infinite-family loading, shelf page parsing/cache helpers, family merge face
+  merging, Remote Config setup data/template helpers, CSS utility families, and
+  behavior-specific tests.
+- The durable engineering rule is not "make files short at all costs"; it is
+  "prefer small, reusable modules with explicit domain roles." Use TypeScript
+  classes only when a real object has identity/lifecycle/invariants; otherwise
+  prefer typed functions, objects, and interfaces.
+
+## Base UI primitive boundary (local, 2026-07-01)
+
+- Base UI is now the behavior substrate for the main shared controls while
+  Seriph's class/token contract remains the visual source of truth. Added
+  `components/ui/TextInput.tsx` and `components/ui/textInputStyles.ts` around
+  Base UI Input, migrated search/auth/confirmation text fields, moved
+  `components/ui/Modal.tsx` to Base UI Dialog, moved destructive family delete
+  confirmation to Base UI AlertDialog, moved `ThemeSwitcher.tsx` to Base UI
+  Select, and moved `ProfileMenu.tsx` to Base UI Menu.
+- Native/browser-owned controls remain intentional until a bespoke Seriph
+  wrapper can preserve appearance: Type Tester selects, range sliders,
+  checkbox filters, hidden file inputs, and the coordinate shelf context menu.
+- Verification passed locally: focused primitive style tests, root typecheck,
+  web lint, full Vitest suite, production build, `git diff --check`, and
+  in-app browser verification of the theme Select popup/value restore on
+  `http://localhost:3000`.
+
+## Flicker/stable navigation pass (local, 2026-07-01)
+
+- Root cause for the shelf/search → family flicker: cold family detail routes
+  replaced the whole route with `FontDetailLoader`, including a skeleton nav, so
+  Shelf/search/uploads/profile/theme chrome disappeared until full family data
+  arrived. The loader is now body-only and `/family/[familyId]` keeps the real
+  `NavBar` mounted through loading/error/auth shells.
+- Family card and nav-suggestion intent prefetch now warms the same deduped
+  `loadFamilyDetail()` cache that the detail hook reads. Returned details are
+  cached under both the requested route id and canonical family id to avoid
+  slug/doc-id cache misses.
+- Theme flicker root causes: the pre-hydration script read only the legacy
+  `theme` key, while the provider persists `seriph-theme:v1`; and hover preview
+  repainted the Base UI popup with the previewed page theme. The startup script
+  now reads `seriph-theme:v1` first, and the popup is pinned to the committed
+  theme while body preview remains available.
+- Search flicker guardrails: `/search` no longer has a `null` Suspense fallback,
+  result cards key by `slug || id` across local/semantic refinement, and the
+  empty state waits for semantic refinement to settle.
+- Verification: red-green `tests/familyDetailClient.test.ts` for route-id cache
+  aliases, focused primitive/theme tests, `npm run typecheck`, `npm run
+  lint:lines`, `npm run lint:web`, and in-app browser traces on
+  `http://localhost:3000` for shelf → family → shelf plus theme-menu state.
+
+## Muted skeleton/control track correction (local, 2026-07-01)
+
+- Root cause for the odd lavender/colored skeleton and slider/progress tracks:
+  `--muted` was theme-specific palette color in most themes, so skeleton bars,
+  range tracks, hover fills, and upload progress tracks looked like separate
+  accents instead of quiet inactive UI.
+- `--muted` is now consistently `color-mix(in srgb, var(--ink) 16%,
+  transparent)` across all theme definition files. `--control-track` aliases
+  that token for sliders and progress tracks. Shared `.theme-range`,
+  `.progress-bar`, upload-center rows, and upload-queue rows now use the same track/fill
+  contract: low-opacity ink track, ink fill.
+- Verification: red-green `tests/themeColorGuard.test.ts`, in-app browser token
+  check on Lilac showing `--muted` and `--control-track` as black at 16%
+  opacity, plus `npm run typecheck`, `npm run lint:lines`, `npm run lint:web`,
+  `npm test`, and `npm run build`.
+
+## Focus ring token correction (local, 2026-07-01)
+
+- Root cause for the blue Lilac search input focus ring: the shared
+  `theme-focus-ring` utility correctly used `--focus`, but every theme still
+  assigned `--focus` to a hard-coded accent/palette color. Lilac was
+  `#2D1FE8`, which produced the bright blue outline.
+- `--focus` now resolves to `var(--ink)` in every theme definition file. Focus
+  rings therefore follow the active foreground token, matching the same
+  theme-variable contract as skeletons, slider/progress tracks, overlays, and
+  shadows.
+- Verification: red-green `tests/themeColorGuard.test.ts` now guards both
+  `--muted` and `--focus`; in-app browser verification on Lilac forced
+  `:focus-visible` on the nav search input and read a solid `2px` black outline
+  from `--ink`.
+
+## Splash wordmark motion correction (local, 2026-07-01)
+
+- Root cause for the outdated splash: auth/loading gates still used the generic
+  `LoadingSpinner`, producing a centered circular spinner plus "Loading Seriph"
+  text that felt disconnected from the editorial wordmark direction.
+- Added reusable `SplashWordmark` and `LoadingSplash` components. The wordmark is
+  rendered as data-driven per-letter spans with an Interface Craft storyboard at
+  the top of the component. The loop creates a left-to-right wave across
+  `SERIPH`, with each letter rising and settling before the sequence repeats.
+- Motion is CSS-only and transform-only: `styles/utilities-splash.css` animates
+  `translate3d`, uses theme `--ink`, and includes `prefers-reduced-motion` to
+  show a static wordmark for reduced-motion users. Auth gates on `/`, `/login`,
+  and `/search` now use `LoadingSplash`.
+- Verification: focused splash/theme tests, `npm run lint:lines`, `npm run
+  typecheck`, `npm run lint:web`, full `npm test`, `npm run build`, `git diff
+  --check`, and in-app browser CSS checks on `http://localhost:3000` confirming
+  the splash keyframes, transform rise, and reduced-motion rule are loaded.
+
+## Upload status polling hardening (local, 2026-07-01)
+
+- Root cause for the console error `Failed to fetch active uploads`: the
+  authenticated `/api/v1/uploads/active` route hit Firestore
+  `FAILED_PRECONDITION` because the `ingests.analysisState + updatedAt`
+  composite index existed in source but was not usable in the live `seriph`
+  database. `firebase deploy --only firestore:indexes --project seriph` was run;
+  immediately after deploy, the exact indexed query reported the index was still
+  building.
+- The route now falls back to a bounded recent-ingests query while the active
+  composite index is missing/building, then filters through the same terminal
+  state rules. The client poller parses the API envelope defensively and treats
+  non-OK upload-status responses as temporarily unavailable instead of throwing
+  a red console error from a background effect.
+- Verification: focused upload tests pass; in-app browser reload at
+  `http://localhost:3000` returned `/api/v1/uploads/active` HTTP 200 with
+  `{"ingests":[]}` and emitted no new console errors. `npm run build` passed.
+
+## Shelf stats and loading performance (local, 2026-06-30)
+
+- Top-row shelf stats are no longer derived from the loaded infinite-scroll
+  page. `GET /api/v1/families/stats` returns a stable per-user summary for
+  visible families, filters aliases/hidden merged docs with the same rules as
+  the shelf list, and uses a short server cache invalidated by family
+  edit/merge/undo/delete routes.
+- `useInfiniteFamilies()` starts the first page and stats requests in parallel
+  with one ID-token promise. The first page writes to local cache immediately;
+  stats upgrade that cache once available. Pagination and refresh now use
+  separate abort/request IDs.
+- New family writes and manual merges persist `styleCount`; old docs still count
+  from `faces.length` in the stats fallback. Shelf covers are memoized. A prior
+  attempt to add CSS `content-visibility` / `contain-intrinsic-size` to card
+  wrappers was removed on 2026-07-01 because it inflated catalog grid rows and
+  made the existing hover scale feel different.
+- Local browser verification at `http://localhost:3000`: 48 first-page cards
+  rendered with full-library stats `Families 1169`, `Styles 1897`, `Recently
+  Added ABC Ginto Plus`; scrolling to 96 cards kept stats unchanged. Warm reload
+  showed cards and stats at about 244 ms after DOMContentLoaded and about 721 ms
+  total.
+- Correction verification on 2026-07-01: the in-app browser showed first shelf
+  cards at `220 x 216`, wrapper class `h-full`, and no `.shelf-card-shell`.
+- Load-more correction on 2026-07-01: the text loader remains removed, but the
+  bottom of the shelf now renders eight card-shaped skeleton placeholders while
+  more pages are available/loading, using the same responsive shelf grid as real
+  cards so fast scrolling does not land on an empty bottom.
+
+## Search workspace and typeahead performance (local, 2026-07-01)
+
+- Search is now split into a top-nav typeahead preview and a committed
+  `/search` workspace. Nav typing shows preview suggestions from the cached
+  prepared local index and does not mutate the current results URL until Enter
+  or the commit row.
+- `/search` owns query plus filters/facets: classification, mood, style count,
+  and variable/static. Filter state is URL-addressed and is applied to local
+  results, semantic refinement results, and the backend search request contract.
+- Local ranking now prepares normalized tokens/trigrams once per index item and
+  uses cheap exact/prefix/token matching before fuzzy scoring, keeping the
+  input event path responsive without removing semantic search.
+- In-app browser verification: typing `geometric sans` in the main search field
+  produced max paint delay about 27 ms, average about 20 ms, and 0 long tasks;
+  typing `ivar` in nav preview kept the URL unchanged until Enter, produced max
+  paint delay about 3 ms, and rendered suggestion names in their own font faces.
+- Hover-state standardization on 2026-07-01: style cards, `FamilyCover` catalog
+  cards, search result cards, and the Drop Fonts catalog tile now use the shared
+  `.seriph-card-hover` utility. The canonical hover is the screenshot-approved
+  style-card treatment: lift `translateY(-4px)` with a hard
+  `0 4px 0 var(--ink)` base shadow; the old `hover:scale-[1.02]` catalog hover
+  was removed.
+- Follow-up shelf performance pass on 2026-07-01: visible families render in
+  alphabet sections, the bottom loader marker is hidden and prefetches at a
+  `2800px` margin, appended pages persist into the shelf cache, returning from
+  a detail page restores the nested shelf scroll position, and shelf preview
+  `@font-face` rules persist for the session. In-app browser verification:
+  192 cached family cards, headings `A/B/C`, no visible "Loading more families"
+  text, click `/family/aviorte`, return to `/`, and inner scroll restored to
+  `scrollTop: 3400`.
+- Scroll restoration hardening on 2026-07-01: the nested shelf scroller is now
+  tagged with `data-shelf-scroll-root`, shelf cards expose
+  `data-shelf-family-id`, and `useShelfScrollRestoration()` stores only the v2
+  JSON snapshot contract (`top`, `anchorFamilyId`, `anchorOffset`, `updatedAt`).
+  Restoration runs as a layout effect, waits until real family cards exist,
+  restores by anchor before pixel fallback, and can request more pages until the
+  saved anchor is mounted. No backward-compatible legacy numeric snapshot path
+  remains. In-app browser verification: scrolled to `scrollTop: 4560`, opened
+  `/family/bb-manual-mono-pro-hl-sm`, clicked Shelf, and returned to
+  `scrollTop: 4560` with the same BB Manual Mono row visible.
 
 ## Shelf grouping and destructive family actions (local, 2026-06-30)
 
@@ -216,6 +407,19 @@ currently using code defaults (`seriph-fonts`, `gemini-2.5-flash`,
   remoteConfig threshold helpers, and trimmed `contracts.ts`/`font.models.ts`.
 
 ## Deferred follow-ups (none block launch)
+
+- **Sub-second family detail navigation.** Locally achieved for perceived first
+  paint in `next dev --turbopack`: catalog/search/nav entries seed a lightweight
+  preview from shelf/search data, prefetch route + detail data on user intent,
+  and `useFamilyDetail` reads preview, full cache, and in-flight detail requests
+  through one owner-scoped path. Canonical and alias route ids are cached
+  together, lower detail sections skeletonize until the full payload arrives,
+  and the zip helper moved behind the Download click. In-app CDP timing measured
+  `/family/acid-grotesk-thin` preview paint at 66 ms after the actual click;
+  full lower-section hydration completed at 1322 ms. Remaining structural work
+  is reducing/API-caching the owner family read path enough that full hydration,
+  not just perceived navigation, is also consistently under one second.
+
 - **Migration/reprocess** of existing fonts into the new schema: admin workflow
   exists at `functions/src/scripts/migrateOldSchemaFonts.ts` and is exposed as
   `npm run migrate:old-schema-fonts --prefix functions -- ...`. It scans legacy
