@@ -4,6 +4,7 @@ import { useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import NavBar from '@/components/layout/NavBar';
 import Dropzone from '@/components/ui/Dropzone';
+import { Button } from '@/components/ui/Button';
 import ImportFooter from '@/components/import/ImportFooter';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useUploads } from '@/lib/contexts/UploadContext';
@@ -58,18 +59,16 @@ export default function ImportPage() {
               Import Fonts
             </h1>
             <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-              <button
+              <Button
                 onClick={openUploadCenter}
-                className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] btn-ink text-sm sm:text-base"
               >
                 Upload Center
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => router.push('/')}
-                className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] btn-ink text-sm sm:text-base"
               >
                 ← Back to Shelf
-              </button>
+              </Button>
             </div>
           </div>
           <p className="mt-3 sm:mt-4 max-w-3xl text-base sm:text-lg tracking-tight">

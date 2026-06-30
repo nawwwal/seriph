@@ -3,6 +3,7 @@
 import ProgressBar from '@/components/ui/ProgressBar';
 import Link from 'next/link';
 import ProcessingRow from './ProcessingRow';
+import { buttonClassName } from '@/components/ui/buttonStyles';
 
 export type UploadStatus = 'uploaded' | 'processing' | 'completed' | 'failed';
 
@@ -60,7 +61,7 @@ export default function ProcessingView({ uploads, phase }: ProcessingViewProps) 
 
         <Link
           href="/"
-          className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] btn-ink text-sm"
+          className={buttonClassName({ size: 'mdText' })}
         >
           View Shelf <span className="caret"></span>
         </Link>
