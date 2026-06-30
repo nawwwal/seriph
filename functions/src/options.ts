@@ -31,7 +31,10 @@ export const BATCH_POLL_OPTIONS = {
 export const SEARCH_FUNCTION_OPTIONS = {
   region: "asia-southeast1",
   cors: true,
-  maxInstances: 3,
+  memory: "512MiB" as const,
+  timeoutSeconds: 90,
+  concurrency: 2,
+  maxInstances: 4,
 };
 
 export const CDN_FUNCTION_OPTIONS = {

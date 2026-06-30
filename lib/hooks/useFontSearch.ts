@@ -8,6 +8,7 @@ import { useSemanticFontSearch } from '@/lib/hooks/useSemanticFontSearch';
 import { mergeSearchResults } from '@/lib/search/localSearch';
 import { parseSearchFilters, sameSearchFilters, searchFiltersKey } from '@/lib/search/searchFilterUrl';
 import { filterSearchResults } from '@/lib/search/searchFilters';
+import { searchErrorForDisplay } from '@/lib/search/searchAvailability';
 import { notifySearchQueryChange, queryFromSearchEvent, searchQueryChangedEvent } from '@/lib/search/searchRouteEvents';
 import { buildLocalSearchView } from '@/lib/search/searchView';
 import type { SearchFilters } from '@/models/search.models';
@@ -62,7 +63,11 @@ export function useFontSearch() {
   const resultCount = Math.max(localView.resultCount, results.length);
   const loading = Boolean(searchIndex.isLoading && results.length === 0);
   const refining = Boolean(searchQuery && hasCurrentSearchState && searchState?.loading);
-  const error = hasCurrentSearchState ? searchState.error : searchIndex.error;
+  const error = searchErrorForDisplay({
+    hasResults: results.length > 0,
+    indexError: searchIndex.error,
+    indexLoading: searchIndex.isLoading,
+  });
   function setQ(q: string) {
     setInputState((current) => current.q === q ? current : { ...current, q });
     scheduleRouteSync(q);
