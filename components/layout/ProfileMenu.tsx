@@ -1,36 +1,31 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Menu } from '@base-ui/react/menu';
+import { useState } from 'react';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { buttonClassName } from '@/components/ui/buttonStyles';
 
 /** Avatar button + sign-out dropdown for a signed-in user. Self-contained state. */
 export default function ProfileMenu() {
   const { user, signOut } = useAuth();
   const [openForUserId, setOpenForUserId] = useState<string | null>(null);
   const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null);
-  const ref = useRef<HTMLDivElement | null>(null);
   const userId = user?.uid ?? null;
   const avatarUrl = user?.photoURL ?? null;
   const isOpen = openForUserId === userId;
   const avatarFailed = avatarUrl !== null && failedAvatarUrl === avatarUrl;
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpenForUserId(null);
-    };
-    window.addEventListener('mousedown', onClick);
-    return () => window.removeEventListener('mousedown', onClick);
-  }, [isOpen]);
-
   if (!user) return null;
 
   return (
-    <div className="relative" ref={ref}>
-      <button
+    <Menu.Root
+      open={isOpen}
+      onOpenChange={(open) => setOpenForUserId(open ? user.uid : null)}
+      modal={false}
+    >
+      <Menu.Trigger
         type="button"
-        onClick={() => setOpenForUserId((current) => (current === user.uid ? null : user.uid))}
-        className="flex items-center justify-center w-8 h-8 rounded-full rule overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--ink)] transition"
+        className={buttonClassName({ size: 'avatar', tone: 'plain' })}
         aria-haspopup="true"
         aria-expanded={isOpen}
       >
@@ -50,21 +45,22 @@ export default function ProfileMenu() {
             {(user.displayName || 'U').charAt(0).toUpperCase()}
           </span>
         )}
-      </button>
-      {isOpen && (
-        <div className="absolute right-0 mt-3 w-44 rounded-[var(--radius)] bg-[var(--paper)] rule shadow-lg overflow-hidden z-20">
-          <div className="px-3 py-2 text-xs uppercase font-bold tracking-wide opacity-70">
-            {user.displayName || user.email || 'Account'}
-          </div>
-          <button
-            type="button"
-            onClick={() => { setOpenForUserId(null); signOut(); }}
-            className="w-full text-left uppercase font-bold text-sm px-3 py-2 btn-ink rule-t hover:ink-bg transition"
-          >
-            Sign out
-          </button>
-        </div>
-      )}
-    </div>
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Positioner side="bottom" align="end" sideOffset={12} className="z-20">
+          <Menu.Popup className="w-44 rounded-[var(--radius)] bg-[var(--paper)] rule theme-shadow-lg overflow-hidden z-20">
+            <div className="px-3 py-2 text-xs uppercase font-bold tracking-wide opacity-70">
+              {user.displayName || user.email || 'Account'}
+            </div>
+            <Menu.Item
+              onClick={() => { setOpenForUserId(null); signOut(); }}
+              className={buttonClassName({ size: 'profileMenuItem' })}
+            >
+              Sign out
+            </Menu.Item>
+          </Menu.Popup>
+        </Menu.Positioner>
+      </Menu.Portal>
+    </Menu.Root>
   );
 }

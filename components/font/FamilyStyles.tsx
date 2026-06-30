@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { FontFamily, Font as FontVariant } from '@/models/font.models';
 import StyleCard from './StyleCard';
+import { Button } from '@/components/ui/Button';
 
 const FILTERS = ['All', 'Regular', 'Bold', 'Italic'] as const;
 
@@ -31,13 +32,14 @@ export default function FamilyStyles({ family }: { family: FontFamily }) {
         <h2 className="uppercase font-black text-2xl sm:text-3xl">Styles</h2>
         <div className="flex gap-2">
           {FILTERS.map((filter) => (
-            <button
+            <Button
               key={filter}
               onClick={() => setActiveFilter(filter)}
-              className={`uppercase text-xs font-bold rule px-2 py-1 rounded-[var(--radius)] ${activeFilter === filter ? 'ink-bg' : 'btn-ink'}`}
+              size="sm"
+              tone={activeFilter === filter ? 'active' : 'default'}
             >
               {filter}
-            </button>
+            </Button>
           ))}
         </div>
       </div>

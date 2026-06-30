@@ -1,99 +1,62 @@
 'use client';
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { Select } from '@base-ui/react/select';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import { themeOptions, ThemeName } from '@/lib/theme/themes';
 import { ThemeMenuOption } from './ThemeMenuOption';
-import { useThemeListbox } from './useThemeListbox';
+import { buttonClassName } from '@/components/ui/buttonStyles';
 
 export default function ThemeSwitcher() {
   const { theme, setTheme, previewTheme, clearPreviewTheme } = useTheme();
   const [open, setOpen] = useState(false);
-  const menuId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
+  const committedThemeRef = useRef(theme);
   const currentTheme = themeOptions.find((option) => option.value === theme) ?? themeOptions[0];
-  const closeMenu = useCallback(() => {
-    setOpen(false);
-    clearPreviewTheme();
-  }, [clearPreviewTheme]);
+  useEffect(() => {
+    committedThemeRef.current = theme;
+  }, [theme]);
   const chooseTheme = useCallback((newTheme: ThemeName) => {
+    committedThemeRef.current = newTheme;
     setTheme(newTheme);
     setOpen(false);
-  }, [setTheme]);
-  const { activeIndex, activeTheme, listRef, onKeyDown, selectedIndex, setActiveIndex } = useThemeListbox(theme, open, chooseTheme, closeMenu);
-  useEffect(() => {
-    if (open) previewTheme(activeTheme);
-  }, [activeTheme, open, previewTheme]);
-  useEffect(() => {
-    if (!open) return;
-    const handlePointerDown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) closeMenu();
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeMenu();
-    };
-
-    document.addEventListener('pointerdown', handlePointerDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', handlePointerDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [closeMenu, open]);
+    clearPreviewTheme(newTheme);
+  }, [clearPreviewTheme, setTheme]);
+  const handleOpenChange = useCallback((nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen) previewTheme(committedThemeRef.current);
+    else clearPreviewTheme(committedThemeRef.current);
+  }, [clearPreviewTheme, previewTheme]);
+  const handleValueChange = useCallback((newTheme: ThemeName | null) => {
+    if (newTheme) chooseTheme(newTheme);
+  }, [chooseTheme]);
 
   return (
-    <div
-      ref={rootRef}
-      className="relative"
-      onBlur={(event) => {
-        const nextTarget = event.relatedTarget;
-        if (!(nextTarget instanceof Node) || !event.currentTarget.contains(nextTarget)) closeMenu();
-      }}
-    >
-      <button
+    <Select.Root<ThemeName> value={theme} open={open} onOpenChange={handleOpenChange} onValueChange={handleValueChange} modal={false}>
+      <Select.Trigger
         type="button"
-        onClick={() => {
-          if (!open) setActiveIndex(selectedIndex);
-          setOpen((isOpen) => !isOpen);
-        }}
-        className="inline-flex h-8 min-w-24 items-center justify-between gap-3 uppercase text-sm font-bold rule px-3 rounded-[var(--radius)] bg-[var(--paper)] text-[var(--ink)] leading-none btn-ink"
+        className={buttonClassName({ size: 'themeSelect' })}
         aria-label="Select theme"
-        aria-haspopup="listbox"
         aria-expanded={open}
-        aria-controls={menuId}
       >
         <span>{currentTheme.label}</span>
-        <ChevronDown size={16} strokeWidth={2} />
-      </button>
-      {open && (
-        <div
-          id={menuId}
-          role="listbox"
-          aria-label="Theme"
-          aria-activedescendant={`${menuId}-${activeTheme}`}
-          ref={listRef}
-          tabIndex={0}
-          onKeyDown={onKeyDown}
-          onMouseLeave={clearPreviewTheme}
-          className="absolute right-0 top-[calc(100%+var(--rule))] z-30 max-h-[min(70vh,32rem)] w-40 overflow-y-auto rule rounded-[var(--radius)] bg-[var(--paper)] text-[var(--ink)] shadow-[0_12px_30px_var(--shadow)]"
-        >
-          {themeOptions.map((option, index) => (
-            <ThemeMenuOption
-              key={option.value}
-              active={index === activeIndex}
-              chooseTheme={chooseTheme}
-              index={index}
-              menuId={menuId}
-              option={option}
-              previewTheme={previewTheme}
-              selected={option.value === theme}
-              setActiveIndex={setActiveIndex}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+        <ChevronDown size={16} strokeWidth={2} aria-hidden="true" />
+      </Select.Trigger>
+      <Select.Portal>
+        <Select.Positioner side="bottom" align="end" sideOffset={1.5} alignItemWithTrigger={false} className="z-30">
+          <Select.Popup
+            data-theme={theme}
+            onMouseLeave={() => clearPreviewTheme(committedThemeRef.current)}
+            className="max-h-[min(70vh,32rem)] w-40 overflow-y-auto rule rounded-[var(--radius)] bg-[var(--paper)] text-[var(--ink)] theme-shadow-lg"
+          >
+            <Select.List>
+              {themeOptions.map((option) => (
+                <ThemeMenuOption key={option.value} option={option} previewTheme={previewTheme} />
+              ))}
+            </Select.List>
+          </Select.Popup>
+        </Select.Positioner>
+      </Select.Portal>
+    </Select.Root>
   );
 }

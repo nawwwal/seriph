@@ -2,6 +2,7 @@
 
 import { type WalkedFile } from '@/utils/walkDirectoryEntries';
 import { useDropzone } from '@/lib/hooks/useDropzone';
+import { Button } from './Button';
 import UploadIcon from './UploadIcon';
 
 interface DropzoneProps {
@@ -75,16 +76,17 @@ export default function Dropzone({
           : 'Drag and drop font files or click to browse'}
       </p>
       {allowFolders && (
-        <button
+        <Button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             if (!disabled) folderInputRef.current?.click();
           }}
-          className="mb-6 uppercase text-sm font-bold rule px-4 py-2 rounded-[var(--radius)] btn-ink"
+          className="mb-6"
+          size="mdText"
         >
           Choose folder
-        </button>
+        </Button>
       )}
       <p className="uppercase text-sm font-bold caret">
         {allowFolders ? 'TTF · OTF · WOFF · WOFF2 · ZIP · FOLDERS' : 'TTF, OTF, WOFF, WOFF2'}
@@ -92,4 +94,3 @@ export default function Dropzone({
     </div>
   );
 }
-

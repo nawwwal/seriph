@@ -2,6 +2,7 @@
 
 import { FileText, CheckCircle2, AlertTriangle, Hourglass, Pause, Play, XCircle } from 'lucide-react';
 import { patchFile, type SetFiles, type UploadableFile } from '@/lib/upload/uploadTypes';
+import { Button } from '@/components/ui/Button';
 
 function statusMeta(item: UploadableFile): { icon: React.ReactNode; color: string; text: string } {
   const spin = 'mr-3 shrink-0 animate-spin';
@@ -47,7 +48,7 @@ export default function UploadQueueItem({ item, setFiles, tasks, onRemove }: Pro
   };
 
   return (
-    <div className="p-3 border rounded-md bg-[var(--surface)] shadow-sm">
+    <div className="p-3 border rounded-md bg-[var(--surface)] theme-shadow-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center min-w-0">
           {icon}
@@ -64,18 +65,18 @@ export default function UploadQueueItem({ item, setFiles, tasks, onRemove }: Pro
         {canRemove && (
           <div className="flex items-center gap-2">
             {item.status === 'paused' && item.uploadTask && (
-              <button onClick={resume} className="text-[var(--info)] p-1 rounded-full hover:bg-[color-mix(in_srgb,var(--info)_12%,transparent)]" aria-label="Resume upload"><Play size={18} /></button>
+              <Button onClick={resume} icon={<Play size={18} />} size="roundIcon" tone="info" aria-label="Resume upload" />
             )}
-            <button onClick={remove} className="text-[var(--danger)] p-1 rounded-full hover:bg-[color-mix(in_srgb,var(--danger)_12%,transparent)]" aria-label={`Remove ${item.file.name}`}><XCircle size={18} /></button>
+            <Button onClick={remove} icon={<XCircle size={18} />} size="roundIcon" tone="danger" aria-label={`Remove ${item.file.name}`} />
           </div>
         )}
         {item.status === 'submitting' && item.uploadTask && (
-          <button onClick={pause} className="text-[var(--warning)] p-1 rounded-full hover:bg-[color-mix(in_srgb,var(--warning)_12%,transparent)]" aria-label="Pause upload"><Pause size={18} /></button>
+          <Button onClick={pause} icon={<Pause size={18} />} size="roundIcon" tone="warning" aria-label="Pause upload" />
         )}
       </div>
       {showProgress && (
-        <div className="mt-2 h-2 w-full bg-[var(--muted)] rounded-full overflow-hidden">
-          <div className={`h-full rounded-full transition-all duration-150 ${item.status === 'retrying' ? 'bg-[var(--warning)]' : 'bg-[var(--info)]'}`} style={{ width: `${item.progress}%` }} />
+        <div className="mt-2 h-2 w-full bg-[var(--control-track)] rounded-full overflow-hidden">
+          <div className="h-full rounded-full transition-all duration-150 bg-[var(--ink)]" style={{ width: `${item.progress}%` }} />
         </div>
       )}
     </div>

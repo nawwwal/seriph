@@ -2,6 +2,7 @@
 
 import { useRef } from 'react';
 import type { FontFamily } from '@/models/font.models';
+import { Button } from '@/components/ui/Button';
 
 interface FamilyHeaderProps {
   family: FontFamily;
@@ -22,12 +23,12 @@ export default function FamilyHeader({ family, onAddStyleFiles, onTestInText }: 
         </h1>
         <div className="flex flex-wrap items-center gap-3 sm:gap-4">
           <input ref={addStyleInputRef} type="file" multiple accept=".ttf,.otf,.woff,.woff2" className="hidden" onChange={onAddStyleFiles} />
-          <button onClick={() => addStyleInputRef.current?.click()} className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] text-sm sm:text-base btn-ink">
+          <Button onClick={() => addStyleInputRef.current?.click()}>
             Add Style <span className="caret"></span>
-          </button>
-          <button onClick={onTestInText} className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] text-sm sm:text-base btn-ink">
+          </Button>
+          <Button onClick={onTestInText}>
             Test in Text
-          </button>
+          </Button>
         </div>
       </div>
       {family.description && <p className="mt-3 sm:mt-4 max-w-3xl text-base sm:text-lg tracking-tight">{family.description}</p>}

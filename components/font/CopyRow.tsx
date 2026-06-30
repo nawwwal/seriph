@@ -1,5 +1,7 @@
 'use client';
 
+import { Button } from '@/components/ui/Button';
+
 /** A labelled, truncated value with a copy-to-clipboard button. */
 export default function CopyRow({
   label,
@@ -23,13 +25,13 @@ export default function CopyRow({
       >
         {value}
       </code>
-      <button
+      <Button
         type="button"
         onClick={() => onCopy(value, copyKey)}
-        className="shrink-0 uppercase text-xs font-bold rule px-2 py-1.5 rounded-[var(--radius)] btn-ink w-16 text-center"
+        size="copy"
       >
         {copied === copyKey ? 'Copied' : 'Copy'}
-      </button>
+      </Button>
     </div>
   );
 }

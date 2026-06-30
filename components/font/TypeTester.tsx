@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { FontFamily } from '@/models/font.models';
 import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
+import { Button } from '@/components/ui/Button';
 
 interface TypeTesterProps {
   family: FontFamily;
@@ -49,22 +50,22 @@ export default function TypeTester({ family }: TypeTesterProps) {
             </select>
           </div>
           <div className="flex gap-2">
-            <button
+            <Button
               onClick={() =>
                 setTestText(
                   `Type here to test ${family.name}. This editable area allows you to see how the font renders at different sizes and weights.`
                 )
               }
-              className="uppercase text-xs font-bold rule px-2 py-1 rounded-[var(--radius)] btn-ink"
+              size="sm"
             >
               Reset
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => navigator.clipboard.writeText(testText)}
-              className="uppercase text-xs font-bold rule px-2 py-1 rounded-[var(--radius)] btn-ink"
+              size="sm"
             >
               Copy
-            </button>
+            </Button>
           </div>
         </div>
         <div

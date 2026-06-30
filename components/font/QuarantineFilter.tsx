@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ShieldAlert } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 
 interface QuarantineFilterProps {
   showQuarantined: boolean;
@@ -21,20 +22,17 @@ export default function QuarantineFilter({
   }
 
   return (
-    <button
+    <Button
       onClick={() => onToggle(!showQuarantined)}
-      className={`flex items-center gap-2 uppercase text-xs font-bold px-3 py-2 rounded-[var(--radius)] transition-colors ${
-        showQuarantined
-          ? 'ink-bg text-[var(--paper)]'
-          : 'btn-ink border-2 border-[var(--warning)]'
-      } ${className}`}
+      className={`${showQuarantined ? 'text-[var(--paper)]' : 'border-2 border-[var(--warning)]'} ${className}`}
+      icon={<ShieldAlert size={14} />}
+      size="quarantine"
+      tone={showQuarantined ? 'solid' : 'default'}
       aria-pressed={showQuarantined}
     >
-      <ShieldAlert size={14} />
       <span>
         Quarantined ({quarantinedCount})
       </span>
-    </button>
+    </Button>
   );
 }
-

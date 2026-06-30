@@ -5,6 +5,7 @@ import Modal from '@/components/ui/Modal';
 import { useUploads } from '@/lib/contexts/UploadContext';
 import { getCombinedStatus, type IngestStage } from '@/lib/contexts/ImportContext';
 import UploadCenterRow from './UploadCenterRow';
+import { Button } from '@/components/ui/Button';
 
 type Filter = 'all' | 'in_progress' | 'complete' | 'error';
 
@@ -69,15 +70,14 @@ export default function UploadCenterModal() {
         {/* Filters */}
         <div className="flex gap-2">
           {(['all', 'in_progress', 'complete', 'error'] as Filter[]).map((f) => (
-            <button
+            <Button
               key={f}
               onClick={() => setFilter(f)}
-              className={`uppercase text-xs font-bold rule px-2 py-1 rounded-[var(--radius)] ${
-                filter === f ? 'ink-bg' : 'btn-ink'
-              }`}
+              size="sm"
+              tone={filter === f ? 'active' : 'default'}
             >
               {f.replace('_', ' ')}
-            </button>
+            </Button>
           ))}
         </div>
 

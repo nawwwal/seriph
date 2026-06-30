@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { FontFamily } from '@/models/font.models';
-import { downloadFamilyZip } from '@/lib/utils/downloadFamilyZip';
+import { Button } from '@/components/ui/Button';
 
 export default function FamilyFooter({ family }: { family: FontFamily }) {
   const [shareLabel, setShareLabel] = useState<'Share' | 'Copied' | 'Failed'>('Share');
@@ -23,6 +23,7 @@ export default function FamilyFooter({ family }: { family: FontFamily }) {
   const download = async () => {
     setDownloadLabel('Preparing…');
     try {
+      const { downloadFamilyZip } = await import('@/lib/utils/downloadFamilyZip');
       const ok = await downloadFamilyZip(family);
       setDownloadLabel(ok ? 'Download' : 'Failed');
     } catch {
@@ -59,12 +60,12 @@ export default function FamilyFooter({ family }: { family: FontFamily }) {
         <div>
           <div className="uppercase font-bold">Actions</div>
           <div className="mt-2 flex gap-2">
-            <button onClick={download} disabled={downloadLabel === 'Preparing…'} className="uppercase font-bold rule px-3 py-2 rounded-[var(--radius)] btn-ink text-sm">
+            <Button onClick={download} disabled={downloadLabel === 'Preparing…'} size="compact">
               {downloadLabel}
-            </button>
-            <button onClick={share} className="uppercase font-bold rule px-3 py-2 rounded-[var(--radius)] btn-ink text-sm">
+            </Button>
+            <Button onClick={share} size="compact">
               {shareLabel}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

@@ -1,6 +1,8 @@
 'use client';
 
 import { ArrowLeft, type LucideIcon } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { TextInput } from '@/components/ui/TextInput';
 
 export type AuthMode = 'sign-in' | 'create-account' | 'reset-password';
 
@@ -25,24 +27,24 @@ export function AuthFields(props: AuthFieldsProps) {
     <>
       <label className="block">
         <span className="block uppercase text-xs font-bold opacity-70 mb-2">Email</span>
-        <input
+        <TextInput
           type="email"
           value={props.email}
           onChange={(event) => props.setEmail(event.target.value)}
           autoComplete="email"
-          className="w-full rule rounded-[var(--radius)] bg-[var(--paper)] px-3 py-2 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]"
+          size="form"
           required
         />
       </label>
       {needsPassword && (
         <label className="block">
           <span className="block uppercase text-xs font-bold opacity-70 mb-2">Password</span>
-          <input
+          <TextInput
             type="password"
             value={props.password}
             onChange={(event) => props.setPassword(event.target.value)}
             autoComplete={props.mode === 'create-account' ? 'new-password' : 'current-password'}
-            className="w-full rule rounded-[var(--radius)] bg-[var(--paper)] px-3 py-2 text-base focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink)]"
+            size="form"
             required
             minLength={8}
           />
@@ -50,14 +52,16 @@ export function AuthFields(props: AuthFieldsProps) {
       )}
       {props.error && <p className="rule px-3 py-2 text-sm font-bold text-[var(--danger)]" role="alert">{props.error}</p>}
       {props.notice && <p className="rule px-3 py-2 text-sm font-bold text-[var(--success)]" role="status">{props.notice}</p>}
-      <button
+      <Button
         type="submit"
         disabled={props.pending || props.authLoading}
-        className="inline-flex w-full h-11 items-center justify-center gap-2 uppercase font-bold rule rounded-[var(--radius)] text-sm btn-ink ink-bg disabled:opacity-50"
+        className="disabled:opacity-50"
+        icon={<SubmitIcon size={16} aria-hidden="true" />}
+        size="authSubmit"
+        tone="solid"
       >
-        <SubmitIcon size={16} aria-hidden="true" />
         {props.pending ? 'Working' : props.submitText}
-      </button>
+      </Button>
     </>
   );
 }
@@ -67,14 +71,13 @@ export function AuthModeFooter({ mode, setMode }: { mode: AuthMode; setMode: (mo
     <div className="rule-t p-3 flex flex-col gap-2">
       {mode === 'sign-in' ? (
         <>
-          <button type="button" onClick={() => setMode('create-account')} className="uppercase font-bold text-sm px-2 py-1 btn-ink text-left">Create account</button>
-          <button type="button" onClick={() => setMode('reset-password')} className="uppercase font-bold text-sm px-2 py-1 btn-ink text-left">Forgot password</button>
+          <Button type="button" onClick={() => setMode('create-account')} className="text-left" size="text">Create account</Button>
+          <Button type="button" onClick={() => setMode('reset-password')} className="text-left" size="text">Forgot password</Button>
         </>
       ) : (
-        <button type="button" onClick={() => setMode('sign-in')} className="inline-flex items-center gap-2 uppercase font-bold text-sm px-2 py-1 btn-ink text-left">
-          <ArrowLeft size={15} aria-hidden="true" />
+        <Button type="button" onClick={() => setMode('sign-in')} className="text-left" icon={<ArrowLeft size={15} aria-hidden="true" />} size="textIcon">
           Back to sign in
-        </button>
+        </Button>
       )}
     </div>
   );

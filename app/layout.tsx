@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { League_Spartan } from "next/font/google";
+import { InterfaceKit } from "interface-kit/react";
 import "./globals.css";
 import Script from "next/script";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
@@ -23,6 +24,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const isDevelopment = process.env.NODE_ENV === "development";
   const enableReactGrab =
     process.env.NEXT_PUBLIC_ENABLE_REACT_GRAB === 'true' ||
     process.env.NEXT_PUBLIC_ENABLE_REACT_GRAB === '1';
@@ -33,7 +35,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                const theme = localStorage.getItem('theme') || 'ink';
+                const theme = localStorage.getItem('seriph-theme:v1') || localStorage.getItem('theme') || 'ink';
                 document.documentElement.setAttribute('data-theme', theme);
               } catch {}
             `,
@@ -56,6 +58,7 @@ export default function RootLayout({
           <AuthProvider>
             <UploadProvider>
               {children}
+              {isDevelopment && <InterfaceKit />}
               <UploadCenterModal />
             </UploadProvider>
           </AuthProvider>

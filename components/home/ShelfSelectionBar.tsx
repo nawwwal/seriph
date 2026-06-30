@@ -1,6 +1,7 @@
 'use client';
 
 import { GitMerge, Trash2, X } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 
 interface ShelfSelectionBarProps {
   selectedCount: number;
@@ -22,39 +23,42 @@ export default function ShelfSelectionBar({
   onCancel,
 }: ShelfSelectionBarProps) {
   return (
-    <div className="sticky top-3 z-30 mt-4 rule bg-[var(--paper)] rounded-[var(--radius)] p-3 shadow-lg">
+    <div className="sticky top-3 z-30 mt-4 rule bg-[var(--paper)] rounded-[var(--radius)] p-3 theme-shadow-lg">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="uppercase text-sm font-extrabold">
           {selectedCount} selected
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button
+          <Button
             type="button"
-            className="inline-flex items-center gap-2 uppercase text-xs font-bold rule px-3 py-2 rounded-[var(--radius)] btn-ink disabled:opacity-45"
+            className="disabled:opacity-45"
+            icon={<GitMerge size={15} aria-hidden="true" />}
             onClick={onMerge}
             disabled={!canMerge || isMutating}
+            size="iconText"
           >
-            <GitMerge size={15} aria-hidden="true" />
             Merge
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="inline-flex items-center gap-2 uppercase text-xs font-bold rule px-3 py-2 rounded-[var(--radius)] text-[var(--danger)] disabled:opacity-45"
+            className="disabled:opacity-45"
+            icon={<Trash2 size={15} aria-hidden="true" />}
             onClick={onDelete}
             disabled={selectedCount === 0 || isMutating}
+            size="iconText"
+            tone="danger"
           >
-            <Trash2 size={15} aria-hidden="true" />
             Delete
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
-            className="inline-flex items-center gap-2 uppercase text-xs font-bold rule px-3 py-2 rounded-[var(--radius)] btn-ink"
+            icon={<X size={15} aria-hidden="true" />}
             onClick={onCancel}
             disabled={isMutating}
+            size="iconText"
           >
-            <X size={15} aria-hidden="true" />
             Cancel
-          </button>
+          </Button>
         </div>
       </div>
       {error && <div className="mt-2 text-sm font-bold text-[var(--danger)]">{error}</div>}

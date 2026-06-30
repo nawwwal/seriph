@@ -1,5 +1,6 @@
 import { AlertTriangle, FileText } from 'lucide-react';
 import { formatFileSize, type PreviewFamily } from '@/lib/upload/previewGrouping';
+import { Button } from '@/components/ui/Button';
 
 export default function PreviewFamilyCard({
   family,
@@ -59,13 +60,15 @@ export default function PreviewFamilyCard({
                 <span className="opacity-50 shrink-0">({formatFileSize(file.file.size)})</span>
               </div>
               {onRemoveFile && (
-                <button
+                <Button
                   onClick={() => onRemoveFile(file.id)}
-                  className="text-[var(--danger)] px-2 py-1 rounded hover:bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] transition-colors"
+                  className="px-2 py-1 rounded hover:bg-[color-mix(in_srgb,var(--danger)_12%,transparent)] transition-colors"
+                  size="text"
+                  tone="danger"
                   aria-label={`Remove ${file.file.name}`}
                 >
                   Remove
-                </button>
+                </Button>
               )}
             </div>
           ))}

@@ -1,6 +1,7 @@
 import type { FontFamily } from '@/models/font.models';
 import type { ShelfFamily } from '@/models/shelf.models';
 import { exportCatalogCsv } from '@/lib/utils/exportCatalog';
+import { Button } from '@/components/ui/Button';
 
 export default function HomeFooter({ families }: { families: Array<FontFamily | ShelfFamily> }) {
   return (
@@ -19,13 +20,14 @@ export default function HomeFooter({ families }: { families: Array<FontFamily | 
         </div>
         <div>
           <div className="uppercase font-bold">Export</div>
-          <button
+          <Button
             onClick={() => exportCatalogCsv(families)}
             disabled={families.length === 0}
-            className={`mt-2 uppercase font-bold rule px-3 py-2 rounded-[var(--radius)] btn-ink text-sm ${families.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`mt-2 ${families.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+            size="compact"
           >
             Download Catalog CSV
-          </button>
+          </Button>
         </div>
       </div>
     </footer>

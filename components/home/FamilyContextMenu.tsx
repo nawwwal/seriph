@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { CheckSquare, ExternalLink, Trash2 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Button } from '@/components/ui/Button';
+import { buttonClassName } from '@/components/ui/buttonStyles';
 
 interface FamilyContextMenuProps {
   familyId: string;
@@ -42,12 +44,12 @@ export default function FamilyContextMenu({ familyId, x, y, onSelect, onDelete, 
     });
   }, [x, y]);
 
-  const itemClass = 'flex w-full items-center gap-2 px-3 py-2 text-left uppercase text-xs font-bold btn-ink';
+  const itemClass = buttonClassName({ size: 'menuItem' });
 
   return (
     <div
       ref={ref}
-      className="fixed z-50 min-w-40 rule rounded-[var(--radius)] bg-[var(--paper)] shadow-lg overflow-hidden"
+      className="fixed z-50 min-w-40 rule rounded-[var(--radius)] bg-[var(--paper)] theme-shadow-lg overflow-hidden"
       style={{ left: position.left, top: position.top }}
       role="menu"
     >
@@ -55,30 +57,31 @@ export default function FamilyContextMenu({ familyId, x, y, onSelect, onDelete, 
         <ExternalLink size={14} aria-hidden="true" />
         Open
       </Link>
-      <button
+      <Button
         type="button"
-        className={itemClass}
         role="menuitem"
         onClick={() => {
           onSelect(familyId);
           onClose();
         }}
+        size="menuItem"
       >
         <CheckSquare size={14} aria-hidden="true" />
         Select
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
-        className={`${itemClass} text-[var(--danger)]`}
         role="menuitem"
         onClick={() => {
           onDelete([familyId]);
           onClose();
         }}
+        size="menuItem"
+        tone="danger"
       >
         <Trash2 size={14} aria-hidden="true" />
         Delete
-      </button>
+      </Button>
     </div>
   );
 }

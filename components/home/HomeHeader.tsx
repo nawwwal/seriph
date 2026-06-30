@@ -1,3 +1,5 @@
+import { Button } from '@/components/ui/Button';
+
 interface HomeHeaderProps {
   isEmpty: boolean;
   onAddFonts: () => void;
@@ -12,19 +14,18 @@ export default function HomeHeader({ isEmpty, onAddFonts, onRegenerateCovers }: 
           Seriph
         </h1>
         <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-          <button
+          <Button
             onClick={onAddFonts}
-            className={`uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] btn-ink text-sm sm:text-base ${isEmpty ? 'pulse-animation' : ''}`}
+            className={isEmpty ? 'pulse-animation' : undefined}
           >
             Add Fonts <span className="caret"></span>
-          </button>
+          </Button>
           {!isEmpty && (
-            <button
+            <Button
               onClick={onRegenerateCovers}
-              className="uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] text-sm sm:text-base btn-ink"
             >
               Regenerate Covers
-            </button>
+            </Button>
           )}
         </div>
       </div>

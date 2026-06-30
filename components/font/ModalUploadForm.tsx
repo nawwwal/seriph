@@ -11,6 +11,7 @@ import type { UploadableFile } from '@/lib/upload/uploadTypes';
 import PreviewGroupingPanel from './PreviewGroupingPanel';
 import UploadDropArea from './UploadDropArea';
 import UploadQueueItem from './UploadQueueItem';
+import { Button } from '@/components/ui/Button';
 
 interface ModalUploadFormProps {
   onUploadComplete?: () => void;
@@ -82,15 +83,16 @@ export default function ModalUploadForm({ onUploadComplete }: ModalUploadFormPro
 
       {filesToUpload.length > 0 && (
         <div className="mt-6 pt-4 border-t">
-          <button
+          <Button
             onClick={startBatchUpload}
             disabled={pendingCount === 0 || isBatchProcessing}
-            className="w-full px-6 py-3 bg-[var(--success)] text-[var(--paper)] rounded-md hover:opacity-90 disabled:opacity-50 transition-colors font-semibold"
+            size="uploadSubmit"
+            tone="success"
           >
             {isBatchProcessing
               ? `Submitting ${submittingCount} file(s)...`
               : pendingCount > 0 ? `Submit ${pendingCount} Pending File${pendingCount > 1 ? 's' : ''} to Server` : 'All Files Submitted'}
-          </button>
+          </Button>
         </div>
       )}
     </div>

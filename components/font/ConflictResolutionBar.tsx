@@ -2,6 +2,7 @@
 
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { ConflictResolution } from '@/models/ingest.models';
+import { Button } from '@/components/ui/Button';
 
 interface ConflictResolutionBarProps {
   conflictResolution: ConflictResolution;
@@ -49,15 +50,15 @@ export default function ConflictResolutionBar({
           )}
         </div>
         {!isResolved && onAccept && (
-          <button
+          <Button
             onClick={onAccept}
-            className="mt-2 uppercase text-xs font-bold px-3 py-1 bg-[var(--warning)] text-[var(--paper)] rounded-[var(--radius)] hover:opacity-90 transition-colors"
+            size="warningAction"
+            tone="warningSolid"
           >
             Accept Decision
-          </button>
+          </Button>
         )}
       </div>
     </div>
   );
 }
-
