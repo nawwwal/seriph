@@ -1,0 +1,32 @@
+.theme-focus-ring {
+  outline: none;
+}
+
+.theme-focus-ring:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.theme-shadow-sm {
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.theme-shadow-lg {
+  box-shadow: 0 12px 30px var(--shadow);
+}
+
+.theme-shadow-xl {
+  box-shadow: 0 18px 44px var(--shadow);
+}
+
+.theme-shadow-card {
+  box-shadow: 0 10px 24px var(--shadow);
+}
+
+.group:hover .theme-shadow-card {
+  box-shadow: 0 16px 36px var(--shadow);
+}
+
+.theme-overlay {
+  background: var(--overlay);
+}

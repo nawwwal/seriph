@@ -16,7 +16,7 @@ export default function FontFamilyCard({ family }: FontFamilyCardProps) {
 
   return (
     <Link href={`/family/${family.id}`} className="block group h-full">
-      <div className="bg-[var(--surface)] shadow-lg rounded-xl p-6 border border-[var(--muted)] group-hover:shadow-xl group-hover:border-[var(--accent)] transition-all duration-300 h-full flex flex-col overflow-hidden">
+      <div className="bg-[var(--surface)] theme-shadow-card rounded-xl p-6 border border-[var(--muted)] group-hover:border-[var(--accent)] transition-all duration-300 h-full flex flex-col overflow-hidden">
         <div className="mb-4">
           <h2 className="text-2xl font-bold opacity-70 truncate group-hover:text-[var(--info)] transition-colors" title={family.name}>
             {family.name}

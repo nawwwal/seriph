@@ -2,3 +2,16 @@
 @import './themes-bright.css';
 @import './themes-warm.css';
 @import './themes-places.css';
+
+:root,
+[data-theme] {
+  --overlay: color-mix(in srgb, var(--ink) 72%, transparent);
+  --control-track: var(--muted);
+}
+
+[data-theme="noir"],
+[data-theme="copper"],
+[data-theme="sanctuary"],
+[data-theme="cathedral"] {
+  --overlay: color-mix(in srgb, var(--paper) 76%, transparent);
+}

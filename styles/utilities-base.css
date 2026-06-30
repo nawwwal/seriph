@@ -47,9 +47,18 @@ body {
   color: var(--paper);
 }
 
+.seriph-card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.seriph-card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 0 var(--ink);
+}
+
 .theme-range {
   appearance: none;
-  background: var(--muted);
+  background: var(--control-track);
   border-radius: var(--radius);
   cursor: pointer;
   height: 0.5rem;
@@ -75,7 +84,7 @@ body {
 }
 
 .theme-range::-moz-range-track {
-  background: var(--muted);
+  background: var(--control-track);
   border-radius: var(--radius);
   height: 0.5rem;
 }

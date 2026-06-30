@@ -38,7 +38,7 @@ export default function BatchHUD() {
         initial={shouldReduceMotion ? false : { scale: 0.8, opacity: 0 }}
         animate={shouldReduceMotion ? {} : { scale: 1, opacity: 1 }}
         onClick={open}
-        className="flex items-center gap-2 px-4 py-3 rounded-full rule bg-[var(--surface)] shadow-lg hover:bg-[var(--muted)] transition-colors"
+        className="flex items-center gap-2 px-4 py-3 rounded-full rule bg-[var(--surface)] theme-shadow-lg hover:bg-[var(--muted)] transition-colors"
         aria-label="Open upload center"
       >
         <Icon className={`${iconClass} ${active > 0 && errors === 0 ? 'animate-spin' : ''}`} size={18} />

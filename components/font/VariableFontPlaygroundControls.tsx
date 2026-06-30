@@ -37,7 +37,7 @@ export default function VariableFontPlaygroundControls({
         <textarea
           value={previewText}
           onChange={(e) => setPreviewText(e.target.value)}
-          className="w-full p-3 rule rounded-[var(--radius)] bg-[var(--paper)] resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] min-h-[150px] md:min-h-[200px]"
+          className="w-full p-3 rule rounded-[var(--radius)] bg-[var(--paper)] resize-none theme-focus-ring min-h-[150px] md:min-h-[200px]"
           style={{ fontFamily: `'${cssName}', sans-serif`, fontVariationSettings, fontSize: `${previewFontSize}px` }}
         />
       </div>
@@ -56,7 +56,7 @@ export default function VariableFontPlaygroundControls({
               step="1"
               value={previewFontSize}
               onChange={(e) => setPreviewFontSize(Number(e.target.value))}
-              className="theme-range w-full focus:outline-none focus:ring-2 focus:ring-offset-1 focus-visible:ring-[var(--focus)]"
+              className="theme-range theme-focus-ring w-full"
               aria-valuenow={previewFontSize}
               aria-label="Preview font size"
             />

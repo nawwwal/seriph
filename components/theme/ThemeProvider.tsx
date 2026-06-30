@@ -9,7 +9,7 @@ interface ThemeContextType {
   theme: ThemeName;
   setTheme: (theme: ThemeName) => void;
   previewTheme: (theme: ThemeName) => void;
-  clearPreviewTheme: () => void;
+  clearPreviewTheme: (theme?: ThemeName) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
@@ -68,8 +68,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.setAttribute('data-theme', previewedTheme);
   };
 
-  const clearPreviewTheme = () => {
-    document.documentElement.setAttribute('data-theme', readStoredTheme());
+  const clearPreviewTheme = (committedTheme?: ThemeName) => {
+    document.documentElement.setAttribute('data-theme', committedTheme ?? readStoredTheme());
   };
 
   return (

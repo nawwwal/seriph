@@ -1,7 +1,7 @@
 import type { VariableAxis } from '@/models/font.models';
 
 const SLIDER_CLASS =
-  'theme-range w-full focus:outline-none focus:ring-2 focus:ring-offset-1 focus-visible:ring-[var(--focus)]';
+  'theme-range theme-focus-ring w-full';
 const VALUE_CLASS =
   'theme-value text-sm font-mono px-2 py-0.5 rounded-[var(--radius)]';
 

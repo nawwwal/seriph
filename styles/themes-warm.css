@@ -6,10 +6,10 @@
   --rhythm: 10px;
   --radius: 2px;
   --accent: #FF6090;
-  --muted: #EDB5BD;
+  --muted: color-mix(in srgb, var(--ink) 16%, transparent);
   --surface: #FFFFFF;
   --shadow: color-mix(in srgb, var(--ink) 16%, transparent);
-  --focus: #FF6090;
+  --focus: var(--ink);
   --success: #3B755F;
   --danger: #E75153;
   --warning: #FFD37A;
@@ -26,10 +26,10 @@
   --rhythm: 10px;
   --radius: 2px;
   --accent: #0B0C11;
-  --muted: #BEA1A5;
+  --muted: color-mix(in srgb, var(--ink) 16%, transparent);
   --surface: #F8E8E2;
   --shadow: color-mix(in srgb, var(--ink) 18%, transparent);
-  --focus: #0B0C11;
+  --focus: var(--ink);
   --success: #3B755F;
   --danger: #E75153;
   --warning: #F0CF61;
@@ -46,10 +46,10 @@
   --rhythm: 10px;
   --radius: 2px;
   --accent: #E6625E;
-  --muted: #72AEC5;
+  --muted: color-mix(in srgb, var(--ink) 16%, transparent);
   --surface: #FFFFFF;
   --shadow: color-mix(in srgb, var(--ink) 18%, transparent);
-  --focus: #E6625E;
+  --focus: var(--ink);
   --success: #17C37B;
   --danger: #D31B33;
   --warning: #F0CF61;

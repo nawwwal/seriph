@@ -30,7 +30,7 @@ export default function StyleCard({ subfamilyName, variants, familyName }: Style
   const isVariable = variants.some((v) => v.isVariable);
 
   return (
-    <div className="style-card rule rounded-[var(--radius)] overflow-hidden">
+    <div className="style-card seriph-card-hover rule rounded-[var(--radius)] overflow-hidden">
       <div className="p-4 pb-2">
         <div className="flex items-center justify-between gap-2">
           <div className="uppercase text-xs font-bold opacity-80">{subfamilyName}</div>

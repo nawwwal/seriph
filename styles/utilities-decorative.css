@@ -23,7 +23,7 @@
 }
 
 .dashed-border {
-  background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' stroke='%230D7E6C' stroke-width='2' stroke-dasharray='8%2c 8' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+  border: 2px dashed var(--ink);
 }
 
 .step-number {
@@ -42,8 +42,7 @@
 .progress-bar {
   height: 6px;
   border-radius: var(--radius);
-  background: var(--ink);
-  opacity: 0.3;
+  background: var(--control-track);
   overflow: hidden;
 }
 

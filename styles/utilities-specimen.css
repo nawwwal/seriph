@@ -24,15 +24,6 @@
   transform: translateY(0);
 }
 
-.style-card {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.style-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 4px 0 var(--ink);
-}
-
 *:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
