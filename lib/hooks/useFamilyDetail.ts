@@ -13,7 +13,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 /** Load one family by id (owner-scoped). Returns null family when logged out. */
 export function useFamilyDetail(familyId: string | undefined) {
   const { user, isLoading: authLoading } = useAuth();
-  const [request, setRequest] = useState<FamilyDetailRequestState>({ familyId: null, outcome: null });
+  const [request, setRequest] = useState<FamilyDetailRequestState>({ uid: null, familyId: null, outcome: null });
   const previousUid = useRef<string | null>(null);
   const activeFamilyId = familyId ?? null;
   const activeUid = user?.uid;
@@ -22,6 +22,7 @@ export function useFamilyDetail(familyId: string | undefined) {
   const cached = getCachedFamily(activeUid, activeFamilyId ?? undefined);
   const preview = getCachedFamilyPreview(activeUid, activeFamilyId ?? undefined);
   const routeState = deriveFamilyDetailRouteState({
+    activeUid: activeUid ?? null,
     activeFamilyId,
     authLoading,
     hasUser: Boolean(user),
@@ -55,7 +56,7 @@ export function useFamilyDetail(familyId: string | undefined) {
         if (outcome.kind === 'load-error') {
           console.error(`Error fetching font family ${familyId}:`, outcome.error);
         }
-        setRequest({ familyId, outcome });
+        setRequest({ uid: user.uid, familyId, outcome });
       });
 
     return () => {

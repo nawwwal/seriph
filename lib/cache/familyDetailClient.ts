@@ -30,6 +30,7 @@ export type FamilyDetailLoadOutcome =
   | { kind: 'not-found' }
   | { kind: 'load-error'; error: Error };
 const inFlightFamilies = new Map<string, Promise<FamilyDetailLoadOutcome>>();
+const notFoundFamilies = new Set<string>();
 const DETAIL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 function cacheKey(uid: string, familyId: string): string {
   return `${uid}:${familyId}`;
@@ -48,8 +49,8 @@ async function requestFamilyDetail(input: LoadFamilyDetailInput): Promise<Family
     const response = await fetch(`/api/v1/families/${encodeURIComponent(input.familyId)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const json: unknown = await response.json().catch(() => null);
     if (response.status === 404) return { kind: 'not-found' };
+    const json: unknown = await response.json().catch(() => null);
     if (!response.ok) return { kind: 'load-error', error: familyResponseError(json, response.status) };
     const data = familyResponseData(json);
     const family = serializeFamilyDetail(data?.family);
@@ -64,6 +65,7 @@ export function loadFamilyDetail(input: LoadFamilyDetailInput): Promise<FamilyDe
   const cached = getCachedFamily(input.uid, input.familyId);
   if (cached) return Promise.resolve({ kind: 'loaded', family: cached });
   const key = cacheKey(input.uid, input.familyId);
+  if (notFoundFamilies.has(key)) return Promise.resolve({ kind: 'not-found' });
   const existing = inFlightFamilies.get(key);
   if (existing) return existing;
   const pending = readPersistedFamilyDetail(input)
@@ -82,6 +84,7 @@ export function loadFamilyDetail(input: LoadFamilyDetailInput): Promise<FamilyDe
         persistFamilyDetail(input.uid, canonicalId, family);
         return { kind: 'loaded', family };
       }
+      if (outcome.kind === 'not-found') notFoundFamilies.add(key);
       return outcome;
     })
     .catch((error): FamilyDetailLoadOutcome => ({ kind: 'load-error', error: toError(error) }))
@@ -95,6 +98,5 @@ export async function prefetchFamilyDetail(input: LoadFamilyDetailInput): Promis
   try {
     await loadFamilyDetail(input);
   } catch {
-    /* Intent prefetch is opportunistic; normal navigation still reports errors. */
   }
 }

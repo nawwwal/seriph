@@ -2,11 +2,13 @@ import type { FontFamily } from '@/models/font.models';
 import type { FamilyDetailLoadOutcome } from '@/lib/cache/familyDetailClient';
 
 export interface FamilyDetailRequestState {
+  uid: string | null;
   familyId: string | null;
   outcome: FamilyDetailLoadOutcome | null;
 }
 
 interface DeriveFamilyDetailRouteStateInput {
+  activeUid: string | null;
   activeFamilyId: string | null;
   authLoading: boolean;
   hasUser: boolean;
@@ -24,6 +26,7 @@ export type FamilyDetailRouteState = {
 };
 
 export function deriveFamilyDetailRouteState({
+  activeUid,
   activeFamilyId,
   authLoading,
   hasUser,
@@ -42,7 +45,8 @@ export function deriveFamilyDetailRouteState({
       isPreview: false,
     };
   }
-  const outcome = request.familyId === activeFamilyId ? request.outcome : null;
+  const isCurrentRequest = request.uid === activeUid && request.familyId === activeFamilyId;
+  const outcome = isCurrentRequest ? request.outcome : null;
   if (outcome?.kind === 'loaded') {
     return { kind: 'loaded', family: outcome.family, error: null, isLoading: false, isPreview: false };
   }

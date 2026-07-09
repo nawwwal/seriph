@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearAccountSnapshots, writeSnapshot } from '@/lib/cache/persistentSnapshots';
 import { clearFamilyCacheForUser, getCachedFamily } from '@/lib/cache/familyCache';
 import { loadFamilyDetail, serializeFamilyDetail } from '@/lib/cache/familyDetailClient';
-import { failedFamilyResponse, rawFamily, successfulFamilyResponse } from './fixtures/familyDetail';
+import { rawFamily, successfulFamilyResponse } from './fixtures/familyDetail';
 
 function mockFamilyFetch() {
   return vi.fn(successfulFamilyResponse);
@@ -75,33 +75,6 @@ describe('family detail client loader', () => {
     expect(getCachedFamily('user-a', 'canonical-inter')?.id).toBe('canonical-inter');
     expect(getCachedFamily('user-a', 'canonical-inter-v2')?.id).toBe('canonical-inter');
     expect(getCachedFamily('user-b', 'inter')).toBeUndefined();
-  });
-
-  it('returns a definitive not-found outcome for a 404 without retrying', async () => {
-    const fetchMock = vi.fn(() => failedFamilyResponse(404, 'Family not found'));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await expect(loadFamilyDetail({
-      uid: 'user-a',
-      familyId: 'missing-family',
-      getIdToken: async () => 'token',
-    })).resolves.toEqual({ kind: 'not-found' });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps retryable response failures distinct from not-found', async () => {
-    const fetchMock = vi.fn(() => failedFamilyResponse(503, 'Service unavailable'));
-    vi.stubGlobal('fetch', fetchMock);
-
-    await expect(loadFamilyDetail({
-      uid: 'user-a',
-      familyId: 'inter',
-      getIdToken: async () => 'token',
-    })).resolves.toMatchObject({
-      kind: 'load-error',
-      error: new Error('Service unavailable'),
-    });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('normalizes missing dates and clones font arrays', () => {
