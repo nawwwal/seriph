@@ -12,7 +12,7 @@ import type { SearchFilters } from '@/models/search.models';
 
 export default function SearchWorkspace() {
   const router = useRouter();
-  const { q, filters, facets, resultCount, setQ, setFilters, results, loading, refining, error } = useFontSearch();
+  const { q, filters, facets, resultCount, setQ, setFilters, results, loading, refining, resultPresentation, error } = useFontSearch();
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,7 +46,10 @@ export default function SearchWorkspace() {
 
       {error && results.length === 0 && <p className="mt-4 text-sm text-[var(--danger)]">{error}</p>}
       <p className="mt-6 text-xs uppercase tracking-wide opacity-60">
-        {results.length < resultCount ? `${results.length} of ` : ''}{resultCount} result{resultCount === 1 ? '' : 's'}{refining ? ' · refining' : ''}
+        {resultPresentation === 'suggestions'
+          ? 'Related suggestions'
+          : `${results.length < resultCount ? `${results.length} of ` : ''}${resultCount} result${resultCount === 1 ? '' : 's'}`}
+        {refining ? ' · refining' : ''}
       </p>
 
       <div className="mt-4 grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">

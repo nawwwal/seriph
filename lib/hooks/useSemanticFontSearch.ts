@@ -12,6 +12,8 @@ const REMOTE_SEARCH_DEBOUNCE_MS = 250;
 interface SemanticSearchState {
   query: string;
   userId: string;
+  filtersKey: string;
+  libraryRevision: number;
   results: SearchResultItem[];
   error: string | null;
   loading: boolean;
@@ -34,7 +36,7 @@ export function useSemanticFontSearch(query: string, user: User | null, filters:
     const cacheKey = buildSemanticSearchCacheKey({ libraryRevision, query, filters });
     const timer = window.setTimeout(() => {
       if (!isActive) return;
-      setState({ query, userId: searchUser.uid, results: [], error: null, loading: true });
+      setState({ query, userId: searchUser.uid, filtersKey, libraryRevision, results: [], error: null, loading: true });
       readPersistentSemanticSearch(searchUser.uid, cacheKey)
         .then(async (cached) => {
           if (cached) return cached;
@@ -43,13 +45,15 @@ export function useSemanticFontSearch(query: string, user: User | null, filters:
           return results;
         })
         .then((results) => {
-          if (isActive) setState({ query, userId: searchUser.uid, results, error: null, loading: false });
+          if (isActive) setState({ query, userId: searchUser.uid, filtersKey, libraryRevision, results, error: null, loading: false });
         })
         .catch((error: unknown) => {
           if (!isActive || abortError(error)) return;
           setState({
             query,
             userId: searchUser.uid,
+            filtersKey,
+            libraryRevision,
             results: [],
             error: error instanceof Error ? error.message : 'Search failed',
             loading: false,

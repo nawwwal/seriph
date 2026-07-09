@@ -5,12 +5,11 @@ import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useSearchIndex } from '@/lib/hooks/useSearchIndex';
 import { useSemanticFontSearch } from '@/lib/hooks/useSemanticFontSearch';
-import { mergeSearchResults } from '@/lib/search/localSearch';
 import { parseSearchFilters, sameSearchFilters, searchFiltersKey } from '@/lib/search/searchFilterUrl';
 import { filterSearchResults } from '@/lib/search/searchFilters';
 import { searchErrorForDisplay } from '@/lib/search/searchAvailability';
 import { notifySearchQueryChange, queryFromSearchEvent, searchQueryChangedEvent } from '@/lib/search/searchRouteEvents';
-import { buildLocalSearchView } from '@/lib/search/searchView';
+import { buildLocalSearchView, buildSearchRefinementState } from '@/lib/search/searchView';
 import type { SearchFilters } from '@/models/search.models';
 
 /** Drives the search field + results, auto-running whenever the URL `q` changes. */
@@ -56,13 +55,23 @@ export function useFontSearch() {
     });
   }, []);
 
-  const localView = useMemo(() => buildLocalSearchView(searchIndex.items, searchQuery, activeFilters), [activeFilters, searchIndex.items, searchQuery]);
-  const hasCurrentSearchState = searchState?.query === searchQuery && searchState.userId === userId;
+  const localView = useMemo(() => buildLocalSearchView(searchIndex.items, liveQuery, activeFilters), [activeFilters, liveQuery, searchIndex.items]);
+  const hasCurrentSearchState = searchQuery === liveQuery
+    && searchState?.query === searchQuery
+    && searchState.userId === userId
+    && searchState.filtersKey === inputState.filtersKey
+    && searchState.libraryRevision === searchIndex.libraryRevision;
   const semanticResults = hasCurrentSearchState ? filterSearchResults(searchState.results, activeFilters) : [];
-  const results = searchQuery ? mergeSearchResults(semanticResults, localView.results) : localView.results;
+  const refining = Boolean(searchQuery && hasCurrentSearchState && searchState?.loading);
+  const { results, isRefining: isRefining, resultPresentation } = buildSearchRefinementState({
+    query: liveQuery,
+    localView,
+    semanticResults,
+    isRefining: refining,
+    hasCurrentSemanticResult: Boolean(hasCurrentSearchState),
+  });
   const resultCount = Math.max(localView.resultCount, results.length);
   const loading = Boolean(searchIndex.isLoading && results.length === 0);
-  const refining = Boolean(searchQuery && hasCurrentSearchState && searchState?.loading);
   const error = searchErrorForDisplay({
     hasResults: results.length > 0,
     indexError: searchIndex.error,
@@ -85,7 +94,8 @@ export function useFontSearch() {
     setFilters,
     results,
     loading,
-    refining,
+    refining: isRefining,
+    resultPresentation,
     error,
   };
 }
