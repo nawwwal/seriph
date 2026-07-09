@@ -1,34 +1,37 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { queries, resetSearchHarness, setSearchScenario } from "./searchFontsHarness";
 
+const getOrCreateQueryEmbedding = vi.fn(async () => [0.1, 0.2, 0.3]);
+
 vi.mock("firebase-functions", () => ({
   logger: { info: vi.fn(), warn: vi.fn() },
 }));
 
 vi.mock("../../src/search/queryEmbeddingCache", () => ({
-  getOrCreateQueryEmbedding: vi.fn(async () => [0.1, 0.2, 0.3]),
+  getOrCreateQueryEmbedding,
 }));
 
 describe("searchFonts", () => {
   beforeEach(() => {
     resetSearchHarness();
+    getOrCreateQueryEmbedding.mockClear();
   });
 
-  it("lets editorial queries rank through the use-case vector lane", async () => {
+  it("lets editorial queries rank through the unified text vector", async () => {
     const { searchFonts } = await import("../../src/search/searchFonts");
     const response = await searchFonts({ q: "editorial", filters: { ownerId: "owner-1" }, limit: 5, debug: true });
 
     expect(response.results[0]?.id).toBe("editorial-grotesk");
-    expect(response.results[0]?.scoreBreakdown?.useCaseSemantic).toBeGreaterThan(0.9);
+    expect(response.results[0]?.scoreBreakdown?.textSemantic).toBeGreaterThan(0.9);
   });
 
-  it("lets warm queries rank through the mood vector lane", async () => {
+  it("lets warm queries rank through the unified text vector", async () => {
     setSearchScenario("mood");
     const { searchFonts } = await import("../../src/search/searchFonts");
     const response = await searchFonts({ q: "warm", filters: { ownerId: "owner-1" }, limit: 5, debug: true });
 
     expect(response.results[0]?.id).toBe("warm-sans");
-    expect(response.results[0]?.scoreBreakdown?.moodSemantic).toBeGreaterThan(0.9);
+    expect(response.results[0]?.scoreBreakdown?.textSemantic).toBeGreaterThan(0.9);
   });
 
   it("lets an exact family name outrank weak semantic matches", async () => {
@@ -40,13 +43,15 @@ describe("searchFonts", () => {
     expect(response.results[0]?.scoreBreakdown?.exact).toBe(1);
   });
 
-  it("applies owner filtering to all Firestore lanes", async () => {
+  it("uses one embedding and one vector lane for semantic refinement", async () => {
     const { searchFonts } = await import("../../src/search/searchFonts");
     await searchFonts({ q: "editorial", filters: { ownerId: "owner-1" }, limit: 5 });
 
-    const laneQueries = queries.filter((query) => query.vectorField || query.filters.some(([field]) => field === "searchTokens"));
-    expect(laneQueries.length).toBeGreaterThanOrEqual(4);
-    expect(laneQueries.every((query) => query.filters.some(([field, op, value]) => field === "ownerId" && op === "==" && value === "owner-1"))).toBe(true);
+    const vectorQueries = queries.filter((query) => query.vectorField);
+    expect(vectorQueries).toHaveLength(1);
+    expect(vectorQueries[0]?.vectorField).toBe("text_vec");
+    expect(getOrCreateQueryEmbedding).toHaveBeenCalledTimes(1);
+    expect(vectorQueries[0]?.filters).toContainEqual(["ownerId", "==", "owner-1"]);
   });
 
   it("falls back to ready/enriched listing when the query is empty", async () => {

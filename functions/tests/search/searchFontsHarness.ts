@@ -76,8 +76,8 @@ function docsForQuery(query: FakeQuery): FakeDoc[] {
     if (scenario === "useCase") return [makeDoc(family("editorial-grotesk"))];
     return [makeDoc(family("warm-sans"))];
   }
-  if (query.vectorField === "use_case_vec" && scenario === "useCase") return [makeDoc(family("editorial-grotesk"), 0.05)];
-  if (query.vectorField === "mood_vec" && scenario === "mood") return [makeDoc(family("warm-sans"), 0.02)];
+  if (query.vectorField === "text_vec" && scenario === "useCase") return [makeDoc(family("editorial-grotesk"), 0.05)];
+  if (query.vectorField === "text_vec" && scenario === "mood") return [makeDoc(family("warm-sans"), 0.02)];
   if (query.vectorField === "text_vec" && scenario === "exactName") return [makeDoc(family("warm-sans"), 0.9)];
   if (!query.vectorField && scenario === "fallback") return [makeDoc(family("editorial-grotesk")), makeDoc(family("warm-sans"))];
   return [];

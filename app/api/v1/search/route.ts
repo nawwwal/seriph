@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const endpoint =
       process.env.SEARCH_FUNCTION_URL ||
       process.env.SEARCH_SERVICE_URL ||
-      'https://asia-southeast1-seriph.cloudfunctions.net/searchFontsHttp';
+      'https://us-central1-seriph.cloudfunctions.net/searchFontsHttpUs';
 
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -38,6 +38,7 @@ export async function POST(request: NextRequest) {
         ...payload,
         filters: { ...filters, ownerId: uid },
       }),
+      signal: request.signal,
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) {

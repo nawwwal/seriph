@@ -1,4 +1,5 @@
 import { type DocumentSnapshot, type Firestore, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { canonicalFamilyDocId } from '@/lib/server/catalogFamilyIdentity';
 
 export const FAMILIES_COLLECTION = 'fontfamilies';
 export const DEFAULT_LIMIT = 48;
@@ -20,6 +21,8 @@ export async function findOwnedTopLevelFamily(
   uid: string,
   familyId: string
 ): Promise<DocumentSnapshot | null> {
+  const canonical = await db.collection(FAMILIES_COLLECTION).doc(canonicalFamilyDocId(uid, familyId)).get();
+  if (canonical.exists && canonical.data()?.ownerId === uid) return canonical;
   const direct = await db.collection(FAMILIES_COLLECTION).doc(familyId).get();
   const directData = direct.data();
   if (direct.exists && directData?.ownerId === uid) return direct;

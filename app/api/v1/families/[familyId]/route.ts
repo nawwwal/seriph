@@ -3,7 +3,8 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { getUidFromRequest } from '@/lib/server/auth';
 import { readJsonObject } from '@/lib/server/apiRequest';
 import { fail, ok, unauthorized } from '@/lib/server/apiResponse';
-import { getOwnedFamily, patchOwnedFamily } from '@/lib/server/catalogFamilies';
+import { getOwnedFamilyDetail, patchOwnedFamily } from '@/lib/server/catalogFamilies';
+import { readCatalogSummary } from '@/lib/server/catalogSummary';
 import { rebuildCatalogSummary } from '@/lib/server/catalogSummary';
 
 export const runtime = 'nodejs';
@@ -20,9 +21,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
   const { familyId } = await context.params;
 
   try {
-    const family = await getOwnedFamily(getAdminDb(), uid, familyId);
-    if (!family) return fail('not_found', 'Family not found', 404);
-    return ok({ family });
+    const db = getAdminDb();
+    const [detail, summary] = await Promise.all([getOwnedFamilyDetail(db, uid, familyId), readCatalogSummary(db, uid)]);
+    if (!detail) return fail('not_found', 'Family not found', 404);
+    return ok({ family: detail.family, canonicalId: detail.canonicalId, libraryRevision: summary?.libraryRevision ?? 0 });
   } catch (error) {
     console.error(`GET /api/v1/families/${familyId} failed`, error);
     return fail('internal_error', 'Failed to fetch family', 500);

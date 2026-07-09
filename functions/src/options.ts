@@ -37,6 +37,11 @@ export const SEARCH_FUNCTION_OPTIONS = {
   maxInstances: 4,
 };
 
+export const SEARCH_US_FUNCTION_OPTIONS = {
+  ...SEARCH_FUNCTION_OPTIONS,
+  region: "us-central1",
+};
+
 export const CDN_FUNCTION_OPTIONS = {
   region: "asia-southeast1",
   cors: true,

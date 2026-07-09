@@ -1,5 +1,5 @@
 /**
- * Hybrid semantic font search over text, mood, use-case, and exact-token lanes.
+ * Fast semantic font search over the unified text vector and exact-token lane.
  */
 import { getFirestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
@@ -7,7 +7,7 @@ import { getConfigNumber } from "../config/remoteConfig";
 import { RC_KEYS, RC_DEFAULTS } from "../config/rcKeys";
 import { FAMILIES_COLLECTION } from "../storage/familyStore";
 import { getOrCreateQueryEmbedding } from "./queryEmbeddingCache";
-import { SEARCH_VECTOR_LANES, buildQueryLaneInput, normalizeSearchText } from "./searchDocument";
+import { normalizeSearchText } from "./searchDocument";
 import { applyStructuredFilters, fetchSearchableListing } from "./searchFilters";
 import { runExactLane, runVectorLane } from "./searchLanes";
 import { rankSearchDocs, toSearchItem } from "./searchResults";
@@ -35,19 +35,11 @@ export async function searchFonts(req: SearchRequest): Promise<{ results: Search
 
   const exactPromise = runExactLane(base, normalizedQuery, topK);
   const embeddingStarted = Date.now();
-  const laneVectors = await Promise.all(
-    SEARCH_VECTOR_LANES.map(async (lane) => ({
-      lane,
-      vector: await getOrCreateQueryEmbedding({ db, lane, query: buildQueryLaneInput(normalizedQuery, lane) }),
-    }))
-  );
-  logger.info("search query embeddings complete", { ms: Date.now() - embeddingStarted });
-
-  const vectorDocsByLane = await Promise.all(
-    laneVectors.map(({ lane, vector }) => (vector ? runVectorLane(base, lane, vector, topK) : Promise.resolve([])))
-  );
+  const vector = await getOrCreateQueryEmbedding({ db, query: normalizedQuery });
+  const vectorDocs = vector ? await runVectorLane(base, "text", vector, topK) : [];
+  logger.info("search semantic lane complete", { embeddingMs: Date.now() - embeddingStarted, vectorCount: vectorDocs.length });
   const exactDocs = await exactPromise;
-  let results = rankSearchDocs({ vectorDocsByLane, exactDocs, normalizedQuery, req, topK });
+  let results = rankSearchDocs({ vectorDocsByLane: [vectorDocs], exactDocs, normalizedQuery, req, topK });
 
   if (results.length === 0) {
     const fallbackDocs = await fetchSearchableListing(base, req, topK);
