@@ -13,6 +13,7 @@ describe('import route boundary', () => {
     const routeSource = readRepoFile('app/(main)/import/page.tsx');
 
     expect(routeSource).toContain("dynamic(() => import('@/components/import/ImportWorkspace')");
+    expect(routeSource).toContain("Object.hasOwn(window, '__seriphPendingFontFiles')");
     expect(routeSource).not.toContain("from '@/components/ui/Dropzone'");
     expect(routeSource).not.toContain("from '@/lib/hooks/useResumableBatchUpload'");
     expect(routeSource).not.toContain("from '@/utils/pendingFonts'");

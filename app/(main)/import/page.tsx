@@ -15,7 +15,9 @@ export default function ImportPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
   const { open: openUploadCenter } = useUploads();
-  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
+  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(
+    () => typeof window !== 'undefined' && Object.hasOwn(window, '__seriphPendingFontFiles')
+  );
 
   if (!user && !isLoading) {
     return (
