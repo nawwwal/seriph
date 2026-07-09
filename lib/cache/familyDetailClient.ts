@@ -3,6 +3,7 @@
 import { Timestamp } from 'firebase/firestore';
 import type { Font, FontFamily } from '@/models/font.models';
 import { cacheFamily, cacheFamilyById, getCachedFamily } from '@/lib/cache/familyCache';
+import { readSnapshot, writeSnapshot } from '@/lib/cache/persistentSnapshots';
 
 type TokenGetter = () => Promise<string>;
 interface LoadFamilyDetailInput {
@@ -15,6 +16,7 @@ interface LoadedFamilyDetail {
   canonicalId: string;
 }
 const inFlightFamilies = new Map<string, Promise<FontFamily | null>>();
+const DETAIL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 function cacheKey(uid: string, familyId: string): string {
   return `${uid}:${familyId}`;
 }
@@ -48,6 +50,11 @@ function responseError(json: unknown, status: number): Error {
     : `Family request failed: ${status}`;
   return new Error(message);
 }
+async function readPersistedFamilyDetail(input: LoadFamilyDetailInput): Promise<FontFamily | null> {
+  const record = await readSnapshot({ accountId: input.uid, kind: 'family-detail', key: input.familyId });
+  return record ? serializeFamilyDetail(record.payload) : null;
+}
+function persistFamilyDetail(uid: string, familyId: string, family: FontFamily): void { void writeSnapshot({ accountId: uid, kind: 'family-detail', key: familyId, payload: family, ttlMs: DETAIL_TTL_MS, maxEntries: 24 }); }
 async function requestFamilyDetail(input: LoadFamilyDetailInput): Promise<LoadedFamilyDetail | null> {
   const token = await input.getIdToken();
   const response = await fetch(`/api/v1/families/${encodeURIComponent(input.familyId)}`, {
@@ -67,12 +74,15 @@ export function loadFamilyDetail(input: LoadFamilyDetailInput): Promise<FontFami
   const key = cacheKey(input.uid, input.familyId);
   const existing = inFlightFamilies.get(key);
   if (existing) return existing;
-  const pending = requestFamilyDetail(input)
+  const pending = readPersistedFamilyDetail(input)
+    .then((persisted) => persisted ? { family: persisted, canonicalId: persisted.id } : requestFamilyDetail(input))
     .then((detail) => {
       if (detail) {
         cacheFamily(input.uid, detail.family);
         cacheFamilyById(input.uid, input.familyId, detail.family);
         cacheFamilyById(input.uid, detail.canonicalId, detail.family);
+        persistFamilyDetail(input.uid, input.familyId, detail.family);
+        persistFamilyDetail(input.uid, detail.canonicalId, detail.family);
       }
       return detail?.family ?? null;
     })

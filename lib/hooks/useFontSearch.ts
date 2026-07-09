@@ -26,7 +26,7 @@ export function useFontSearch() {
   const searchIndex = useSearchIndex({ enabled: Boolean(user) });
   const liveQuery = inputState.q.trim();
   const searchQuery = useDeferredValue(liveQuery);
-  const searchState = useSemanticFontSearch(searchQuery, user ?? null, inputState.filters);
+  const searchState = useSemanticFontSearch(searchQuery, user ?? null, inputState.filters, searchIndex.libraryRevision);
   const activeFilters = inputState.filters;
 
   if (inputState.urlQuery !== urlQuery || !sameSearchFilters(inputState.filters, urlFilters)) {

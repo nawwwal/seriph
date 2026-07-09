@@ -1,6 +1,7 @@
 import { FieldPath, type Firestore, type Query, type QueryDocumentSnapshot } from 'firebase-admin/firestore';
 import { mapCatalogDocToShelfFamily } from '@/lib/api/familyShelf';
 import { FAMILIES_COLLECTION } from '@/lib/server/catalogFamilyShared';
+import { getShelfStats } from '@/lib/server/catalogFamilyStats';
 import { isFirestoreIndexUnavailable, sortCatalogDocsByName } from '@/lib/server/firestoreQueryFallback';
 import { normalizeSearchInput } from '@/lib/search/localSearch';
 import type { SearchIndexItem, SearchIndexResponse } from '@/models/search.models';
@@ -46,7 +47,11 @@ function mapDoc(doc: QueryDocumentSnapshot): SearchIndexItem {
   };
 }
 
-export async function listSearchIndex(db: Firestore, uid: string): Promise<SearchIndexResponse> {
+export async function listSearchIndex(db: Firestore, uid: string, knownRevision?: number): Promise<SearchIndexResponse> {
+  const summary = await getShelfStats(db, uid);
+  if (knownRevision === summary.libraryRevision) {
+    return { items: [], generatedAt: summary.updatedAt, libraryRevision: summary.libraryRevision, unchanged: true };
+  }
   let query: Query = db.collection(FAMILIES_COLLECTION)
     .where('ownerId', '==', uid)
     .where('hidden', '==', false)
@@ -80,5 +85,5 @@ export async function listSearchIndex(db: Firestore, uid: string): Promise<Searc
     }
   }
 
-  return { items, generatedAt: new Date().toISOString() };
+  return { items, generatedAt: new Date().toISOString(), libraryRevision: summary.libraryRevision };
 }

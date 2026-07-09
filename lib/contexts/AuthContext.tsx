@@ -9,6 +9,11 @@ import {
   signInWithEmailPassword as signInWithEmailPasswordHelper,
 } from '@/lib/auth/emailPassword';
 import { auth } from '@/lib/firebase/auth';
+import { clearAccountSnapshots } from '@/lib/cache/persistentSnapshots';
+import { clearFamilyCacheForUser } from '@/lib/cache/familyCache';
+import { clearFamilyPreviewCacheForUser } from '@/lib/cache/familyPreviewCache';
+import { clearSearchIndexCache } from '@/lib/search/searchIndexCache';
+import { clearShelfFamilyCache } from '@/lib/shelf/familyPageCache';
 
 type AuthContextValue = {
   user: User | null;
@@ -58,8 +63,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    if (user) {
+      clearFamilyCacheForUser(user.uid);
+      clearFamilyPreviewCacheForUser(user.uid);
+      clearSearchIndexCache(user.uid);
+      clearShelfFamilyCache(user.uid);
+      try {
+        await clearAccountSnapshots({ accountId: user.uid });
+      } catch (error) {
+        console.error('Failed to clear persistent snapshots during sign-out:', error);
+      }
+    }
     await firebaseSignOut(auth);
-  }, []);
+  }, [user]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

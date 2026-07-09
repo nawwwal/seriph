@@ -55,4 +55,6 @@ export interface SearchIndexItem extends SearchResultItem {
 export interface SearchIndexResponse {
   items: SearchIndexItem[];
   generatedAt: string;
+  libraryRevision: number;
+  unchanged?: boolean;
 }

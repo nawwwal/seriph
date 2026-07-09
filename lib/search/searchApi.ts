@@ -53,14 +53,21 @@ export async function fetchSearchIndexForUser({
   fetcher = fetch,
   getIdToken,
   signal,
-}: Omit<SearchFontsForUserInput, 'query'>): Promise<SearchIndexResponse> {
+  revision,
+}: Omit<SearchFontsForUserInput, 'query' | 'filters'> & { revision?: number }): Promise<SearchIndexResponse> {
   const idToken = await getIdToken();
   const init: RequestInit = { headers: { Authorization: `Bearer ${idToken}` } };
   if (signal) init.signal = signal;
-  const response = await fetcher('/api/v1/search-index', init);
+  const path = typeof revision === 'number' ? `/api/v1/search-index?revision=${revision}` : '/api/v1/search-index';
+  const response = await fetcher(path, init);
   const data = await readSearchResponse(response);
   if (!response.ok) throw new Error(isRecord(data) && isRecord(data.error) && typeof data.error.message === 'string' ? data.error.message : `Search index failed: ${response.status}`);
   const envelope = isRecord(data) && isRecord(data.data) ? data.data : data;
-  if (!isRecord(envelope) || !Array.isArray(envelope.items)) return { items: [], generatedAt: '' };
-  return { items: envelope.items.filter(isSearchIndexItem), generatedAt: typeof envelope.generatedAt === 'string' ? envelope.generatedAt : '' };
+  if (!isRecord(envelope) || !Array.isArray(envelope.items)) return { items: [], generatedAt: '', libraryRevision: 0 };
+  return {
+    items: envelope.items.filter(isSearchIndexItem),
+    generatedAt: typeof envelope.generatedAt === 'string' ? envelope.generatedAt : '',
+    libraryRevision: typeof envelope.libraryRevision === 'number' ? envelope.libraryRevision : 0,
+    unchanged: envelope.unchanged === true,
+  };
 }

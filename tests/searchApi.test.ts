@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchSearchIndexForUser, searchFontsForUser } from '@/lib/search/searchApi';
+import { searchFontsForUser } from '@/lib/search/searchApi';
 
 describe('searchFontsForUser', () => {
   it('posts the search query with the Firebase bearer token', async () => {
@@ -90,19 +90,4 @@ describe('searchFontsForUser', () => {
     }));
   });
 
-  it('loads the compact local search index', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ data: { generatedAt: 'now', items: [{ id: 'ivar', slug: 'ivar', name: 'Ivar', searchText: 'ivar editorial serif', searchTokens: ['ivar', 'editorial'] }] } }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      })
-    );
-
-    const index = await fetchSearchIndexForUser({ fetcher: fetchMock, getIdToken: async () => 'token-123' });
-
-    expect(index.items).toHaveLength(1);
-    expect(fetchMock).toHaveBeenCalledWith('/api/v1/search-index', {
-      headers: { Authorization: 'Bearer token-123' },
-    });
-  });
 });

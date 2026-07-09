@@ -1,5 +1,6 @@
 import type { PaginatedFamiliesResponse, ShelfFamily } from '@/models/shelf.models';
 import { parseShelfFamilyPage, parseShelfStats } from '@/lib/shelf/familyPageParsing';
+import { clearPersistentShelfCache, writePersistentShelfCache } from '@/lib/shelf/persistentShelfCache';
 export { parseShelfFamilyPage, parseShelfStats } from '@/lib/shelf/familyPageParsing';
 
 const CACHE_KEY = 'seriphShelfFamilies_v2';
@@ -29,6 +30,7 @@ export function readShelfFamilyCache(uid: string): PaginatedFamiliesResponse | n
 }
 
 export function writeShelfFamilyCache(uid: string, data: PaginatedFamiliesResponse): void {
+  void writePersistentShelfCache(uid, data);
   try {
     localStorage.setItem(cacheKey(uid), JSON.stringify({ timestamp: Date.now(), data }));
   } catch {
@@ -63,6 +65,7 @@ export function mergeShelfRefreshPage(
 }
 
 export function clearShelfFamilyCache(uid: string): void {
+  void clearPersistentShelfCache(uid);
   try {
     localStorage.removeItem(cacheKey(uid));
   } catch {

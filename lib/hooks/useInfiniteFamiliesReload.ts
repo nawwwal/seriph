@@ -4,6 +4,8 @@ import { useCallback, type Dispatch, type MutableRefObject, type SetStateAction 
 import type { User } from 'firebase/auth';
 import { fetchFamilyPage, fetchShelfStats } from '@/lib/shelf/familyPageApi';
 import { mergeShelfRefreshPage, readShelfFamilyCache, writeShelfFamilyCache } from '@/lib/shelf/familyPageCache';
+import { readPersistentShelfCache } from '@/lib/shelf/persistentShelfCache';
+import { hasMatchingShelfRevision } from '@/lib/shelf/shelfRevision';
 import {
   emptyInfiniteFamiliesState,
   type InfiniteFamiliesState,
@@ -53,13 +55,32 @@ export function useInfiniteFamiliesReload(args: ReloadArgs) {
     const id = requestId.current;
     cancelMoreRequests(moreAbortRef, moreRequestId, inFlightMore);
 
-    const cached = readShelfFamilyCache(user.uid);
+    let cached = readShelfFamilyCache(user.uid);
     setState(stateFromShelfCache(user.uid, cached));
     const tokenPromise = user.getIdToken();
     const getIdToken = () => tokenPromise;
     const statsPromise = fetchShelfStats({ getIdToken, signal: controller.signal })
       .then((stats) => ({ ok: true as const, stats }))
       .catch((error: unknown) => ({ ok: false as const, error }));
+
+    const persisted = await readPersistentShelfCache(user.uid);
+    if (requestId.current !== id) return;
+    if (persisted) {
+      cached = persisted;
+      setState(stateFromShelfCache(user.uid, cached));
+    }
+
+    if (cached) {
+      const statsResult = await statsPromise;
+      if (requestId.current !== id) return;
+      if (statsResult.ok && hasMatchingShelfRevision(cached, statsResult.stats)) {
+        const current = { ...cached, stats: statsResult.stats };
+        writeShelfFamilyCache(user.uid, current);
+        setState(stateFromShelfPage(user.uid, current));
+        return;
+      }
+      if (!statsResult.ok && !isAbortError(statsResult.error)) console.warn('Failed to refresh shelf stats', statsResult.error);
+    }
 
     try {
       const page = await fetchFamilyPage({ getIdToken, cursor: null, signal: controller.signal });

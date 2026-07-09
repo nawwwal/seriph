@@ -1,4 +1,6 @@
+import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearAccountSnapshots, writeSnapshot } from '@/lib/cache/persistentSnapshots';
 import { clearFamilyCacheForUser, getCachedFamily } from '@/lib/cache/familyCache';
 import { loadFamilyDetail, serializeFamilyDetail } from '@/lib/cache/familyDetailClient';
 
@@ -24,8 +26,9 @@ function mockFamilyFetch() {
 }
 
 describe('family detail client loader', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     clearFamilyCacheForUser('user-a');
+    await clearAccountSnapshots({ accountId: 'user-a' });
     vi.unstubAllGlobals();
   });
 
@@ -53,6 +56,15 @@ describe('family detail client loader', () => {
 
     await expect(loadFamilyDetail({ uid: 'user-a', familyId: 'inter', getIdToken: async () => 'token' }))
       .resolves.toMatchObject({ id: 'inter' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('hydrates an account-scoped persisted detail before making a network request', async () => {
+    await writeSnapshot({ accountId: 'user-a', kind: 'family-detail', key: 'inter', payload: rawFamily, ttlMs: 60_000 });
+    const fetchMock = mockFamilyFetch();
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(loadFamilyDetail({ uid: 'user-a', familyId: 'inter', getIdToken: async () => 'token' })).resolves.toMatchObject({ id: 'inter' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

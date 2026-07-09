@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { searchFontsForUser } from '@/lib/search/searchApi';
+import { buildSemanticSearchCacheKey, readPersistentSemanticSearch, writePersistentSemanticSearch } from '@/lib/search/persistentSemanticSearch';
 import { searchFiltersKey } from '@/lib/search/searchFilterUrl';
 import type { SearchFilters, SearchResultItem } from '@/models/search.models';
 
-const REMOTE_SEARCH_DEBOUNCE_MS = 350;
+const REMOTE_SEARCH_DEBOUNCE_MS = 250;
 
 interface SemanticSearchState {
   query: string;
@@ -20,7 +21,7 @@ function abortError(error: unknown): boolean {
   return (error instanceof DOMException || error instanceof Error) && error.name === 'AbortError';
 }
 
-export function useSemanticFontSearch(query: string, user: User | null, filters: SearchFilters) {
+export function useSemanticFontSearch(query: string, user: User | null, filters: SearchFilters, libraryRevision: number) {
   const [state, setState] = useState<SemanticSearchState | null>(null);
   const filtersKey = searchFiltersKey(filters);
 
@@ -30,15 +31,17 @@ export function useSemanticFontSearch(query: string, user: User | null, filters:
     let isActive = true;
     const controller = new AbortController();
     const searchUser = user;
+    const cacheKey = buildSemanticSearchCacheKey({ libraryRevision, query, filters });
     const timer = window.setTimeout(() => {
       if (!isActive) return;
       setState({ query, userId: searchUser.uid, results: [], error: null, loading: true });
-      searchFontsForUser({
-        getIdToken: () => searchUser.getIdToken(),
-        query,
-        filters,
-        signal: controller.signal,
-      })
+      readPersistentSemanticSearch(searchUser.uid, cacheKey)
+        .then(async (cached) => {
+          if (cached) return cached;
+          const results = await searchFontsForUser({ getIdToken: () => searchUser.getIdToken(), query, filters, signal: controller.signal });
+          void writePersistentSemanticSearch(searchUser.uid, cacheKey, libraryRevision, results);
+          return results;
+        })
         .then((results) => {
           if (isActive) setState({ query, userId: searchUser.uid, results, error: null, loading: false });
         })
@@ -59,7 +62,7 @@ export function useSemanticFontSearch(query: string, user: User | null, filters:
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [filters, filtersKey, query, user]);
+  }, [filters, filtersKey, libraryRevision, query, user]);
 
   return state;
 }

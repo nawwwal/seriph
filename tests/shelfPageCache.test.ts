@@ -5,6 +5,7 @@ import {
   parseShelfFamilyPage,
   parseShelfStats,
 } from '@/lib/shelf/familyPageCache';
+import { hasMatchingShelfRevision } from '@/lib/shelf/shelfRevision';
 import type { ShelfFamily, ShelfStatsSummary } from '@/models/shelf.models';
 
 const stats: ShelfStatsSummary = {
@@ -53,5 +54,14 @@ describe('shelf page cache helpers', () => {
     expect(refreshed.families.map((family) => family.id)).toEqual(['a', 'b']);
     expect(refreshed.nextCursor).toBe('b');
     expect(refreshed.stats).toEqual(stats);
+  });
+
+  it('reuses a cached shelf page only when its summary revision matches', () => {
+    const cached = { families: [shelfFamily('a', 'Aeonik')], nextCursor: null, hasMore: false, stats };
+
+    expect(hasMatchingShelfRevision(cached, stats)).toBe(true);
+    expect(hasMatchingShelfRevision(cached, { ...stats, libraryRevision: 5 })).toBe(false);
+    expect(hasMatchingShelfRevision({ ...cached, stats: undefined }, stats)).toBe(false);
+    expect(hasMatchingShelfRevision(null, stats)).toBe(false);
   });
 });

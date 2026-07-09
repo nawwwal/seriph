@@ -35,10 +35,17 @@ function readWrappedData(uid: string, prefix: string): unknown {
   }
 }
 
-export function readSearchIndexCache(uid: string): SearchIndexResponse | null {
-  const data = readWrappedData(uid, CACHE_KEY);
+export function parseSearchIndexResponse(data: unknown): SearchIndexResponse | null {
   if (!isRecord(data) || !Array.isArray(data.items) || !data.items.every(isSearchIndexItem)) return null;
-  return { items: data.items, generatedAt: typeof data.generatedAt === 'string' ? data.generatedAt : '' };
+  return {
+    items: data.items,
+    generatedAt: typeof data.generatedAt === 'string' ? data.generatedAt : '',
+    libraryRevision: typeof data.libraryRevision === 'number' ? data.libraryRevision : 0,
+  };
+}
+
+export function readSearchIndexCache(uid: string): SearchIndexResponse | null {
+  return parseSearchIndexResponse(readWrappedData(uid, CACHE_KEY));
 }
 
 export function writeSearchIndexCache(uid: string, data: SearchIndexResponse): void {
@@ -46,6 +53,14 @@ export function writeSearchIndexCache(uid: string, data: SearchIndexResponse): v
     localStorage.setItem(cacheKey(uid, CACHE_KEY), JSON.stringify({ timestamp: Date.now(), data }));
   } catch {
     /* Search still works through the network path if storage is unavailable. */
+  }
+}
+
+export function clearSearchIndexCache(uid: string): void {
+  try {
+    localStorage.removeItem(cacheKey(uid, CACHE_KEY));
+  } catch {
+    /* Storage may be unavailable during sign-out. */
   }
 }
 
@@ -73,5 +88,6 @@ export function readShelfSearchSeed(uid: string): SearchIndexResponse | null {
     searchTokens: [family.name, family.normalizedName, family.classification].flatMap((part) => part.toLowerCase().split(/[^a-z0-9]+/)).filter(Boolean),
     source: 'local' as const,
   }));
-  return { items, generatedAt: '' };
+  const stats = isRecord(data.stats) ? data.stats : {};
+  return { items, generatedAt: '', libraryRevision: typeof stats.libraryRevision === 'number' ? stats.libraryRevision : 0 };
 }

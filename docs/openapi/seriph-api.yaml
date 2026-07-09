@@ -484,11 +484,16 @@ components:
       properties:
         data:
           type: object
-          required: [items, generatedAt]
+          required: [items, generatedAt, libraryRevision]
           properties:
             generatedAt:
               type: string
               format: date-time
+            libraryRevision:
+              type: integer
+              minimum: 0
+            unchanged:
+              type: boolean
             items:
               type: array
               items:
@@ -744,6 +749,13 @@ paths:
   /api/v1/search-index:
     get:
       summary: Get compact owner-scoped search index for instant local search
+      parameters:
+        - name: revision
+          in: query
+          description: Cached library revision. A matching revision returns no index items.
+          schema:
+            type: integer
+            minimum: 0
       responses:
         '200':
           description: Search index

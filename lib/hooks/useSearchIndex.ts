@@ -3,17 +3,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { fetchSearchIndexForUser } from '@/lib/search/searchApi';
+import { readPersistentSearchIndex, writePersistentSearchIndex } from '@/lib/search/persistentSearchIndexCache';
 import { readSearchIndexCache, readShelfSearchSeed, writeSearchIndexCache } from '@/lib/search/searchIndexCache';
+import { preferSearchIndex } from '@/lib/search/searchIndexSelection';
 import type { SearchIndexItem } from '@/models/search.models';
 
 interface SearchIndexState {
   userId: string | null;
   items: SearchIndexItem[];
+  libraryRevision: number;
   isLoading: boolean;
   error: string | null;
 }
 
-const emptyState: SearchIndexState = { userId: null, items: [], isLoading: false, error: null };
+const emptyState: SearchIndexState = { userId: null, items: [], libraryRevision: 0, isLoading: false, error: null };
 
 function abortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === 'AbortError';
@@ -41,14 +44,24 @@ export function useSearchIndex(options?: { enabled?: boolean }) {
     abortRef.current = controller;
     requestId.current += 1;
     const id = requestId.current;
-    const cached = readSearchIndexCache(user.uid) ?? readShelfSearchSeed(user.uid);
-    setState({ userId: user.uid, items: cached?.items ?? [], isLoading: true, error: null });
+    let cached = readSearchIndexCache(user.uid) ?? readShelfSearchSeed(user.uid);
+    setState({ userId: user.uid, items: cached?.items ?? [], libraryRevision: cached?.libraryRevision ?? 0, isLoading: !cached, error: null });
 
     try {
-      const index = await fetchSearchIndexForUser({ getIdToken: () => user.getIdToken(), signal: controller.signal });
+      const persisted = await readPersistentSearchIndex(user.uid);
+      cached = preferSearchIndex(cached, persisted);
       if (requestId.current !== id) return;
+      if (cached) setState({ userId: user.uid, items: cached.items, libraryRevision: cached.libraryRevision, isLoading: false, error: null });
+      const index = await fetchSearchIndexForUser({ getIdToken: () => user.getIdToken(), revision: cached?.libraryRevision, signal: controller.signal });
+      if (requestId.current !== id) return;
+      if (index.unchanged && cached) {
+        writeSearchIndexCache(user.uid, cached);
+        setState({ userId: user.uid, items: cached.items, libraryRevision: cached.libraryRevision, isLoading: false, error: null });
+        return;
+      }
       writeSearchIndexCache(user.uid, index);
-      setState({ userId: user.uid, items: index.items, isLoading: false, error: null });
+      void writePersistentSearchIndex(user.uid, index);
+      setState({ userId: user.uid, items: index.items, libraryRevision: index.libraryRevision, isLoading: false, error: null });
     } catch (error) {
       if (abortError(error) || requestId.current !== id) return;
       setState((current) => ({ ...current, userId: user.uid, isLoading: false, error: error instanceof Error ? error.message : 'Search index failed' }));
@@ -62,6 +75,7 @@ export function useSearchIndex(options?: { enabled?: boolean }) {
 
   return useMemo(() => ({
     items: activeState.items,
+    libraryRevision: activeState.libraryRevision,
     isLoading: authLoading || activeState.isLoading,
     error: activeState.error,
     reload,
