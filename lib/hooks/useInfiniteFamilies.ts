@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import {
   emptyInfiniteFamiliesState,
   inactiveFamiliesState,
+  type InfiniteFamiliesState,
 } from '@/lib/hooks/infiniteFamiliesState';
 import { useInfiniteFamiliesLoadMore } from '@/lib/hooks/useInfiniteFamiliesLoadMore';
 import { useInfiniteFamiliesReload } from '@/lib/hooks/useInfiniteFamiliesReload';
@@ -21,6 +22,13 @@ export function useInfiniteFamilies() {
   const [state, setState] = useState(emptyInfiniteFamiliesState);
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
+  const setStateAndRef = useCallback((update: SetStateAction<InfiniteFamiliesState>) => {
+    setState((current) => {
+      const next = typeof update === 'function' ? update(current) : update;
+      stateRef.current = next;
+      return next;
+    });
+  }, []);
   const activeState = useMemo(
     () => state.userId === currentUserId ? state : inactiveFamiliesState(state),
     [currentUserId, state]
@@ -32,7 +40,7 @@ export function useInfiniteFamilies() {
     moreAbortRef,
     moreRequestId,
     requestId,
-    setState,
+    setState: setStateAndRef,
     user,
   });
   const loadMore = useInfiniteFamiliesLoadMore({
@@ -40,7 +48,7 @@ export function useInfiniteFamilies() {
     inFlightMore,
     moreAbortRef,
     moreRequestId,
-    setState,
+    setState: setStateAndRef,
     stateRef,
     user,
   });

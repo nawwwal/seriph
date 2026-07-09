@@ -18,14 +18,16 @@ interface LoadMoreArgs {
   moreRequestId: MutableRefObject<number>;
   setState: Dispatch<SetStateAction<InfiniteFamiliesState>>;
   stateRef: MutableRefObject<InfiniteFamiliesState>;
-  user: User | null;
+  user: Pick<User, 'uid' | 'getIdToken'> | null;
 }
 
 export function useInfiniteFamiliesLoadMore(args: LoadMoreArgs) {
   const { activeState, inFlightMore, moreAbortRef, moreRequestId, setState, stateRef, user } = args;
 
   return useCallback(async () => {
-    if (!user || inFlightMore.current || !activeState.hasMore || !activeState.nextCursor) return;
+    if (!user || inFlightMore.current) return;
+    const continuation = stateRef.current.userId === user.uid ? stateRef.current : activeState;
+    if (!continuation.hasMore || !continuation.nextCursor) return;
     inFlightMore.current = true;
     moreAbortRef.current?.abort();
     const controller = new AbortController();
@@ -37,11 +39,11 @@ export function useInfiniteFamiliesLoadMore(args: LoadMoreArgs) {
     try {
       const page = await fetchFamilyPage({
         getIdToken: () => user.getIdToken(),
-        cursor: activeState.nextCursor,
+        cursor: continuation.nextCursor,
         signal: controller.signal,
       });
       if (moreRequestId.current !== id) return;
-      const current = stateRef.current.userId === user.uid ? stateRef.current : activeState;
+      const current = stateRef.current.userId === user.uid ? stateRef.current : continuation;
       const mergedPage = appendShelfFamilyPage(pageFromInfiniteState(current), page);
       writeShelfFamilyCache(user.uid, mergedPage);
       setState((latest) => ({
