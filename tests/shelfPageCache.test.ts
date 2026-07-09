@@ -42,13 +42,14 @@ describe('shelf page cache helpers', () => {
     expect(merged.hasMore).toBe(true);
   });
 
-  it('keeps a deeper cached shelf view when the first page refreshes', () => {
+  it('does not keep stale cached families when the first page refreshes', () => {
     const refreshed = mergeShelfRefreshPage(
-      { families: [shelfFamily('old-a', 'Old A'), shelfFamily('b', 'Benton'), shelfFamily('c', 'Canela')], nextCursor: 'c', hasMore: true },
+      { families: [shelfFamily('old-a', 'Old A'), shelfFamily('b', 'Benton'), shelfFamily('c', 'Canela')], nextCursor: 'c', hasMore: true, stats },
       { families: [shelfFamily('a', 'Aeonik'), shelfFamily('b', 'Benton')], nextCursor: 'b', hasMore: true }
     );
 
-    expect(refreshed.families.map((family) => family.id)).toEqual(['a', 'b', 'old-a', 'c']);
-    expect(refreshed.nextCursor).toBe('c');
+    expect(refreshed.families.map((family) => family.id)).toEqual(['a', 'b']);
+    expect(refreshed.nextCursor).toBe('b');
+    expect(refreshed.stats).toEqual(stats);
   });
 });

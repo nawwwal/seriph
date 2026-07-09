@@ -1,5 +1,4 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { isCatalogAliasDoc } from '@/lib/db/catalogAdapter';
 import type { ShelfStatsSummary } from '@/models/shelf.models';
 import { FAMILIES_COLLECTION } from '@/lib/server/catalogFamilyShared';
 
@@ -31,7 +30,8 @@ function styleCountFor(data: Record<string, unknown>): number {
 async function readShelfStats(db: Firestore, uid: string): Promise<ShelfStatsSummary> {
   const snap = await db.collection(FAMILIES_COLLECTION)
     .where('ownerId', '==', uid)
-    .select('name', 'faces', 'styleCount', 'createdAt', 'updatedAt', 'status', 'hidden', 'mergedInto', 'aliasOf')
+    .where('hidden', '==', false)
+    .select('name', 'styleCount', 'createdAt', 'updatedAt', 'status', 'hidden')
     .get();
   let familyCount = 0;
   let styleCount = 0;
@@ -40,7 +40,6 @@ async function readShelfStats(db: Firestore, uid: string): Promise<ShelfStatsSum
 
   for (const doc of snap.docs) {
     const data = doc.data();
-    if (isCatalogAliasDoc(data)) continue;
     familyCount += 1;
     styleCount += styleCountFor(data);
     const createdOrUpdated = timestampMillis(data.createdAt) || timestampMillis(data.updatedAt);

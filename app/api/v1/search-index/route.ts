@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const data = await listSearchIndex(getAdminDb(), uid);
     return ok(data, {
       headers: {
-        'Cache-Control': 'private, max-age=60, stale-while-revalidate=600',
+        'Cache-Control': 'private, max-age=0, must-revalidate',
       },
     });
   } catch (error) {

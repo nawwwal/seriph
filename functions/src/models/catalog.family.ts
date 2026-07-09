@@ -2,6 +2,15 @@ import type { GfCategory } from "../storage/canonicalize";
 import type { CanonicalAxis, FontFace } from "./catalog.assets";
 import type { FamilyStatus, FontEnrichment, SearchMeta } from "./catalog.enrichment";
 
+export interface CatalogCoverFace {
+  id: string;
+  subfamily: string;
+  weight: number;
+  italic: boolean;
+  isVariable: boolean;
+  cdnUrl?: string;
+}
+
 export interface FontFamilyDoc {
   id: string;
   slug: string;
@@ -16,7 +25,9 @@ export interface FontFamilyDoc {
   axes?: CanonicalAxis[];
   faces: FontFace[];
   styleCount?: number;
+  isVariable?: boolean;
   coverFaceId?: string;
+  coverFace?: CatalogCoverFace;
   enrichment?: FontEnrichment;
   ownerId?: string;
   status: FamilyStatus;

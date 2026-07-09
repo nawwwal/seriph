@@ -2,7 +2,7 @@ import type { PaginatedFamiliesResponse, ShelfFamily } from '@/models/shelf.mode
 import { parseShelfFamilyPage, parseShelfStats } from '@/lib/shelf/familyPageParsing';
 export { parseShelfFamilyPage, parseShelfStats } from '@/lib/shelf/familyPageParsing';
 
-const CACHE_KEY = 'seriphShelfFamilies_v1';
+const CACHE_KEY = 'seriphShelfFamilies_v2';
 const CACHE_TTL_MS = 60 * 60 * 1000;
 export const FAMILY_PAGE_SIZE = 48;
 
@@ -59,14 +59,7 @@ export function mergeShelfRefreshPage(
   cached: PaginatedFamiliesResponse | null,
   page: PaginatedFamiliesResponse
 ): PaginatedFamiliesResponse {
-  if (!cached || cached.families.length <= page.families.length) return page;
-  const seen = new Set(page.families.map((family) => family.id));
-  return {
-    families: [...page.families, ...cached.families.filter((family) => !seen.has(family.id))],
-    nextCursor: cached.nextCursor,
-    hasMore: cached.hasMore,
-    ...(cached.stats ?? page.stats ? { stats: cached.stats ?? page.stats } : {}),
-  };
+  return cached?.stats && !page.stats ? { ...page, stats: cached.stats } : page;
 }
 
 export function clearShelfFamilyCache(uid: string): void {

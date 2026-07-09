@@ -1,7 +1,8 @@
 import { FieldValue } from "firebase-admin/firestore";
 import type { CanonicalAxis, FontFamilyDoc } from "../models/catalog.models";
 import type { UpsertFaceInput } from "./familyStore";
-import { isCoverFace, nextFamilyStatusAfterFaceMerge } from "./familyStatus";
+import { nextFamilyStatusAfterFaceMerge } from "./familyStatus";
+import { coverFaceFor, coverFaceIdFor, hasVariableFace } from "./shelfSummary";
 
 function mergeAxes(a: CanonicalAxis[] = [], b: CanonicalAxis[] = []): CanonicalAxis[] {
   const byTag = new Map<string, CanonicalAxis>();
@@ -24,7 +25,10 @@ export function newFamilyDoc(input: UpsertFaceInput, docId: string, now: FieldVa
     axes: input.familyAxes,
     faces: [input.face],
     styleCount: 1,
+    isVariable: input.face.isVariable,
     coverFaceId: input.face.id,
+    coverFace: coverFaceFor([input.face], input.face.id),
+    hidden: false,
     ownerId: input.ownerId,
     status: "ready",
     version: 1,
@@ -37,6 +41,7 @@ export function mergeFaceIntoFamily(existing: FontFamilyDoc, input: UpsertFaceIn
   const faces = [...(existing.faces ?? [])].filter((face) => face.id !== input.face.id);
   faces.push(input.face);
   faces.sort((a, b) => a.weight - b.weight || Number(a.italic) - Number(b.italic));
+  const coverFaceId = coverFaceIdFor(faces, existing.coverFaceId) ?? input.face.id;
   return {
     name: existing.name || input.name,
     fileBase: existing.fileBase || input.fileBase,
@@ -49,9 +54,10 @@ export function mergeFaceIntoFamily(existing: FontFamilyDoc, input: UpsertFaceIn
     axes: mergeAxes(existing.axes, input.familyAxes),
     faces,
     styleCount: faces.length,
-    coverFaceId: existing.coverFaceId && existing.faces?.some((face) => face.id === existing.coverFaceId && isCoverFace(face))
-      ? existing.coverFaceId
-      : (faces.find(isCoverFace)?.id ?? faces[0]?.id ?? input.face.id),
+    isVariable: hasVariableFace(faces),
+    coverFaceId,
+    coverFace: coverFaceFor(faces, coverFaceId),
+    hidden: false,
     ownerId: existing.ownerId ?? input.ownerId,
     status: nextFamilyStatusAfterFaceMerge(existing, input.face),
     version: (existing.version ?? 1) + 1,

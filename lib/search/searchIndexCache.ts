@@ -1,8 +1,8 @@
 import type { SearchIndexItem, SearchIndexResponse } from '@/models/search.models';
 import type { ShelfFamily } from '@/models/shelf.models';
 
-const CACHE_KEY = 'seriphSearchIndex_v1';
-const SHELF_CACHE_KEY = 'seriphShelfFamilies_v1';
+const CACHE_KEY = 'seriphSearchIndex_v2';
+const SHELF_CACHE_KEY = 'seriphShelfFamilies_v2';
 const CACHE_TTL_MS = 60 * 60 * 1000;
 
 function cacheKey(uid: string, prefix: string): string {
