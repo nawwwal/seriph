@@ -5,7 +5,7 @@ import { readJsonObject } from '@/lib/server/apiRequest';
 import { fail, ok, unauthorized } from '@/lib/server/apiResponse';
 import { applyFamilyHardDelete } from '@/lib/server/familyMutations';
 import { statusForMutation } from '@/lib/server/familyMutationStore';
-import { clearShelfStatsCache } from '@/lib/server/catalogFamilyStats';
+import { rebuildCatalogSummary } from '@/lib/server/catalogSummary';
 
 export const runtime = 'nodejs';
 
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       familyIds: strings(payload.familyIds),
     });
     if (!result.ok) return fail(result.code, result.message, statusForMutation(result));
-    clearShelfStatsCache(uid);
+    await rebuildCatalogSummary(getAdminDb(), uid);
     return ok({
       deletedFamilyIds: result.value.docIds,
       deletedAssetCount: result.value.storagePaths.length,

@@ -12,6 +12,8 @@ const stats: ShelfStatsSummary = {
   styleCount: 1898,
   recentFamilyName: 'Satoshi',
   generatedAt: '2026-06-30T12:00:00.000Z',
+  libraryRevision: 4,
+  updatedAt: '2026-06-30T12:00:00.000Z',
 };
 
 const shelfFamily = (id: string, name: string): ShelfFamily => ({

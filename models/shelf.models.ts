@@ -25,6 +25,8 @@ export interface ShelfStatsSummary {
   styleCount: number;
   recentFamilyName: string | null;
   generatedAt: string;
+  libraryRevision: number;
+  updatedAt: string;
 }
 
 export interface FamilyCursor {

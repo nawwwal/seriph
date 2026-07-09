@@ -4,7 +4,7 @@ import { getUidFromRequest } from '@/lib/server/auth';
 import { fail, ok, unauthorized } from '@/lib/server/apiResponse';
 import { undoFamilyMerge } from '@/lib/server/familyMutations';
 import { statusForMutation } from '@/lib/server/familyMutationStore';
-import { clearShelfStatsCache } from '@/lib/server/catalogFamilyStats';
+import { rebuildCatalogSummary } from '@/lib/server/catalogSummary';
 
 export const runtime = 'nodejs';
 
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   try {
     const result = await undoFamilyMerge({ db: getAdminDb(), uid, mergeId });
     if (!result.ok) return fail(result.code, result.message, statusForMutation(result));
-    clearShelfStatsCache(uid);
+    await rebuildCatalogSummary(getAdminDb(), uid);
     return ok(result.value);
   } catch (error) {
     console.error(`POST /api/v1/family-merges/${mergeId}/undo failed`, error);

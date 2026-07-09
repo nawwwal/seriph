@@ -3,7 +3,7 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { getUidFromRequest } from '@/lib/server/auth';
 import { fail, ok, unauthorized } from '@/lib/server/apiResponse';
 import { deleteOwnedFamilyFace } from '@/lib/server/catalogFamilies';
-import { clearShelfStatsCache } from '@/lib/server/catalogFamilyStats';
+import { rebuildCatalogSummary } from '@/lib/server/catalogSummary';
 
 export const runtime = 'nodejs';
 
@@ -28,7 +28,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     });
     if (!result) return fail('not_found', 'Family not found', 404);
     if (!result.deleted) return fail('not_found', 'Font not found', 404);
-    clearShelfStatsCache(uid);
+    await rebuildCatalogSummary(getAdminDb(), uid);
     return ok({ message: 'Font removed', faces: result.faces });
   } catch (error) {
     console.error(`DELETE /api/v1/families/${familyId}/fonts/${fontId} failed`, error);

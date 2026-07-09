@@ -10,6 +10,7 @@ import { catalogFamilyDocId } from './catalogIdentity';
 import { aliasTargetDocId, isAliasFamilyDoc } from './familyAlias';
 import { mergeFaceIntoFamily, newFamilyDoc } from './familyUpsertMerge';
 import { nextFamilyStatusAfterFaceMerge } from './familyStatus';
+import { rebuildCatalogSummary } from './catalogSummary';
 export { nextFamilyStatusAfterFaceMerge } from './familyStatus';
 
 export const FAMILIES_COLLECTION = 'fontfamilies';
@@ -36,7 +37,7 @@ export async function upsertFace(
 ): Promise<FontFamilyDoc> {
   const docId = catalogFamilyDocId(input.ownerId, input.slug);
   const ref = db.collection(FAMILIES_COLLECTION).doc(docId);
-  return db.runTransaction(async (tx) => {
+  const family = await db.runTransaction(async (tx) => {
     const snap = await tx.get(ref);
     const now = FieldValue.serverTimestamp();
     if (!snap.exists) {
@@ -60,4 +61,6 @@ export async function upsertFace(
     tx.set(ref, merged, { merge: true });
     return { ...existing, ...merged } as FontFamilyDoc;
   });
+  if (input.ownerId) await rebuildCatalogSummary(db, input.ownerId);
+  return family;
 }

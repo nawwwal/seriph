@@ -10,6 +10,7 @@
         "lint": "tsc --noEmit",
         "test": "vitest run",
         "backfill:search": "npm run build && node lib/scripts/backfillSearchVectors.js",
+        "backfill:catalog-summary": "npm run build && node lib/scripts/backfillCatalogSummaries.js",
         "auth:set-password": "npm run build && node lib/scripts/setAuthPassword.js",
         "migrate:old-schema-fonts": "npm run build && node lib/scripts/migrateOldSchemaFonts.js",
         "merge:split-families": "npm run build && node lib/scripts/mergeSplitFamilies.js"

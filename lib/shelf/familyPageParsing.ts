@@ -27,6 +27,8 @@ export function parseShelfStats(value: unknown): ShelfStatsSummary | null {
     styleCount: value.styleCount,
     recentFamilyName: value.recentFamilyName,
     generatedAt: value.generatedAt,
+    libraryRevision: typeof value.libraryRevision === 'number' ? value.libraryRevision : 0,
+    updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : value.generatedAt,
   };
   return null;
 }

@@ -6,7 +6,7 @@ import { fail, ok, unauthorized } from '@/lib/server/apiResponse';
 import { getOwnedFamily } from '@/lib/server/catalogFamilies';
 import { applyFamilyMerge } from '@/lib/server/familyMutations';
 import { statusForMutation } from '@/lib/server/familyMutationStore';
-import { clearShelfStatsCache } from '@/lib/server/catalogFamilyStats';
+import { rebuildCatalogSummary } from '@/lib/server/catalogSummary';
 
 export const runtime = 'nodejs';
 
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const db = getAdminDb();
     const result = await applyFamilyMerge({ db, uid, familyIds, targetFamilyId });
     if (!result.ok) return fail(result.code, result.message, statusForMutation(result));
-    clearShelfStatsCache(uid);
+    await rebuildCatalogSummary(db, uid);
     const family = await getOwnedFamily(db, uid, result.value.targetFamilyId);
     return ok({
       mergeId: result.value.mergeId,
