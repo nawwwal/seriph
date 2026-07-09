@@ -3,26 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearAccountSnapshots, writeSnapshot } from '@/lib/cache/persistentSnapshots';
 import { clearFamilyCacheForUser, getCachedFamily } from '@/lib/cache/familyCache';
 import { loadFamilyDetail, serializeFamilyDetail } from '@/lib/cache/familyDetailClient';
-
-const rawFamily = {
-  id: 'inter',
-  name: 'Inter',
-  normalizedName: 'inter',
-  description: '',
-  tags: [],
-  classification: 'Sans Serif',
-  metadata: {},
-  fonts: [{ id: 'regular', subfamily: 'Regular', weight: 400, metadata: {} }],
-  uploadDate: '2026-07-01T00:00:00.000Z',
-  lastModified: '2026-07-01T00:00:00.000Z',
-};
+import { failedFamilyResponse, rawFamily, successfulFamilyResponse } from './fixtures/familyDetail';
 
 function mockFamilyFetch() {
-  return vi.fn(async () => ({
-    ok: true,
-    status: 200,
-    json: async () => ({ data: { family: rawFamily } }),
-  }));
+  return vi.fn(successfulFamilyResponse);
 }
 
 describe('family detail client loader', () => {
@@ -42,7 +26,10 @@ describe('family detail client loader', () => {
     const second = loadFamilyDetail(input);
 
     expect(first).toBe(second);
-    await expect(first).resolves.toMatchObject({ id: 'inter', name: 'Inter' });
+    await expect(first).resolves.toMatchObject({
+      kind: 'loaded',
+      family: { id: 'inter', name: 'Inter' },
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(getIdToken).toHaveBeenCalledTimes(1);
     expect(getCachedFamily('user-a', 'inter')?.name).toBe('Inter');
@@ -55,7 +42,7 @@ describe('family detail client loader', () => {
     fetchMock.mockClear();
 
     await expect(loadFamilyDetail({ uid: 'user-a', familyId: 'inter', getIdToken: async () => 'token' }))
-      .resolves.toMatchObject({ id: 'inter' });
+      .resolves.toMatchObject({ kind: 'loaded', family: { id: 'inter' } });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -64,7 +51,8 @@ describe('family detail client loader', () => {
     const fetchMock = mockFamilyFetch();
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(loadFamilyDetail({ uid: 'user-a', familyId: 'inter', getIdToken: async () => 'token' })).resolves.toMatchObject({ id: 'inter' });
+    await expect(loadFamilyDetail({ uid: 'user-a', familyId: 'inter', getIdToken: async () => 'token' }))
+      .resolves.toMatchObject({ kind: 'loaded', family: { id: 'inter' } });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -72,7 +60,12 @@ describe('family detail client loader', () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       status: 200,
-      json: async () => ({ data: { family: { ...rawFamily, id: 'canonical-inter' } } }),
+      json: async () => ({
+        data: {
+          family: { ...rawFamily, id: 'canonical-inter' },
+          canonicalId: 'canonical-inter-v2',
+        },
+      }),
     }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -80,6 +73,35 @@ describe('family detail client loader', () => {
 
     expect(getCachedFamily('user-a', 'inter')?.id).toBe('canonical-inter');
     expect(getCachedFamily('user-a', 'canonical-inter')?.id).toBe('canonical-inter');
+    expect(getCachedFamily('user-a', 'canonical-inter-v2')?.id).toBe('canonical-inter');
+    expect(getCachedFamily('user-b', 'inter')).toBeUndefined();
+  });
+
+  it('returns a definitive not-found outcome for a 404 without retrying', async () => {
+    const fetchMock = vi.fn(() => failedFamilyResponse(404, 'Family not found'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(loadFamilyDetail({
+      uid: 'user-a',
+      familyId: 'missing-family',
+      getIdToken: async () => 'token',
+    })).resolves.toEqual({ kind: 'not-found' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps retryable response failures distinct from not-found', async () => {
+    const fetchMock = vi.fn(() => failedFamilyResponse(503, 'Service unavailable'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(loadFamilyDetail({
+      uid: 'user-a',
+      familyId: 'inter',
+      getIdToken: async () => 'token',
+    })).resolves.toMatchObject({
+      kind: 'load-error',
+      error: new Error('Service unavailable'),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('normalizes missing dates and clones font arrays', () => {

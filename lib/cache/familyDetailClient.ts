@@ -1,9 +1,15 @@
 'use client';
 
-import { Timestamp } from 'firebase/firestore';
-import type { Font, FontFamily } from '@/models/font.models';
+import type { FontFamily } from '@/models/font.models';
 import { cacheFamily, cacheFamilyById, getCachedFamily } from '@/lib/cache/familyCache';
 import { readSnapshot, writeSnapshot } from '@/lib/cache/persistentSnapshots';
+import {
+  familyResponseData,
+  familyResponseError,
+  serializeFamilyDetail,
+} from '@/lib/cache/familyDetailSerialization';
+
+export { serializeFamilyDetail } from '@/lib/cache/familyDetailSerialization';
 
 type TokenGetter = () => Promise<string>;
 interface LoadFamilyDetailInput {
@@ -15,77 +21,70 @@ interface LoadedFamilyDetail {
   family: FontFamily;
   canonicalId: string;
 }
-const inFlightFamilies = new Map<string, Promise<FontFamily | null>>();
+type FamilyDetailRequestOutcome =
+  | { kind: 'loaded'; detail: LoadedFamilyDetail }
+  | { kind: 'not-found' }
+  | { kind: 'load-error'; error: Error };
+export type FamilyDetailLoadOutcome =
+  | { kind: 'loaded'; family: FontFamily }
+  | { kind: 'not-found' }
+  | { kind: 'load-error'; error: Error };
+const inFlightFamilies = new Map<string, Promise<FamilyDetailLoadOutcome>>();
 const DETAIL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 function cacheKey(uid: string, familyId: string): string {
   return `${uid}:${familyId}`;
 }
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-function toIso(value: unknown): string {
-  if (value instanceof Timestamp) return value.toDate().toISOString();
-  if (typeof (value as { toDate?: unknown } | null)?.toDate === 'function') {
-    return ((value as { toDate: () => Date }).toDate()).toISOString();
-  }
-  return typeof value === 'string' ? value : String(value ?? '');
-}
-function cloneFont(value: unknown): Font | null {
-  return isRecord(value) ? ({ ...value } as unknown as Font) : null;
-}
-export function serializeFamilyDetail(raw: unknown): FontFamily | null {
-  if (!isRecord(raw)) return null;
-  const fonts = Array.isArray(raw.fonts) ? raw.fonts.map(cloneFont).filter((font) => font !== null) : [];
-  return {
-    ...raw,
-    uploadDate: toIso(raw.uploadDate),
-    lastModified: toIso(raw.lastModified),
-    fonts,
-  } as FontFamily;
-}
-function responseError(json: unknown, status: number): Error {
-  const maybeError = isRecord(json) ? json.error : null;
-  const message = isRecord(maybeError) && typeof maybeError.message === 'string'
-    ? maybeError.message
-    : `Family request failed: ${status}`;
-  return new Error(message);
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }
 async function readPersistedFamilyDetail(input: LoadFamilyDetailInput): Promise<FontFamily | null> {
   const record = await readSnapshot({ accountId: input.uid, kind: 'family-detail', key: input.familyId });
   return record ? serializeFamilyDetail(record.payload) : null;
 }
 function persistFamilyDetail(uid: string, familyId: string, family: FontFamily): void { void writeSnapshot({ accountId: uid, kind: 'family-detail', key: familyId, payload: family, ttlMs: DETAIL_TTL_MS, maxEntries: 24 }); }
-async function requestFamilyDetail(input: LoadFamilyDetailInput): Promise<LoadedFamilyDetail | null> {
-  const token = await input.getIdToken();
-  const response = await fetch(`/api/v1/families/${encodeURIComponent(input.familyId)}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const json: unknown = await response.json();
-  if (!response.ok) throw responseError(json, response.status);
-  const data = isRecord(json) ? json.data : null;
-  const family = serializeFamilyDetail(isRecord(data) ? data.family : null);
-  if (!family) return null;
-  const canonicalId = isRecord(data) && typeof data.canonicalId === 'string' ? data.canonicalId : family.id;
-  return { family, canonicalId };
+async function requestFamilyDetail(input: LoadFamilyDetailInput): Promise<FamilyDetailRequestOutcome> {
+  try {
+    const token = await input.getIdToken();
+    const response = await fetch(`/api/v1/families/${encodeURIComponent(input.familyId)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const json: unknown = await response.json().catch(() => null);
+    if (response.status === 404) return { kind: 'not-found' };
+    if (!response.ok) return { kind: 'load-error', error: familyResponseError(json, response.status) };
+    const data = familyResponseData(json);
+    const family = serializeFamilyDetail(data?.family);
+    if (!family) return { kind: 'load-error', error: new Error('Family response did not include valid detail') };
+    const canonicalId = typeof data?.canonicalId === 'string' ? data.canonicalId : family.id;
+    return { kind: 'loaded', detail: { family, canonicalId } };
+  } catch (error) {
+    return { kind: 'load-error', error: toError(error) };
+  }
 }
-export function loadFamilyDetail(input: LoadFamilyDetailInput): Promise<FontFamily | null> {
+export function loadFamilyDetail(input: LoadFamilyDetailInput): Promise<FamilyDetailLoadOutcome> {
   const cached = getCachedFamily(input.uid, input.familyId);
-  if (cached) return Promise.resolve(cached);
+  if (cached) return Promise.resolve({ kind: 'loaded', family: cached });
   const key = cacheKey(input.uid, input.familyId);
   const existing = inFlightFamilies.get(key);
   if (existing) return existing;
   const pending = readPersistedFamilyDetail(input)
-    .then((persisted) => persisted ? { family: persisted, canonicalId: persisted.id } : requestFamilyDetail(input))
-    .then((detail) => {
-      if (detail) {
-        cacheFamily(input.uid, detail.family);
-        cacheFamilyById(input.uid, input.familyId, detail.family);
-        cacheFamilyById(input.uid, detail.canonicalId, detail.family);
-        persistFamilyDetail(input.uid, input.familyId, detail.family);
-        persistFamilyDetail(input.uid, detail.canonicalId, detail.family);
+    .then((persisted): FamilyDetailRequestOutcome | Promise<FamilyDetailRequestOutcome> => (
+      persisted
+        ? { kind: 'loaded', detail: { family: persisted, canonicalId: persisted.id } }
+        : requestFamilyDetail(input)
+    ))
+    .then((outcome): FamilyDetailLoadOutcome => {
+      if (outcome.kind === 'loaded') {
+        const { family, canonicalId } = outcome.detail;
+        cacheFamily(input.uid, family);
+        cacheFamilyById(input.uid, input.familyId, family);
+        cacheFamilyById(input.uid, canonicalId, family);
+        persistFamilyDetail(input.uid, input.familyId, family);
+        persistFamilyDetail(input.uid, canonicalId, family);
+        return { kind: 'loaded', family };
       }
-      return detail?.family ?? null;
+      return outcome;
     })
+    .catch((error): FamilyDetailLoadOutcome => ({ kind: 'load-error', error: toError(error) }))
     .finally(() => {
       inFlightFamilies.delete(key);
     });

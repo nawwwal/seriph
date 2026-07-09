@@ -25,4 +25,22 @@ describe('detail prefetch queue', () => {
     second.resolve();
     third.resolve();
   });
+
+  it('dedupes repeated same-ID intent without substituting another family', async () => {
+    const queue = createDetailPrefetchQueue(2);
+    const first = deferred();
+    const requested: string[] = [];
+    queue.enqueue('user-a:abc-ginto-normal', async () => {
+      requested.push('abc-ginto-normal');
+      await first.promise;
+    });
+    queue.enqueue('user-a:abc-ginto-normal', async () => {
+      requested.push('abc-ginto-nord');
+    });
+
+    expect(requested).toEqual(['abc-ginto-normal']);
+    first.resolve();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(requested).toEqual(['abc-ginto-normal']);
+  });
 });

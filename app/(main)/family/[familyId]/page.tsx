@@ -17,7 +17,7 @@ export default function FamilyDetailPage() {
   const { familyId } = useParams<{ familyId: string }>();
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
-  const { family, isLoading, error, isPreview } = useFamilyDetail(familyId);
+  const { kind, family, isLoading, error, isPreview } = useFamilyDetail(familyId);
   useRegisterFamilyFonts(family || undefined);
 
   const testerRef = useRef<HTMLDivElement | null>(null);
@@ -48,7 +48,7 @@ export default function FamilyDetailPage() {
       </CenteredShell>
     );
   }
-  if (error || !family) {
+  if (kind === 'not-found' || kind === 'load-error' || !family) {
     return (
       <CenteredShell>
         <div className="text-center p-10 rule rounded-[var(--radius)] max-w-lg">

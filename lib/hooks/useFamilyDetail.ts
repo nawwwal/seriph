@@ -1,20 +1,19 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import type { FontFamily } from '@/models/font.models';
 import { clearFamilyCacheForUser, getCachedFamily } from '@/lib/cache/familyCache';
 import { loadFamilyDetail } from '@/lib/cache/familyDetailClient';
 import { clearFamilyPreviewCacheForUser, getCachedFamilyPreview } from '@/lib/cache/familyPreviewCache';
+import {
+  deriveFamilyDetailRouteState,
+  type FamilyDetailRequestState,
+} from '@/lib/hooks/familyDetailRouteState';
 import { useAuth } from '@/lib/contexts/AuthContext';
 
 /** Load one family by id (owner-scoped). Returns null family when logged out. */
 export function useFamilyDetail(familyId: string | undefined) {
   const { user, isLoading: authLoading } = useAuth();
-  const [state, setState] = useState<{
-    familyId: string | null;
-    family: FontFamily | null;
-    error: string | null;
-  }>({ familyId: null, family: null, error: null });
+  const [request, setRequest] = useState<FamilyDetailRequestState>({ familyId: null, outcome: null });
   const previousUid = useRef<string | null>(null);
   const activeFamilyId = familyId ?? null;
   const activeUid = user?.uid;
@@ -22,12 +21,14 @@ export function useFamilyDetail(familyId: string | undefined) {
   // in this session; the shelf itself now stores only lightweight summaries.
   const cached = getCachedFamily(activeUid, activeFamilyId ?? undefined);
   const preview = getCachedFamilyPreview(activeUid, activeFamilyId ?? undefined);
-  const routeError = !authLoading && user && !activeFamilyId ? 'Font family ID is not available in the route.' : null;
-  const hasCurrentFamilyState = state.familyId === activeFamilyId;
-  const family = user ? (hasCurrentFamilyState ? state.family : cached ?? preview ?? null) : null;
-  const error = user ? routeError ?? (hasCurrentFamilyState ? state.error : null) : null;
-  const isPreview = Boolean(user && family && !hasCurrentFamilyState && !cached && preview);
-  const isLoading = authLoading || Boolean(user && activeFamilyId && !hasCurrentFamilyState && !cached && !preview);
+  const routeState = deriveFamilyDetailRouteState({
+    activeFamilyId,
+    authLoading,
+    hasUser: Boolean(user),
+    request,
+    cached,
+    preview,
+  });
 
   useEffect(() => {
     const previous = previousUid.current;
@@ -49,22 +50,12 @@ export function useFamilyDetail(familyId: string | undefined) {
       familyId,
       getIdToken: () => user.getIdToken(),
     })
-      .then((serialized) => {
+      .then((outcome) => {
         if (!isActive) return;
-        setState({
-          familyId,
-          family: serialized,
-          error: serialized ? null : 'Font family not found. It might have been moved or deleted.',
-        });
-      })
-      .catch((err) => {
-        if (!isActive) return;
-        console.error(`Error fetching font family ${familyId}:`, err);
-        setState({
-          familyId,
-          family: null,
-          error: 'Could not load the font family details. Please try again later.',
-        });
+        if (outcome.kind === 'load-error') {
+          console.error(`Error fetching font family ${familyId}:`, outcome.error);
+        }
+        setRequest({ familyId, outcome });
       });
 
     return () => {
@@ -72,5 +63,5 @@ export function useFamilyDetail(familyId: string | undefined) {
     };
   }, [familyId, user, authLoading]);
 
-  return { family, isLoading, error, isPreview };
+  return routeState;
 }
