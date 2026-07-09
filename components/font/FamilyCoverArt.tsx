@@ -5,15 +5,8 @@ import { FontFamily } from '@/models/font.models';
 import type { ShelfFamily } from '@/models/shelf.models';
 import { deriveCoverDna, renderCoverSvgParts } from '@/lib/covers/coverDna';
 
-export function getSampleChars(classification: string): string {
-  const samples: Record<string, string> = {
-    'Sans Serif': 'Aa',
-    Serif: 'Rg',
-    Monospace: '{ }',
-    'Display & Decorative': 'Qq',
-    'Script & Handwriting': 'Sz',
-  };
-  return samples[classification] || 'Aa';
+export function getSampleChars(_classification: string): string {
+  return 'ABC';
 }
 
 export function isFullFamily(family: FontFamily | ShelfFamily): family is FontFamily {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deriveCoverDna, renderCoverSvgParts } from '@/lib/covers/coverDna';
+import { getSampleChars } from '@/components/font/FamilyCoverArt';
 import type { ShelfFamily } from '@/models/shelf.models';
 
 function family(overrides: Partial<ShelfFamily> = {}): ShelfFamily {
@@ -16,17 +17,26 @@ function family(overrides: Partial<ShelfFamily> = {}): ShelfFamily {
 }
 
 describe('cover DNA', () => {
-  it('is deterministic for the same family and cover seed', () => {
-    expect(deriveCoverDna(family(), 0)).toEqual(deriveCoverDna(family(), 0));
+  it('uses ABC for every catalog card classification', () => {
+    expect(getSampleChars('Sans Serif')).toBe('ABC');
+    expect(getSampleChars('Serif')).toBe('ABC');
+    expect(getSampleChars('Unknown')).toBe('ABC');
   });
 
-  it('varies visibly across related family names', () => {
-    const base = deriveCoverDna(family({ id: 'abc-ginto-nord', name: 'ABC Ginto Nord' }), 0);
-    const black = deriveCoverDna(family({ id: 'abc-ginto-nord-black', name: 'ABC Ginto Nord Black' }), 0);
-    const hairline = deriveCoverDna(family({ id: 'abc-ginto-nord-hairline', name: 'ABC Ginto Nord Hairline', styleCount: 2 }), 0);
+  it('is deterministic for the same family and cover seed', () => {
+    expect(deriveCoverDna(family({ normalizedName: 'abc-ginto-nord' }), 0))
+      .toEqual(deriveCoverDna(family({ normalizedName: 'abc-ginto-nord' }), 0));
+  });
 
-    const signatures = new Set([base, black, hairline].map((dna) => `${dna.pattern}:${dna.angle}:${dna.rhythm.join(':')}`));
-    expect(signatures.size).toBe(3);
+  it('changes its deterministic seed when the cover seed changes', () => {
+    expect(deriveCoverDna(family({ normalizedName: 'abc-ginto-nord' }), 1).seed)
+      .not.toBe(deriveCoverDna(family({ normalizedName: 'abc-ginto-nord' }), 0).seed);
+  });
+
+  it('ignores family metadata outside the normalized name', () => {
+    const base = deriveCoverDna(family(), 0);
+    const changed = deriveCoverDna(family({ id: 'other', name: 'Other', styleCount: 20, isVariable: true }), 0);
+    expect(changed).toEqual(base);
   });
 
   it('produces bounded traits and non-empty svg parts', () => {
@@ -44,11 +54,11 @@ describe('cover DNA', () => {
 
     const parts = renderCoverSvgParts(dna);
     expect(parts.length).toBeGreaterThan(2);
-    expect(parts.join('')).not.toMatch(/wave|moire|lissajous|nodal|mask="url/);
+    expect(parts.join('')).not.toMatch(/linearGradient|radialGradient|filter=|mask=|<image/);
   });
 
-  it('distributes editorial patterns across a shelf sample', () => {
-    const names = [
+  it('distributes all six motif families across a shelf sample', () => {
+    const sampleNames = [
       'ABC Ginto Nord',
       'Acid Grotesk',
       'BB Manual Mono Pro',
@@ -57,20 +67,36 @@ describe('cover DNA', () => {
       'PP Radio Grotesk',
       'Satoshi',
       'Untitled Serif',
+      'Aeonik Pro',
+      'Apercu',
+      'Basis Grotesque',
+      'Canela',
+      'Domaine Display',
+      'Founders Grotesk',
+      'GT America',
+      'Neue Haas Unica',
+      'Suisse Int\'l',
     ];
     const patterns = new Set(
-      names.map((name) =>
+      sampleNames.map((name) =>
         deriveCoverDna(
           family({
-            id: name.toLowerCase().replaceAll(' ', '-'),
             name,
-            normalizedName: name.toLowerCase().replaceAll(' ', '-'),
+            normalizedName: name.toLowerCase(),
           }),
           0
         ).pattern
       )
     );
 
-    expect(patterns.size).toBeGreaterThanOrEqual(2);
+    expect(patterns.size).toBeGreaterThanOrEqual(6);
+    expect(patterns).toEqual(new Set([
+      'folded-facets',
+      'concentric-portals',
+      'ribbon-curves',
+      'stepped-bands',
+      'radial-bursts',
+      'modular-dots-bars',
+    ]));
   });
 });

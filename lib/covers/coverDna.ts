@@ -3,14 +3,12 @@ export { renderCoverSvgParts } from '@/lib/covers/coverPatternRender';
 
 export type CoverGrammar = 'editorial-pattern';
 export type CoverPattern =
-  | 'pinstripe'
-  | 'diagonal-stripe'
-  | 'ruled-grid'
-  | 'proof-bars'
-  | 'edge-bands'
-  | 'dot-screen'
-  | 'column-rules'
-  | 'registration-marks';
+  | 'folded-facets'
+  | 'concentric-portals'
+  | 'ribbon-curves'
+  | 'stepped-bands'
+  | 'radial-bursts'
+  | 'modular-dots-bars';
 
 export interface CoverDna {
   seed: number;
@@ -24,18 +22,15 @@ export interface CoverDna {
   specimenScale: number;
   specimenX: number;
   specimenY: number;
-  rareAccent: boolean;
 }
 
 const PATTERNS: CoverPattern[] = [
-  'pinstripe',
-  'diagonal-stripe',
-  'ruled-grid',
-  'proof-bars',
-  'edge-bands',
-  'dot-screen',
-  'column-rules',
-  'registration-marks',
+  'folded-facets',
+  'concentric-portals',
+  'ribbon-curves',
+  'stepped-bands',
+  'radial-bursts',
+  'modular-dots-bars',
 ];
 
 function hashString(input: string): number {
@@ -61,29 +56,20 @@ const round = (value: number, places = 3) => Math.round(value * 10 ** places) / 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 export function deriveCoverDna(family: ShelfFamily, coverSeed = 0): CoverDna {
-  const seed = hashString([
-    family.id,
-    family.normalizedName,
-    family.name,
-    family.classification,
-    family.styleCount,
-    family.isVariable ? 'variable' : 'static',
-    coverSeed,
-  ].join('|'));
+  const seed = hashString(`${family.normalizedName || family.name}|${coverSeed}`);
   const rng = createRng(seed);
-  const density = round(clamp(0.44 + rng() * 0.28 + Math.min(family.styleCount, 18) * 0.006, 0.44, 0.82));
+  const density = round(clamp(0.44 + rng() * 0.38, 0.44, 0.82));
   return {
     seed,
     grammar: 'editorial-pattern',
-    pattern: PATTERNS[Math.floor(rng() * PATTERNS.length)] ?? 'pinstripe',
+    pattern: PATTERNS[(seed >>> 8) % PATTERNS.length] ?? 'folded-facets',
     angle: round(rng() > 0.5 ? 12 + rng() * 18 : -18 - rng() * 12),
     density,
     contrast: round(0.16 + rng() * 0.18),
     ruleWeight: round(0.42 + rng() * 0.34),
-    rhythm: [round(5 + (1 - density) * 8), round(18 + rng() * 26), round(3 + rng() * 5)],
+    rhythm: [round(12 + rng() * 8), round(18 + rng() * 18), round(3 + rng() * 5)],
     specimenScale: 1,
     specimenX: 16,
     specimenY: 46,
-    rareAccent: rng() > 0.78,
   };
 }
