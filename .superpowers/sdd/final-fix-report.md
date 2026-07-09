@@ -123,3 +123,64 @@ No Functions source, package manifest, or lockfile changed.
 - No live authenticated browser pass was rerun in this worker; the import loading interval is covered by rendered server markup, and motion is covered at realistic 48-to-96 card sizes.
 - Root Vitest remains green but emits the existing non-failing warning that `--localstorage-file` has no valid path.
 - Provisioning existing Functions dependencies reported Node `25.9.0` while the package requests Node 22 and reported 28 audit findings. Functions lint, tests, and build nevertheless pass; no dependency versions were changed here.
+
+## Post-Rereview Narrow Fix
+
+Date: 2026-07-10
+
+Starting HEAD: `82279ee`
+
+### Scope
+
+1. `UploadProvider`, which remains mounted on import and family-detail routes, now clears negative family-detail entries for only the active UID before notifying completion subscribers. Shelf reload listeners remain route-specific to shelf refresh behavior; no additional route listener was added.
+2. A delayed shelf-stats response now derives its cache write from the latest synchronized infinite-family state. A page appended after the refreshed first page therefore retains its families, cursor, and `hasMore` state in memory, local storage, and IndexedDB.
+
+### RED Evidence
+
+Command before production changes:
+
+```bash
+rtk npm test -- tests/uploadCompletionInvalidation.test.ts tests/infiniteFamiliesDelayedStats.test.ts
+```
+
+Result: 2 files failed and 2 tests failed. The provider-only upload test received `{ kind: 'not-found' }` instead of `loaded` for the active account. The delayed-stats concurrency test found cached cursor `after-48` instead of appended cursor `after-96`.
+
+### GREEN Evidence
+
+Initial focused command:
+
+```bash
+rtk npm test -- tests/uploadCompletionInvalidation.test.ts tests/infiniteFamiliesDelayedStats.test.ts
+```
+
+Result: 2 files and 2 tests passed.
+
+Broadened focused command:
+
+```bash
+rtk npm test -- tests/uploadCompletionInvalidation.test.ts tests/familyDetailInvalidationBoundary.test.ts tests/familyDetailClientMissing.test.ts tests/infiniteFamiliesDelayedStats.test.ts tests/infiniteFamiliesConcurrency.test.ts tests/infiniteFamiliesLoadMore.test.ts tests/shelfPageCache.test.ts
+```
+
+Result: 7 files and 16 tests passed.
+
+### Verification
+
+| Command | Result |
+| --- | --- |
+| `rtk npm run lint:lines` | PASS |
+| `rtk npm run typecheck` | PASS |
+| `rtk npm run lint:web` | PASS with no warnings |
+| `rtk npm test` | PASS, 52 files and 140 tests |
+| `set -a && source /Users/adi/projects/seriph/.env.local && set +a && rtk npm run build` | PASS, production build and all 24 static pages generated |
+| `git diff --check` | PASS |
+
+The first build attempt used `source /Users/adi/projects/seriph/.env.local` without auto-export and failed during prerender with missing Firebase variables. Re-running with `set -a` exported the same environment and passed. Root Vitest still emits the existing non-failing `--localstorage-file` warning.
+
+### Changed Files
+
+- `lib/contexts/UploadContext.tsx`
+- `lib/hooks/useInfiniteFamiliesReload.ts`
+- `lib/hooks/synchronizeShelfStats.ts`
+- `tests/uploadCompletionInvalidation.test.ts`
+- `tests/infiniteFamiliesDelayedStats.test.ts`
+- `.superpowers/sdd/final-fix-report.md`

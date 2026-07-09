@@ -6,6 +6,7 @@ import { fetchFamilyPage, fetchShelfStats } from '@/lib/shelf/familyPageApi';
 import { mergeShelfRefreshPage, readShelfFamilyCache, writeShelfFamilyCache } from '@/lib/shelf/familyPageCache';
 import { readPersistentShelfCache } from '@/lib/shelf/persistentShelfCache';
 import { hasMatchingShelfRevision } from '@/lib/shelf/shelfRevision';
+import { synchronizeShelfStats } from '@/lib/hooks/synchronizeShelfStats';
 import {
   emptyInfiniteFamiliesState,
   type InfiniteFamiliesState,
@@ -23,7 +24,7 @@ interface ReloadArgs {
   moreRequestIdRef: MutableRefObject<number>;
   requestId: MutableRefObject<number>;
   setState: Dispatch<SetStateAction<InfiniteFamiliesState>>;
-  user: User | null;
+  user: Pick<User, 'uid' | 'getIdToken'> | null;
 }
 
 function cancelMoreRequests(
@@ -91,8 +92,7 @@ export function useInfiniteFamiliesReload(args: ReloadArgs) {
       const statsResult = await statsPromise;
       if (requestId.current !== id) return;
       if (statsResult.ok) {
-        writeShelfFamilyCache(user.uid, { ...refreshedPage, stats: statsResult.stats });
-        setState((current) => ({ ...current, stats: statsResult.stats }));
+        synchronizeShelfStats(user.uid, statsResult.stats, setState);
       } else if (!isAbortError(statsResult.error)) console.warn('Failed to refresh shelf stats', statsResult.error);
     } catch (error) {
       if (isAbortError(error) || requestId.current !== id) return;
