@@ -10,6 +10,7 @@ import {
 } from '@/lib/auth/emailPassword';
 import { auth } from '@/lib/firebase/auth';
 import { clearAccountSnapshots } from '@/lib/cache/persistentSnapshots';
+import { clearFamilyDetailNegativeCacheForUser } from '@/lib/cache/familyDetailClient';
 import { clearFamilyCacheForUser } from '@/lib/cache/familyCache';
 import { clearFamilyPreviewCacheForUser } from '@/lib/cache/familyPreviewCache';
 import { clearSearchIndexCache } from '@/lib/search/searchIndexCache';
@@ -64,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (user) {
+      clearFamilyDetailNegativeCacheForUser(user.uid);
       clearFamilyCacheForUser(user.uid);
       clearFamilyPreviewCacheForUser(user.uid);
       clearSearchIndexCache(user.uid);

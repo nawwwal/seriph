@@ -50,4 +50,43 @@ describe('family detail route state', () => {
       expect(state).toMatchObject({ kind: 'loading', family: null, error: null, isLoading: true });
     }
   });
+
+  it('keeps a visible preview when a background detail request fails retryably', () => {
+    const preview = serializeFamilyDetail(rawFamily);
+    if (!preview) throw new Error('Expected a valid family fixture.');
+
+    const state = deriveFamilyDetailRouteState({
+      activeUid: 'user-a',
+      activeFamilyId: 'inter',
+      authLoading: false,
+      hasUser: true,
+      request: {
+        uid: 'user-a',
+        familyId: 'inter',
+        outcome: { kind: 'load-error', error: new Error('Service unavailable') },
+      },
+      preview,
+    });
+
+    expect(state).toMatchObject({
+      kind: 'preview',
+      family: preview,
+      isLoading: false,
+      isPreview: true,
+      error: 'Could not load the font family details. Please try again later.',
+    });
+  });
+
+  it('lets a definitive not-found outcome supersede a stale preview', () => {
+    const preview = serializeFamilyDetail(rawFamily);
+    if (!preview) throw new Error('Expected a valid family fixture.');
+
+    const state = deriveFamilyDetailRouteState({
+      activeUid: 'user-a', activeFamilyId: 'inter', authLoading: false, hasUser: true,
+      request: { uid: 'user-a', familyId: 'inter', outcome: { kind: 'not-found' } },
+      preview,
+    });
+
+    expect(state).toMatchObject({ kind: 'not-found', family: null, isPreview: false });
+  });
 });

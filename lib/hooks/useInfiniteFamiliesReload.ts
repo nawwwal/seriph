@@ -18,9 +18,9 @@ import {
 interface ReloadArgs {
   abortRef: MutableRefObject<AbortController | null>;
   authLoading: boolean;
-  inFlightMore: MutableRefObject<boolean>;
+  inFlightMoreRef: MutableRefObject<boolean>;
   moreAbortRef: MutableRefObject<AbortController | null>;
-  moreRequestId: MutableRefObject<number>;
+  moreRequestIdRef: MutableRefObject<number>;
   requestId: MutableRefObject<number>;
   setState: Dispatch<SetStateAction<InfiniteFamiliesState>>;
   user: User | null;
@@ -28,22 +28,22 @@ interface ReloadArgs {
 
 function cancelMoreRequests(
   moreAbortRef: MutableRefObject<AbortController | null>,
-  moreRequestId: MutableRefObject<number>,
-  inFlightMore: MutableRefObject<boolean>
+  moreRequestIdRef: MutableRefObject<number>,
+  inFlightMoreRef: MutableRefObject<boolean>
 ) {
   moreAbortRef.current?.abort();
-  moreRequestId.current += 1;
-  inFlightMore.current = false;
+  moreRequestIdRef.current += 1;
+  inFlightMoreRef.current = false;
 }
 
 export function useInfiniteFamiliesReload(args: ReloadArgs) {
-  const { abortRef, authLoading, inFlightMore, moreAbortRef, moreRequestId, requestId, setState, user } = args;
+  const { abortRef, authLoading, inFlightMoreRef, moreAbortRef, moreRequestIdRef, requestId, setState, user } = args;
 
   return useCallback(async () => {
     if (authLoading) return;
     if (!user) {
       abortRef.current?.abort();
-      cancelMoreRequests(moreAbortRef, moreRequestId, inFlightMore);
+      cancelMoreRequests(moreAbortRef, moreRequestIdRef, inFlightMoreRef);
       setState(emptyInfiniteFamiliesState);
       return;
     }
@@ -53,7 +53,7 @@ export function useInfiniteFamiliesReload(args: ReloadArgs) {
     abortRef.current = controller;
     requestId.current += 1;
     const id = requestId.current;
-    cancelMoreRequests(moreAbortRef, moreRequestId, inFlightMore);
+    cancelMoreRequests(moreAbortRef, moreRequestIdRef, inFlightMoreRef);
 
     let cached = readShelfFamilyCache(user.uid);
     setState(stateFromShelfCache(user.uid, cached));
@@ -105,5 +105,5 @@ export function useInfiniteFamiliesReload(args: ReloadArgs) {
         error: loadErrorMessage(error, 'Failed to load families.'),
       }));
     }
-  }, [abortRef, authLoading, inFlightMore, moreAbortRef, moreRequestId, requestId, setState, user]);
+  }, [abortRef, authLoading, inFlightMoreRef, moreAbortRef, moreRequestIdRef, requestId, setState, user]);
 }

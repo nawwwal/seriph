@@ -45,7 +45,7 @@ describe('useInfiniteFamiliesLoadMore', () => {
     const pendingUpdates: SetStateAction<InfiniteFamiliesState>[] = [];
     const setState = (update: SetStateAction<InfiniteFamiliesState>) => { pendingUpdates.push(update); };
     const args: Parameters<typeof useInfiniteFamiliesLoadMore>[0] = {
-      inFlightMore: { current: false }, moreAbortRef: { current: null }, moreRequestId: { current: 0 },
+      inFlightMoreRef: { current: false }, moreAbortRef: { current: null }, moreRequestIdRef: { current: 0 },
       setState, stateRef,
       user: { uid: 'ada', getIdToken: async () => 'token' },
     };

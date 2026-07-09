@@ -2,14 +2,19 @@
 
 import type { FontFamily } from '@/models/font.models';
 import { cacheFamily, cacheFamilyById, getCachedFamily } from '@/lib/cache/familyCache';
-import { readSnapshot, writeSnapshot } from '@/lib/cache/persistentSnapshots';
+import { persistFamilyDetail, readPersistedFamilyDetail } from '@/lib/cache/familyDetailPersistence';
 import {
   familyResponseData,
   familyResponseError,
   serializeFamilyDetail,
 } from '@/lib/cache/familyDetailSerialization';
+import {
+  hasFamilyDetailNegative,
+  rememberFamilyDetailNegative,
+} from '@/lib/cache/familyDetailNegativeCache';
 
 export { serializeFamilyDetail } from '@/lib/cache/familyDetailSerialization';
+export { clearFamilyDetailNegativeCacheForUser } from '@/lib/cache/familyDetailNegativeCache';
 
 type TokenGetter = () => Promise<string>;
 interface LoadFamilyDetailInput {
@@ -30,19 +35,12 @@ export type FamilyDetailLoadOutcome =
   | { kind: 'not-found' }
   | { kind: 'load-error'; error: Error };
 const inFlightFamilies = new Map<string, Promise<FamilyDetailLoadOutcome>>();
-const notFoundFamilies = new Set<string>();
-const DETAIL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 function cacheKey(uid: string, familyId: string): string {
   return `${uid}:${familyId}`;
 }
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
 }
-async function readPersistedFamilyDetail(input: LoadFamilyDetailInput): Promise<FontFamily | null> {
-  const record = await readSnapshot({ accountId: input.uid, kind: 'family-detail', key: input.familyId });
-  return record ? serializeFamilyDetail(record.payload) : null;
-}
-function persistFamilyDetail(uid: string, familyId: string, family: FontFamily): void { void writeSnapshot({ accountId: uid, kind: 'family-detail', key: familyId, payload: family, ttlMs: DETAIL_TTL_MS, maxEntries: 24 }); }
 async function requestFamilyDetail(input: LoadFamilyDetailInput): Promise<FamilyDetailRequestOutcome> {
   try {
     const token = await input.getIdToken();
@@ -65,10 +63,10 @@ export function loadFamilyDetail(input: LoadFamilyDetailInput): Promise<FamilyDe
   const cached = getCachedFamily(input.uid, input.familyId);
   if (cached) return Promise.resolve({ kind: 'loaded', family: cached });
   const key = cacheKey(input.uid, input.familyId);
-  if (notFoundFamilies.has(key)) return Promise.resolve({ kind: 'not-found' });
+  if (hasFamilyDetailNegative(input.uid, input.familyId)) return Promise.resolve({ kind: 'not-found' });
   const existing = inFlightFamilies.get(key);
   if (existing) return existing;
-  const pending = readPersistedFamilyDetail(input)
+  const pending = readPersistedFamilyDetail(input.uid, input.familyId)
     .then((persisted): FamilyDetailRequestOutcome | Promise<FamilyDetailRequestOutcome> => (
       persisted
         ? { kind: 'loaded', detail: { family: persisted, canonicalId: persisted.id } }
@@ -84,7 +82,7 @@ export function loadFamilyDetail(input: LoadFamilyDetailInput): Promise<FamilyDe
         persistFamilyDetail(input.uid, canonicalId, family);
         return { kind: 'loaded', family };
       }
-      if (outcome.kind === 'not-found') notFoundFamilies.add(key);
+      if (outcome.kind === 'not-found') rememberFamilyDetailNegative(input.uid, input.familyId);
       return outcome;
     })
     .catch((error): FamilyDetailLoadOutcome => ({ kind: 'load-error', error: toError(error) }))

@@ -15,9 +15,9 @@ export function useInfiniteFamilies() {
   const { user, isLoading: authLoading } = useAuth();
   const requestId = useRef(0);
   const abortRef = useRef<AbortController | null>(null);
-  const moreRequestId = useRef(0);
+  const moreRequestIdRef = useRef(0);
   const moreAbortRef = useRef<AbortController | null>(null);
-  const inFlightMore = useRef(false);
+  const inFlightMoreRef = useRef(false);
   const currentUserId = user?.uid ?? null;
   const [state, setState] = useState(emptyInfiniteFamiliesState);
   const stateRef = useRef(state);
@@ -34,17 +34,17 @@ export function useInfiniteFamilies() {
   const reload = useInfiniteFamiliesReload({
     abortRef,
     authLoading,
-    inFlightMore,
+    inFlightMoreRef,
     moreAbortRef,
-    moreRequestId,
+    moreRequestIdRef,
     requestId,
     setState: setStateAndRef,
     user,
   });
   const loadMore = useInfiniteFamiliesLoadMore({
-    inFlightMore,
+    inFlightMoreRef,
     moreAbortRef,
-    moreRequestId,
+    moreRequestIdRef,
     setState: setStateAndRef,
     stateRef,
     user,

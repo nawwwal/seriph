@@ -59,16 +59,19 @@ export function deriveFamilyDetailRouteState({
       isPreview: false,
     };
   }
+  const backgroundError = outcome?.kind === 'load-error'
+    ? 'Could not load the font family details. Please try again later.'
+    : null;
+  if (cached) return { kind: 'loaded', family: cached, error: backgroundError, isLoading: false, isPreview: false };
+  if (preview) return { kind: 'preview', family: preview, error: backgroundError, isLoading: false, isPreview: true };
   if (outcome?.kind === 'load-error') {
     return {
       kind: 'load-error',
       family: null,
-      error: 'Could not load the font family details. Please try again later.',
+      error: backgroundError,
       isLoading: false,
       isPreview: false,
     };
   }
-  if (cached) return { kind: 'loaded', family: cached, error: null, isLoading: false, isPreview: false };
-  if (preview) return { kind: 'preview', family: preview, error: null, isLoading: false, isPreview: true };
   return { kind: 'loading', family: null, error: null, isLoading: true, isPreview: false };
 }

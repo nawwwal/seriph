@@ -12,27 +12,27 @@ import {
 } from '@/lib/hooks/infiniteFamiliesState';
 
 interface LoadMoreArgs {
-  inFlightMore: MutableRefObject<boolean>;
+  inFlightMoreRef: MutableRefObject<boolean>;
   moreAbortRef: MutableRefObject<AbortController | null>;
-  moreRequestId: MutableRefObject<number>;
+  moreRequestIdRef: MutableRefObject<number>;
   setState: Dispatch<SetStateAction<InfiniteFamiliesState>>;
   stateRef: MutableRefObject<InfiniteFamiliesState>;
   user: Pick<User, 'uid' | 'getIdToken'> | null;
 }
 
 export function useInfiniteFamiliesLoadMore(args: LoadMoreArgs) {
-  const { inFlightMore, moreAbortRef, moreRequestId, setState, stateRef, user } = args;
+  const { inFlightMoreRef, moreAbortRef, moreRequestIdRef, setState, stateRef, user } = args;
 
   return useCallback(async () => {
-    if (!user || inFlightMore.current || stateRef.current.userId !== user.uid) return;
+    if (!user || inFlightMoreRef.current || stateRef.current.userId !== user.uid) return;
     const continuation = stateRef.current;
-    if (!continuation.hasMore || !continuation.nextCursor) return;
-    inFlightMore.current = true;
+    if (continuation.isRefreshing || !continuation.hasMore || !continuation.nextCursor) return;
+    inFlightMoreRef.current = true;
     moreAbortRef.current?.abort();
     const controller = new AbortController();
     moreAbortRef.current = controller;
-    moreRequestId.current += 1;
-    const id = moreRequestId.current;
+    moreRequestIdRef.current += 1;
+    const id = moreRequestIdRef.current;
     stateRef.current = { ...continuation, isLoadingMore: true, error: null };
     setState(stateRef.current);
 
@@ -42,7 +42,7 @@ export function useInfiniteFamiliesLoadMore(args: LoadMoreArgs) {
         cursor: continuation.nextCursor,
         signal: controller.signal,
       });
-      if (moreRequestId.current !== id) return;
+      if (moreRequestIdRef.current !== id) return;
       const current = stateRef.current;
       const mergedPage = appendShelfFamilyPage(pageFromInfiniteState(current), page);
       writeShelfFamilyCache(user.uid, mergedPage);
@@ -57,12 +57,12 @@ export function useInfiniteFamiliesLoadMore(args: LoadMoreArgs) {
       };
       setState(stateRef.current);
     } catch (error) {
-      if (!isAbortError(error) && moreRequestId.current === id) {
+      if (!isAbortError(error) && moreRequestIdRef.current === id) {
         stateRef.current = { ...stateRef.current, isLoadingMore: false, error: loadErrorMessage(error, 'Failed to load more families.') };
         setState(stateRef.current);
       }
     } finally {
-      if (moreRequestId.current === id) inFlightMore.current = false;
+      if (moreRequestIdRef.current === id) inFlightMoreRef.current = false;
     }
-  }, [inFlightMore, moreAbortRef, moreRequestId, setState, stateRef, user]);
+  }, [inFlightMoreRef, moreAbortRef, moreRequestIdRef, setState, stateRef, user]);
 }

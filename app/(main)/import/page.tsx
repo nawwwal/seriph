@@ -6,10 +6,14 @@ import { useRouter } from 'next/navigation';
 import NavBar from '@/components/layout/NavBar';
 import { Button } from '@/components/ui/Button';
 import ImportFooter from '@/components/import/ImportFooter';
+import { ImportWorkspaceFrame, ImportWorkspaceLoading } from '@/components/import/ImportWorkspaceFrame';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useUploads } from '@/lib/contexts/UploadContext';
 
-const ImportWorkspace = dynamic(() => import('@/components/import/ImportWorkspace'), { ssr: false });
+const ImportWorkspace = dynamic(() => import('@/components/import/ImportWorkspace'), {
+  ssr: false,
+  loading: ImportWorkspaceLoading,
+});
 
 export default function ImportPage() {
   const router = useRouter();
@@ -73,11 +77,7 @@ export default function ImportPage() {
           {isWorkspaceOpen ? (
             <ImportWorkspace />
           ) : (
-            <div className="mx-auto flex min-h-[300px] max-w-3xl items-center justify-center dashed-border rounded-[var(--radius)] p-8">
-              <Button onClick={() => setIsWorkspaceOpen(true)} size="mdText">
-                Start import
-              </Button>
-            </div>
+            <ImportWorkspaceFrame kind="idle" onOpen={() => setIsWorkspaceOpen(true)} />
           )}
         </main>
 

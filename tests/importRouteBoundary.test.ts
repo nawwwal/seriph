@@ -1,12 +1,32 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { createElement, type ComponentType, type ReactNode } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('next/dynamic', () => ({
+  default: (_loader: unknown, options?: { loading?: ComponentType }) => options?.loading ?? (() => null),
+}));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('@/components/layout/NavBar', () => ({ default: () => createElement('nav') }));
+vi.mock('@/components/import/ImportFooter', () => ({ default: () => createElement('footer') }));
+vi.mock('@/components/ui/Button', () => ({
+  Button: ({ children }: { children?: ReactNode }) => createElement('button', null, children),
+}));
+vi.mock('@/lib/contexts/AuthContext', () => ({
+  useAuth: () => ({ user: { uid: 'user-a' }, isLoading: false }),
+}));
+vi.mock('@/lib/contexts/UploadContext', () => ({ useUploads: () => ({ open: vi.fn() }) }));
+
+import ImportPage from '@/app/(main)/import/page';
 
 const repoRoot = process.cwd();
 
 function readRepoFile(file: string): string {
   return fs.readFileSync(path.join(repoRoot, file), 'utf8');
 }
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe('import route boundary', () => {
   it('keeps upload and parser work out of the initial import route module', () => {
@@ -27,5 +47,17 @@ describe('import route boundary', () => {
     expect(workspaceSource).toContain("from '@/lib/hooks/useResumableBatchUpload'");
     expect(workspaceSource).toContain("from '@/utils/pendingFonts'");
     expect(workspaceSource).toContain("from '@/utils/walkDirectoryEntries'");
+  });
+
+  it('keeps the import frame rendered while the pending-file workspace chunk loads', () => {
+    vi.stubGlobal('window', {
+      __seriphPendingFontFiles: { uid: 'user-a', files: [] },
+    });
+
+    const markup = renderToStaticMarkup(createElement(ImportPage));
+
+    expect(markup).toContain('min-h-[300px]');
+    expect(markup).toContain('dashed-border');
+    expect(markup).toContain('role="status"');
   });
 });

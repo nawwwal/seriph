@@ -20,7 +20,7 @@ export default function ImportWorkspace() {
 
   useEffect(() => {
     if (!user) return;
-    const pending = consumePendingFonts();
+    const pending = consumePendingFonts(user.uid);
     if (pending && pending.length > 0) upload(filesFromInput(pending));
   }, [user, upload]);
 

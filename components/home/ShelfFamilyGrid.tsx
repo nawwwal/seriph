@@ -1,17 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { motion, type Transition, useReducedMotion } from 'framer-motion';
+import { useReducedMotion } from 'framer-motion';
 import FamilyCover from '@/components/font/FamilyCover';
 import { FontFamily } from '@/models/font.models';
 import type { ShelfFamily } from '@/models/shelf.models';
 import type { ShelfSelectionState } from '@/lib/shelf/selectionState';
-
-const LAYOUT_ANIMATION_LIMIT = 60;
-const CARD_ENTER = { opacity: 0, y: 6 };
-const CARD_VISIBLE = { opacity: 1, y: 0 };
-const CARD_EXIT = { opacity: 0, y: -4 };
-const CARD_TRANSITION: Transition = { duration: 0.18, ease: 'easeOut' };
 
 type FamilyMotionTokens = Map<string, string>;
 
@@ -81,31 +75,12 @@ export default function ShelfFamilyGrid(props: ShelfFamilyGridProps) {
     setAnimatedFamilyIds(nextAnimatedFamilyIds);
   }
 
-  const canAnimateNewCards = !shouldReduceMotion && props.families.length <= LAYOUT_ANIMATION_LIMIT;
-  const cardClass = `h-full ${props.isRefreshing ? 'shimmer' : ''}`;
-
-  if (!canAnimateNewCards) {
-    return props.families.map((family) => <FamilyCard key={family.id} {...props} family={family} className={cardClass} />);
-  }
-
-  return (
-    props.families.map((family) => {
-      const shouldAnimateCard = animatedFamilyIds.has(family.id);
-      if (!shouldAnimateCard) {
-        return <FamilyCard key={family.id} {...props} family={family} className={cardClass} />;
-      }
-      return (
-        <motion.div
-          key={family.id}
-          initial={shouldAnimateCard ? CARD_ENTER : false}
-          animate={shouldAnimateCard ? CARD_VISIBLE : undefined}
-          exit={CARD_EXIT}
-          transition={CARD_TRANSITION}
-          className={cardClass}
-        >
-          <FamilyCard {...props} family={family} className="h-full" />
-        </motion.div>
-      );
-    })
-  );
+  return props.families.map((family) => (
+    <FamilyCard
+      key={family.id}
+      {...props}
+      family={family}
+      className={`h-full ${props.isRefreshing ? 'shimmer' : ''} ${animatedFamilyIds.has(family.id) ? 'shelf-card-enter' : ''}`}
+    />
+  ));
 }

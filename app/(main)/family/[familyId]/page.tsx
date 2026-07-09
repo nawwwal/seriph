@@ -25,8 +25,8 @@ export default function FamilyDetailPage() {
 
   const handleAddStyleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
-    storePendingFonts(files);
+    if (!user || files.length === 0) return;
+    storePendingFonts(files, user.uid);
     router.push('/import');
   };
 

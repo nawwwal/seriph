@@ -12,6 +12,7 @@ import MergeUndoToast from '@/components/home/MergeUndoToast';
 import HomePageShelfContent from '@/components/home/HomePageShelfContent';
 import { Button } from '@/components/ui/Button';
 import { useUploads } from '@/lib/contexts/UploadContext';
+import { clearFamilyDetailNegativeCacheForUser } from '@/lib/cache/familyDetailClient';
 import { clearShelfFamilyCache, useInfiniteFamilies } from '@/lib/hooks/useInfiniteFamilies';
 import { useShelfScrollRestoration } from '@/lib/hooks/useShelfScrollRestoration';
 import { useShelfMutations } from '@/lib/hooks/useShelfMutations';
@@ -26,6 +27,7 @@ export default function HomePageContent({ user }: { user: User }) {
   const [shelfMode, setShelfMode] = useState<'spines' | 'covers'>('covers');
   const [coverSeed, setCoverSeed] = useState(0);
   const refreshShelf = useCallback(async () => {
+    clearFamilyDetailNegativeCacheForUser(user.uid);
     clearShelfFamilyCache(user.uid);
     await shelf.reload();
   }, [shelf, user.uid]);
@@ -35,9 +37,9 @@ export default function HomePageContent({ user }: { user: User }) {
 
   const handleFilesSelected = useCallback((files: File[]) => {
     if (files.length === 0) return;
-    storePendingFonts(files);
+    storePendingFonts(files, user.uid);
     router.push('/import');
-  }, [router]);
+  }, [router, user.uid]);
   const handleAddFonts = () => router.push('/import');
   const showShelfSkeleton = shelf.isInitialLoading && shelf.families.length === 0;
   const isEmpty = !showShelfSkeleton && shelf.families.length === 0 && pendingIngests.length === 0;
