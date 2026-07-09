@@ -1,39 +1,21 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import NavBar from '@/components/layout/NavBar';
-import Dropzone from '@/components/ui/Dropzone';
 import { Button } from '@/components/ui/Button';
 import ImportFooter from '@/components/import/ImportFooter';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useUploads } from '@/lib/contexts/UploadContext';
-import { useResumableBatchUpload } from '@/lib/hooks/useResumableBatchUpload';
-import { consumePendingFonts } from '@/utils/pendingFonts';
-import { filesFromInput, type WalkedFile } from '@/utils/walkDirectoryEntries';
+
+const ImportWorkspace = dynamic(() => import('@/components/import/ImportWorkspace'), { ssr: false });
 
 export default function ImportPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
   const { open: openUploadCenter } = useUploads();
-  const { upload, isUploading } = useResumableBatchUpload();
-
-  const handleWalked = useCallback(
-    (walked: WalkedFile[]) => {
-      if (!user || walked.length === 0) return;
-      upload(walked);
-    },
-    [user, upload]
-  );
-
-  // Pick up files handed over from the shelf "Add Fonts" entry point.
-  useEffect(() => {
-    if (isLoading || !user) return;
-    const pending = consumePendingFonts();
-    if (pending && pending.length > 0) {
-      upload(filesFromInput(pending));
-    }
-  }, [isLoading, user, upload]);
+  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
 
   if (!user && !isLoading) {
     return (
@@ -80,15 +62,21 @@ export default function ImportPage() {
         <main className="mt-6 sm:mt-8 md:mt-10">
           <div className="text-center mb-8">
             <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight">
-              {isUploading ? 'Uploading…' : 'Add your type'}
+              Add your type
             </h2>
             <p className="mt-2 text-lg">
-              {isUploading
-                ? 'Watch progress in the Upload Center.'
-                : 'Drag a folder or files, or pick a folder to ingest in one go.'}
+              Drag a folder or files, or pick a folder to ingest in one go.
             </p>
           </div>
-          <Dropzone onFilesWalked={handleWalked} allowFolders accept=".ttf,.otf,.woff,.woff2,.zip" />
+          {isWorkspaceOpen ? (
+            <ImportWorkspace />
+          ) : (
+            <div className="mx-auto flex min-h-[300px] max-w-3xl items-center justify-center dashed-border rounded-[var(--radius)] p-8">
+              <Button onClick={() => setIsWorkspaceOpen(true)} size="mdText">
+                Start import
+              </Button>
+            </div>
+          )}
         </main>
 
         <ImportFooter />
