@@ -1,4 +1,4 @@
-import { createElement } from 'react';
+import { createElement, type SetStateAction } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useInfiniteFamiliesLoadMore } from '@/lib/hooks/useInfiniteFamiliesLoadMore';
@@ -41,14 +41,10 @@ describe('useInfiniteFamiliesLoadMore', () => {
       nextCursor: 'after-48', hasMore: true, isInitialLoading: false, isRefreshing: false,
       isLoadingMore: false, error: null, stats,
     };
-    let current = cached;
     const stateRef = { current: cached };
-    const setState = (update: InfiniteFamiliesState | ((state: InfiniteFamiliesState) => InfiniteFamiliesState)) => {
-      current = typeof update === 'function' ? update(current) : update;
-      stateRef.current = current;
-    };
+    const pendingUpdates: SetStateAction<InfiniteFamiliesState>[] = [];
+    const setState = (update: SetStateAction<InfiniteFamiliesState>) => { pendingUpdates.push(update); };
     const args: Parameters<typeof useInfiniteFamiliesLoadMore>[0] = {
-      activeState: { ...cached, nextCursor: null, hasMore: false },
       inFlightMore: { current: false }, moreAbortRef: { current: null }, moreRequestId: { current: 0 },
       setState, stateRef,
       user: { uid: 'ada', getIdToken: async () => 'token' },
@@ -63,16 +59,18 @@ describe('useInfiniteFamiliesLoadMore', () => {
     await loadMore();
 
     expect(new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://seriph.local').searchParams.get('cursor')).toBe('after-48');
-    expect(current.families).toHaveLength(95);
-    expect(new Set(current.families.map((item) => item.id)).size).toBe(95);
-    expect(current.stats).toEqual(stats);
-    expect(current.hasMore).toBe(true);
+    expect(stateRef.current.families).toHaveLength(95);
+    expect(new Set(stateRef.current.families.map((item) => item.id)).size).toBe(95);
+    expect(stateRef.current.stats).toEqual(stats);
+    expect(stateRef.current.hasMore).toBe(true);
+    expect(pendingUpdates).toHaveLength(2);
 
     await loadMore();
 
     expect(new URL(String(fetchMock.mock.calls[1]?.[0]), 'http://seriph.local').searchParams.get('cursor')).toBe('after-95');
-    expect(current.families).toHaveLength(96);
-    expect(current.hasMore).toBe(false);
-    expect(current.nextCursor).toBeNull();
+    expect(stateRef.current.families).toHaveLength(96);
+    expect(stateRef.current.hasMore).toBe(false);
+    expect(stateRef.current.nextCursor).toBeNull();
+    expect(pendingUpdates).toHaveLength(4);
   });
 });

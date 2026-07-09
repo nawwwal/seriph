@@ -23,11 +23,9 @@ export function useInfiniteFamilies() {
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
   const setStateAndRef = useCallback((update: SetStateAction<InfiniteFamiliesState>) => {
-    setState((current) => {
-      const next = typeof update === 'function' ? update(current) : update;
-      stateRef.current = next;
-      return next;
-    });
+    const next = typeof update === 'function' ? update(stateRef.current) : update;
+    stateRef.current = next;
+    setState(next);
   }, []);
   const activeState = useMemo(
     () => state.userId === currentUserId ? state : inactiveFamiliesState(state),
@@ -44,7 +42,6 @@ export function useInfiniteFamilies() {
     user,
   });
   const loadMore = useInfiniteFamiliesLoadMore({
-    activeState,
     inFlightMore,
     moreAbortRef,
     moreRequestId,

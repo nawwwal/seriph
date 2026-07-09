@@ -12,7 +12,6 @@ import {
 } from '@/lib/hooks/infiniteFamiliesState';
 
 interface LoadMoreArgs {
-  activeState: InfiniteFamiliesState;
   inFlightMore: MutableRefObject<boolean>;
   moreAbortRef: MutableRefObject<AbortController | null>;
   moreRequestId: MutableRefObject<number>;
@@ -22,11 +21,11 @@ interface LoadMoreArgs {
 }
 
 export function useInfiniteFamiliesLoadMore(args: LoadMoreArgs) {
-  const { activeState, inFlightMore, moreAbortRef, moreRequestId, setState, stateRef, user } = args;
+  const { inFlightMore, moreAbortRef, moreRequestId, setState, stateRef, user } = args;
 
   return useCallback(async () => {
-    if (!user || inFlightMore.current) return;
-    const continuation = stateRef.current.userId === user.uid ? stateRef.current : activeState;
+    if (!user || inFlightMore.current || stateRef.current.userId !== user.uid) return;
+    const continuation = stateRef.current;
     if (!continuation.hasMore || !continuation.nextCursor) return;
     inFlightMore.current = true;
     moreAbortRef.current?.abort();
@@ -34,7 +33,8 @@ export function useInfiniteFamiliesLoadMore(args: LoadMoreArgs) {
     moreAbortRef.current = controller;
     moreRequestId.current += 1;
     const id = moreRequestId.current;
-    setState((current) => ({ ...current, isLoadingMore: true, error: null }));
+    stateRef.current = { ...continuation, isLoadingMore: true, error: null };
+    setState(stateRef.current);
 
     try {
       const page = await fetchFamilyPage({
@@ -43,24 +43,26 @@ export function useInfiniteFamiliesLoadMore(args: LoadMoreArgs) {
         signal: controller.signal,
       });
       if (moreRequestId.current !== id) return;
-      const current = stateRef.current.userId === user.uid ? stateRef.current : continuation;
+      const current = stateRef.current;
       const mergedPage = appendShelfFamilyPage(pageFromInfiniteState(current), page);
       writeShelfFamilyCache(user.uid, mergedPage);
-      setState((latest) => ({
-        ...latest,
+      stateRef.current = {
+        ...current,
         userId: user.uid,
         families: mergedPage.families,
         nextCursor: mergedPage.nextCursor,
         hasMore: mergedPage.hasMore,
         isLoadingMore: false,
         stats: mergedPage.stats ?? null,
-      }));
+      };
+      setState(stateRef.current);
     } catch (error) {
       if (!isAbortError(error) && moreRequestId.current === id) {
-        setState((current) => ({ ...current, isLoadingMore: false, error: loadErrorMessage(error, 'Failed to load more families.') }));
+        stateRef.current = { ...stateRef.current, isLoadingMore: false, error: loadErrorMessage(error, 'Failed to load more families.') };
+        setState(stateRef.current);
       }
     } finally {
       if (moreRequestId.current === id) inFlightMore.current = false;
     }
-  }, [activeState, inFlightMore, moreAbortRef, moreRequestId, setState, stateRef, user]);
+  }, [inFlightMore, moreAbortRef, moreRequestId, setState, stateRef, user]);
 }
