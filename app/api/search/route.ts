@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUidFromRequest } from '@/lib/server/auth';
 import { fail, ok, type ApiErrorCode } from '@/lib/server/apiResponse';
 import { isJsonObject, readJsonObject } from '@/lib/server/apiRequest';
+import { searchFunctionUrl } from '@/lib/search/searchEndpoint';
 
 export const runtime = 'nodejs';
 
@@ -44,10 +45,7 @@ export async function POST(request: NextRequest) {
       filters: { ...filters, ownerId: uid },
     };
 
-    const endpoint =
-      process.env.SEARCH_FUNCTION_URL ||
-      process.env.SEARCH_SERVICE_URL ||
-      'https://asia-southeast1-seriph.cloudfunctions.net/searchFontsHttp';
+    const endpoint = searchFunctionUrl({ SEARCH_FUNCTION_URL: process.env.SEARCH_FUNCTION_URL });
 
     const res = await fetch(endpoint, {
       method: 'POST',

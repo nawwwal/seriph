@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUidFromRequest } from '@/lib/server/auth';
 import { fail, ok, type ApiErrorCode } from '@/lib/server/apiResponse';
 import { isJsonObject, readJsonObject } from '@/lib/server/apiRequest';
+import { searchFunctionUrl } from '@/lib/search/searchEndpoint';
 
 export const runtime = 'nodejs';
 
@@ -23,10 +24,7 @@ export async function POST(request: NextRequest) {
     if (!body.ok) return fail('bad_request', body.message, 400, undefined, { headers: CORS });
     const payload = body.value;
     const filters = isJsonObject(payload.filters) ? payload.filters : {};
-    const endpoint =
-      process.env.SEARCH_FUNCTION_URL ||
-      process.env.SEARCH_SERVICE_URL ||
-      'https://us-central1-seriph.cloudfunctions.net/searchFontsHttpUs';
+    const endpoint = searchFunctionUrl({ SEARCH_FUNCTION_URL: process.env.SEARCH_FUNCTION_URL });
 
     const res = await fetch(endpoint, {
       method: 'POST',

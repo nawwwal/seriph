@@ -1,12 +1,11 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { initializeRemoteConfig } from "../config/remoteConfig";
 import { css2Handler, serveFontHandler } from "../serve/handlers";
-import { SEARCH_FUNCTION_OPTIONS, SEARCH_US_FUNCTION_OPTIONS, CDN_FUNCTION_OPTIONS } from "../options";
+import { SEARCH_FUNCTION_OPTIONS, CDN_FUNCTION_OPTIONS } from "../options";
 import { serveSearchRequest } from "../search/httpHandler";
 
 /** Semantic font search. POST { q?, filters?, limit? }. */
-export const searchFontsHttp = onRequest(SEARCH_FUNCTION_OPTIONS, serveSearchRequest);
-export const searchFontsHttpUs = onRequest(SEARCH_US_FUNCTION_OPTIONS, serveSearchRequest);
+export const searchFontsHttpUs = onRequest(SEARCH_FUNCTION_OPTIONS, serveSearchRequest);
 
 /** Google-Fonts-style CSS API. GET /css2?family=... (Hosting rewrites /css2 here). */
 export const css2 = onRequest(CDN_FUNCTION_OPTIONS, async (req, res) => {

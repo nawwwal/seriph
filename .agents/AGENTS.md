@@ -34,8 +34,8 @@ directory. Read the relevant doc before changing its area.
 - **Live app:** Vercel production aliases include `https://seriph.naw.al`.
 - **Font CDN:** `https://seriph.web.app` serves `/s/**`, `/d/**`, and `/css2`.
 - **Deployed functions:** `processUploadedFontStorage`, `enrichFontOnReady`,
-  `searchFontsHttp`, `css2`, and `serveFont`.
-- **Search backend URL:** `https://asia-southeast1-seriph.cloudfunctions.net/searchFontsHttp`.
+  `searchFontsHttpUs`, `css2`, and `serveFont`.
+- **Search backend URL:** `https://us-central1-seriph.cloudfunctions.net/searchFontsHttpUs`.
 - **Remote Config:** all AI/config flags and model names belong there. Do not
   hardcode model names or rollout flags.
 

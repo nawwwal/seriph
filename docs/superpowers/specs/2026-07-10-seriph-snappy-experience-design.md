@@ -157,8 +157,7 @@ The same cache-first contract will then be reusable by other app surfaces.
 - Add integration and browser tests with slow or unavailable networks to verify
   that cached catalog, search, and detail content never regress to a loader.
 - Release behind a reversible cache-first flag, verify real-user timings and
-  billing metrics, then expand while retaining the existing live path as a
-  rollback route.
+  billing metrics before wider changes.
 
 ## Known Technical Findings
 
