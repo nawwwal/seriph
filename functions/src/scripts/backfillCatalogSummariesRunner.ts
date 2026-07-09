@@ -1,3 +1,4 @@
+import '../bootstrap/adminApp';
 import { getFirestore } from 'firebase-admin/firestore';
 import { rebuildCatalogSummary } from '../storage/catalogSummary';
 import { FAMILIES_COLLECTION } from '../storage/familyStore';
