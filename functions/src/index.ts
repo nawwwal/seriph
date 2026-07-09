@@ -5,4 +5,4 @@ import "./bootstrap/adminApp";
 
 export { expandArchive, processUploadedFontStorage } from "./triggers/ingest";
 export { submitEnrichmentBatch, pollEnrichmentBatch } from "./triggers/enrich";
-export { searchFontsHttp, css2, serveFont } from "./triggers/serve";
+export { searchFontsHttp, searchFontsHttpUs, css2, serveFont } from "./triggers/serve";
