@@ -15,6 +15,17 @@ export interface FontMetadata {
   [key: string]: unknown;
 }
 
+export interface FamilyEnrichment {
+  classification?: string;
+  summary?: string;
+  moods?: string[];
+  voice?: string;
+  useCases?: string[];
+  pairingHints?: string[];
+  confidence?: number;
+  enrichedAt?: string;
+}
+
 export interface FamilyMetadata {
   foundry?: string;
   subClassification?: string;
@@ -44,6 +55,7 @@ export interface FamilyMetadata {
   };
   semantics?: SemanticClassification;
   provenance?: Record<string, DataProvenance[]>;
+  enrichment?: FamilyEnrichment;
 }
 
 export interface FontFamily {

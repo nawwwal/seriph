@@ -11,6 +11,7 @@ import FamilyHeader from '@/components/font/FamilyHeader';
 import FamilyStyles from '@/components/font/FamilyStyles';
 import CharacterSetSection from '@/components/font/CharacterSetSection';
 import FamilyFooter from '@/components/font/FamilyFooter';
+import FamilyInsights from '@/components/font/FamilyInsights';
 
 interface FamilyDetailContentProps {
   family: FontFamily;
@@ -37,6 +38,7 @@ export default function FamilyDetailContent({
       <FamilyHeader family={family} onAddStyleFiles={onAddStyleFiles} onTestInText={onTestInText} />
       <Specimen family={family} />
       <UseFontPanel family={family} />
+      <FamilyInsights enrichment={family.metadata?.enrichment} />
       {isPreview ? (
         <>
           <SkeletonStyles />

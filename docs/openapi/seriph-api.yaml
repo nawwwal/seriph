@@ -132,6 +132,34 @@ components:
           type: boolean
         cdnUrl:
           type: string
+    FamilyEnrichment:
+      type: object
+      properties:
+        classification:
+          type: string
+        summary:
+          type: string
+        moods:
+          type: array
+          items:
+            type: string
+        voice:
+          type: string
+        useCases:
+          type: array
+          items:
+            type: string
+        pairingHints:
+          type: array
+          items:
+            type: string
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        enrichedAt:
+          type: string
+          format: date-time
     FontFamilyDetail:
       type: object
       required: [id, name, normalizedName, classification, fonts]
@@ -150,6 +178,21 @@ components:
           type: array
           items:
             type: string
+        metadata:
+          type: object
+          properties:
+            subClassification:
+              type: string
+            moods:
+              type: array
+              items:
+                type: string
+            useCases:
+              type: array
+              items:
+                type: string
+            enrichment:
+              $ref: '#/components/schemas/FamilyEnrichment'
         fonts:
           type: array
           items:

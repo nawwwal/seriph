@@ -1,6 +1,7 @@
 import type { Classification, FontFamily } from '@/models/font.models';
+import type { FamilyEnrichment } from '@/models/font-family.models';
 import { mapCatalogFaces } from '@/lib/db/catalogFaceAdapter';
-import { asRecord, text, textArray, toIso, type CatalogRecord } from '@/lib/db/catalogValues';
+import { asRecord, number, text, textArray, toIso, type CatalogRecord } from '@/lib/db/catalogValues';
 
 const CATEGORY_TO_CLASS: Record<string, Classification> = {
   SANS_SERIF: 'Sans Serif',
@@ -24,26 +25,52 @@ export function isCatalogAliasDoc(data: unknown): boolean {
   return record?.status === 'merged' || record?.hidden === true || mergedInto(record) !== null;
 }
 
+function populatedText(record: CatalogRecord, key: string): string | undefined {
+  const value = text(record, key);
+  return value?.trim() ? value : undefined;
+}
+
+function populatedTextArray(value: unknown): string[] | undefined {
+  const values = textArray(value)?.filter((item) => item.trim());
+  return values?.length ? values : undefined;
+}
+
+function mapEnrichment(data: unknown): FamilyEnrichment {
+  const record = asRecord(data) ?? {};
+  const confidence = number(record, 'confidence', Number.NaN);
+  const enrichedAt = toIso(record.enrichedAt);
+  const entries: FamilyEnrichment = {
+    classification: populatedText(record, 'classification'), summary: populatedText(record, 'summary'),
+    moods: populatedTextArray(record.moods), voice: populatedText(record, 'voice'),
+    useCases: populatedTextArray(record.useCases), pairingHints: populatedTextArray(record.pairingHints),
+    confidence: Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : undefined,
+    enrichedAt: enrichedAt && !Number.isNaN(Date.parse(enrichedAt)) ? enrichedAt : undefined,
+  };
+  return Object.fromEntries(Object.entries(entries).filter(([, value]) => value !== undefined));
+}
+
 export function mapCatalogDoc(data: CatalogRecord, id: string): FontFamily {
   const fonts = mapCatalogFaces(Array.isArray(data.faces) ? data.faces : []);
-  const enrichment = asRecord(data.enrichment) ?? {};
+  const enrichmentRecord = asRecord(data.enrichment) ?? {};
+  const enrichment = mapEnrichment(enrichmentRecord);
   const category = text(data, 'category') ?? '';
   const slug = text(data, 'slug') ?? id;
-  const moods = textArray(enrichment.moods);
+  const moods = textArray(enrichmentRecord.moods);
   return {
     id: slug,
     name: text(data, 'name') ?? id,
     normalizedName: slug,
     ownerId: text(data, 'ownerId'),
     foundry: text(data, 'foundry'),
-    description: text(enrichment, 'summary') ?? '',
+    description: enrichment.summary ?? '',
     tags: moods?.slice(0, 6) ?? [],
     classification: CATEGORY_TO_CLASS[category] || 'Sans Serif',
     metadata: {
       foundry: text(data, 'foundry'),
-      subClassification: text(enrichment, 'classification'),
+      subClassification: enrichment.classification,
       moods,
-      useCases: textArray(enrichment.useCases),
+      useCases: textArray(enrichmentRecord.useCases),
+      enrichment,
     },
     fonts,
     uploadDate: toIso(data.createdAt),

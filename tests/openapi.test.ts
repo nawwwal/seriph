@@ -51,4 +51,13 @@ describe('OpenAPI contract', () => {
       expect(pathBlock(spec, path)).toContain('requestBody:');
     }
   });
+
+  it('documents typed family enrichment while preserving legacy metadata fields', () => {
+    const spec = readFileSync(specPath, 'utf8');
+    const detail = spec.slice(spec.indexOf('    FontFamilyDetail:'), spec.indexOf('    FamilyListEnvelope:'));
+
+    expect(spec).toContain('    FamilyEnrichment:');
+    expect(detail).toContain("$ref: '#/components/schemas/FamilyEnrichment'");
+    for (const field of ['description:', 'moods:', 'useCases:']) expect(detail).toContain(field);
+  });
 });
