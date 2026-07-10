@@ -1,4 +1,5 @@
 import type { FontFamily } from '@/models/font.models';
+import { cacheFamily, cacheFamilyById } from '@/lib/cache/familyCache';
 import { readSnapshot, writeSnapshot } from '@/lib/cache/persistentSnapshots';
 import { serializeFamilyDetail } from '@/lib/cache/familyDetailSerialization';
 
@@ -12,8 +13,8 @@ export async function readPersistedFamilyDetail(
   return record ? serializeFamilyDetail(record.payload) : null;
 }
 
-export function persistFamilyDetail(uid: string, familyId: string, family: FontFamily): void {
-  void writeSnapshot({
+export function persistFamilyDetail(uid: string, familyId: string, family: FontFamily): Promise<void> {
+  return writeSnapshot({
     accountId: uid,
     kind: 'family-detail',
     key: familyId,
@@ -21,4 +22,20 @@ export function persistFamilyDetail(uid: string, familyId: string, family: FontF
     ttlMs: DETAIL_TTL_MS,
     maxEntries: 24,
   });
+}
+
+export async function storeFamilyDetail(input: {
+  uid: string;
+  routeId: string;
+  canonicalId: string;
+  family: FontFamily;
+}): Promise<void> {
+  const { uid, routeId, canonicalId, family } = input;
+  cacheFamily(uid, family);
+  cacheFamilyById(uid, routeId, family);
+  cacheFamilyById(uid, canonicalId, family);
+  await Promise.allSettled([
+    persistFamilyDetail(uid, routeId, family),
+    persistFamilyDetail(uid, canonicalId, family),
+  ]);
 }

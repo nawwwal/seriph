@@ -6,12 +6,13 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { prefetchFamilyDetail } from '@/lib/cache/familyDetailClient';
 import { familyDetailPrefetchQueue } from '@/lib/cache/familyDetailPrefetchQueue';
 import { cacheFamilyPreview } from '@/lib/cache/familyPreviewCache';
+import type { FamilyDetailPreviewInput } from '@/lib/cache/familyDetailPreview';
 import type { ShelfFamily } from '@/models/shelf.models';
 
 export function useFamilyRoutePrefetch(
   familyId: string | undefined,
   enabled = true,
-  preview?: ShelfFamily
+  preview?: FamilyDetailPreviewInput | ShelfFamily
 ): () => void {
   const router = useRouter();
   const { user } = useAuth();

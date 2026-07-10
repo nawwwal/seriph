@@ -2,13 +2,29 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { clearFamilyCacheForUser, getCachedFamily } from '@/lib/cache/familyCache';
-import { loadFamilyDetail } from '@/lib/cache/familyDetailClient';
+import {
+  loadFamilyDetail,
+  refreshFamilyDetail,
+  type FamilyDetailLoadOutcome,
+  type LoadFamilyDetailInput,
+} from '@/lib/cache/familyDetailClient';
 import { clearFamilyPreviewCacheForUser, getCachedFamilyPreview } from '@/lib/cache/familyPreviewCache';
 import {
   deriveFamilyDetailRouteState,
   type FamilyDetailRequestState,
 } from '@/lib/hooks/familyDetailRouteState';
 import { useAuth } from '@/lib/contexts/AuthContext';
+
+export async function loadFamilyDetailWithRefresh(
+  input: LoadFamilyDetailInput,
+  publish: (outcome: FamilyDetailLoadOutcome) => void,
+): Promise<void> {
+  const initial = await loadFamilyDetail(input);
+  publish(initial);
+  if (initial.kind === 'loaded' && initial.source !== 'network') {
+    publish(await refreshFamilyDetail(input));
+  }
+}
 
 /** Load one family by id (owner-scoped). Returns null family when logged out. */
 export function useFamilyDetail(familyId: string | undefined) {
@@ -42,22 +58,17 @@ export function useFamilyDetail(familyId: string | undefined) {
 
   useEffect(() => {
     if (authLoading || !user || !familyId) return;
-    // Already in the shared cache -> the derived value renders it; skip the fetch.
-    if (getCachedFamily(user.uid, familyId)) return;
-
     let isActive = true;
-    loadFamilyDetail({
-      uid: user.uid,
-      familyId,
-      getIdToken: () => user.getIdToken(),
-    })
-      .then((outcome) => {
+    void loadFamilyDetailWithRefresh(
+      { uid: user.uid, familyId, getIdToken: () => user.getIdToken() },
+      (outcome) => {
         if (!isActive) return;
         if (outcome.kind === 'load-error') {
           console.error(`Error fetching font family ${familyId}:`, outcome.error);
         }
         setRequest({ uid: user.uid, familyId, outcome });
-      });
+      },
+    );
 
     return () => {
       isActive = false;

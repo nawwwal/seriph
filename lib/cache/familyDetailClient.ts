@@ -1,40 +1,27 @@
 'use client';
 
 import type { FontFamily } from '@/models/font.models';
-import { cacheFamily, cacheFamilyById, getCachedFamily } from '@/lib/cache/familyCache';
-import { persistFamilyDetail, readPersistedFamilyDetail } from '@/lib/cache/familyDetailPersistence';
-import {
-  familyResponseData,
-  familyResponseError,
-  serializeFamilyDetail,
-} from '@/lib/cache/familyDetailSerialization';
-import {
-  hasFamilyDetailNegative,
-  rememberFamilyDetailNegative,
-} from '@/lib/cache/familyDetailNegativeCache';
+import { getCachedFamily } from '@/lib/cache/familyCache';
+import { readPersistedFamilyDetail, storeFamilyDetail } from '@/lib/cache/familyDetailPersistence';
+import { familyResponseData, familyResponseError, serializeFamilyDetail } from '@/lib/cache/familyDetailSerialization';
+import { hasFamilyDetailNegative, rememberFamilyDetailNegative } from '@/lib/cache/familyDetailNegativeCache';
 
 export { serializeFamilyDetail } from '@/lib/cache/familyDetailSerialization';
 export { clearFamilyDetailNegativeCacheForUser } from '@/lib/cache/familyDetailNegativeCache';
 
 type TokenGetter = () => Promise<string>;
-interface LoadFamilyDetailInput {
-  uid: string;
-  familyId: string;
-  getIdToken: TokenGetter;
-}
-interface LoadedFamilyDetail {
-  family: FontFamily;
-  canonicalId: string;
-}
+export interface LoadFamilyDetailInput { uid: string; familyId: string; getIdToken: TokenGetter }
+interface LoadedFamilyDetail { family: FontFamily; canonicalId: string }
 type FamilyDetailRequestOutcome =
   | { kind: 'loaded'; detail: LoadedFamilyDetail }
   | { kind: 'not-found' }
   | { kind: 'load-error'; error: Error };
 export type FamilyDetailLoadOutcome =
-  | { kind: 'loaded'; family: FontFamily }
+  | { kind: 'loaded'; source: 'memory' | 'snapshot' | 'network'; family: FontFamily }
   | { kind: 'not-found' }
   | { kind: 'load-error'; error: Error };
-const inFlightFamilies = new Map<string, Promise<FamilyDetailLoadOutcome>>();
+const inFlightLoads = new Map<string, Promise<FamilyDetailLoadOutcome>>();
+const inFlightNetwork = new Map<string, Promise<FamilyDetailLoadOutcome>>();
 function cacheKey(uid: string, familyId: string): string {
   return `${uid}:${familyId}`;
 }
@@ -59,38 +46,49 @@ async function requestFamilyDetail(input: LoadFamilyDetailInput): Promise<Family
     return { kind: 'load-error', error: toError(error) };
   }
 }
+async function acceptOutcome(
+  input: LoadFamilyDetailInput,
+  outcome: FamilyDetailRequestOutcome,
+  source: 'snapshot' | 'network',
+): Promise<FamilyDetailLoadOutcome> {
+  if (outcome.kind === 'loaded') {
+    const { family, canonicalId } = outcome.detail;
+    await storeFamilyDetail({ uid: input.uid, routeId: input.familyId, canonicalId, family });
+    return { kind: 'loaded', source, family };
+  }
+  if (outcome.kind === 'not-found') rememberFamilyDetailNegative(input.uid, input.familyId);
+  return outcome;
+}
+function requestLiveFamilyDetail(input: LoadFamilyDetailInput): Promise<FamilyDetailLoadOutcome> {
+  const key = cacheKey(input.uid, input.familyId);
+  const existing = inFlightNetwork.get(key);
+  if (existing) return existing;
+  const pending = requestFamilyDetail(input)
+    .then((outcome) => acceptOutcome(input, outcome, 'network'))
+    .finally(() => inFlightNetwork.delete(key));
+  inFlightNetwork.set(key, pending);
+  return pending;
+}
 export function loadFamilyDetail(input: LoadFamilyDetailInput): Promise<FamilyDetailLoadOutcome> {
   const cached = getCachedFamily(input.uid, input.familyId);
-  if (cached) return Promise.resolve({ kind: 'loaded', family: cached });
+  if (cached) return Promise.resolve({ kind: 'loaded', source: 'memory', family: cached });
   const key = cacheKey(input.uid, input.familyId);
   if (hasFamilyDetailNegative(input.uid, input.familyId)) return Promise.resolve({ kind: 'not-found' });
-  const existing = inFlightFamilies.get(key);
+  const existing = inFlightLoads.get(key);
   if (existing) return existing;
   const pending = readPersistedFamilyDetail(input.uid, input.familyId)
-    .then((persisted): FamilyDetailRequestOutcome | Promise<FamilyDetailRequestOutcome> => (
+    .then((persisted): FamilyDetailLoadOutcome | Promise<FamilyDetailLoadOutcome> => (
       persisted
-        ? { kind: 'loaded', detail: { family: persisted, canonicalId: persisted.id } }
-        : requestFamilyDetail(input)
+        ? acceptOutcome(input, { kind: 'loaded', detail: { family: persisted, canonicalId: persisted.id } }, 'snapshot')
+        : requestLiveFamilyDetail(input)
     ))
-    .then((outcome): FamilyDetailLoadOutcome => {
-      if (outcome.kind === 'loaded') {
-        const { family, canonicalId } = outcome.detail;
-        cacheFamily(input.uid, family);
-        cacheFamilyById(input.uid, input.familyId, family);
-        cacheFamilyById(input.uid, canonicalId, family);
-        persistFamilyDetail(input.uid, input.familyId, family);
-        persistFamilyDetail(input.uid, canonicalId, family);
-        return { kind: 'loaded', family };
-      }
-      if (outcome.kind === 'not-found') rememberFamilyDetailNegative(input.uid, input.familyId);
-      return outcome;
-    })
     .catch((error): FamilyDetailLoadOutcome => ({ kind: 'load-error', error: toError(error) }))
-    .finally(() => {
-      inFlightFamilies.delete(key);
-    });
-  inFlightFamilies.set(key, pending);
+    .finally(() => inFlightLoads.delete(key));
+  inFlightLoads.set(key, pending);
   return pending;
+}
+export function refreshFamilyDetail(input: LoadFamilyDetailInput): Promise<FamilyDetailLoadOutcome> {
+  return requestLiveFamilyDetail(input);
 }
 export async function prefetchFamilyDetail(input: LoadFamilyDetailInput): Promise<void> {
   try {
