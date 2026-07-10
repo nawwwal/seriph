@@ -351,4 +351,3 @@ git commit -m "docs: record detail parity architecture release"
   preview union prevents bloating ShelfFamily with semantic fields.
 - Deliberate non-goals: no Firebase auth-cookie migration, no shared Vercel
   cache for private data, no blanket RSC rewrite, and no visual redesign.
-

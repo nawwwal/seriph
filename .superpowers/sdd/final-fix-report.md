@@ -197,3 +197,51 @@ Date: 2026-07-10
 - `tests/uploadCompletionInvalidation.test.ts`
 - `tests/infiniteFamiliesDelayedStats.test.ts`
 - `.superpowers/sdd/final-fix-report.md`
+
+---
+
+## Next Architecture and Detail Parity Release Candidate
+
+Date: 2026-07-10
+
+### Delivered
+
+- Restored one family-detail contract across Shelf and Search. The direct
+  `/family/[familyId]` API now retains every public enrichment field and the
+  detail surface renders them in `FamilyInsights`.
+- Detail navigation is cache-first and refreshes live data in the background;
+  rich Search previews retain semantic metadata, and canonical/legacy aliases
+  are invalidated together after a 404.
+- Replaced duplicated route navigation with one root `AppFrame`; deferred the
+  upload-center modal behind a dynamic overlay. The committed manifest verifier
+  rejects both `/_next/static/...` and `static/...` initial bundle paths and
+  requires a matching `react-loadable-manifest.json` registration.
+
+### Fresh Verification
+
+| Command | Result |
+| --- | --- |
+| `rtk npm run lint:lines` | PASS |
+| `rtk npm run typecheck` | PASS |
+| `rtk npm run lint` | PASS |
+| `rtk npm test` | PASS, 61 files / 177 tests |
+| `rtk npm test --prefix functions` | PASS, 28 files / 85 tests |
+| `rtk npm run build` | PASS, 24 static pages generated |
+| `rtk npm run build --prefix functions` | PASS |
+| `rtk npm run verify:upload-overlay` | PASS, 30 route manifests / 10 loadable manifests |
+| `git diff --check <merge-base> HEAD` | PASS |
+
+The root Vitest command still emits its known non-failing
+`--localstorage-file` warning. The authenticated local browser verified:
+
+- Direct `/family/satoshi` renders AI Insights with summary, voice, pairing,
+  confidence, and analysis date.
+- `/search?q=satoshi` refines to the AI summary; clicking the card reaches the
+  same enriched `/family/satoshi` detail route.
+- The shelf uses `ABC` on family cards, and Uploads opens the deferred Upload
+  Center dialog while the shelf stays mounted.
+- A fresh console delta across detail and shelf navigation contains no errors.
+
+The 404 cache regression includes both prior alias-registry snapshots and
+pre-registry snapshots whose payload uses canonical `<uid>__<slug>` identity
+while the request uses the bare slug.

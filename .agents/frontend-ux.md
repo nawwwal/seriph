@@ -14,6 +14,25 @@ front-end surface. The existing editorial feel is the fixed point.
 | `/search` | `app/(main)/search/page.tsx` → `SearchWorkspace` | Full search workspace. Auth-gated. Reads committed `?q=` plus filter params and owns result refinement. |
 | `/family/[familyId]` | `app/(main)/family/[familyId]/page.tsx` | Family detail: specimen, use-font panel, styles, type tester, character set. Auth-gated. |
 
+## App frame and detail parity
+
+- `AppFrame` is the single owner of `NavBar`. Route surfaces compose into it;
+  do not reintroduce route-local navigation shells. Logged-out/public routes
+  retain document scroll, while authenticated workspaces keep their bounded
+  internal scroll roots.
+- Every catalog or search route resolves to the same family detail surface.
+  The AI Insights section belongs above styles/tester and renders only validated
+  enrichment: summary, voice, mood, best-for tags, pairing hints,
+  classification, confidence, and analysis date. Never expose model IDs,
+  prompt versions, or embedding metadata to this UI.
+- A populated full detail remains visible during revalidation. Search can seed
+  a non-persisted rich preview; lower detail content skeletonizes until the
+  owner-scoped full payload arrives. Do not replace a visible specimen with a
+  route loader during a refresh.
+- Keep `UploadCenterModal` interaction-loaded through
+  `UploadCenterOverlay`. The provider stays mounted at the root, so opening
+  Uploads, progress state, and completion behavior do not depend on the route.
+
 ## Shelf loading and stats
 
 - The logged-in shelf uses `useInfiniteFamilies()` for the paginated card grid

@@ -463,3 +463,27 @@ currently using code defaults (`seriph-fonts`, `gemini-2.5-flash`,
 ESLint pinned to **9.x** (Next config has no ESLint 10–compatible
 `eslint-plugin-react`). `firebase-admin` **13.x in `functions/`** (peer of
 `firebase-functions@7`), **14.x in the web app**. Tailwind 4 / flat ESLint config.
+
+## Cache-first detail and App Router composition (local, 2026-07-10)
+
+- Catalog and search use the same `/family/[familyId]` route. The prior AI
+  metadata mismatch was a lossy catalog adapter plus a stale 30-day detail
+  snapshot: search returned enrichment directly, while the direct-detail
+  adapter dropped `voice`, `pairingHints`, `confidence`, and `enrichedAt`.
+  `FamilyEnrichment` is now a validated, user-facing detail contract and
+  `FamilyInsights` renders every populated field without exposing model/prompt
+  internals.
+- Detail reads remain owner-scoped in IndexedDB and memory. A cached full
+  detail or rich search preview renders first, then a deduplicated live request
+  refreshes it without replacing visible content with a loader. Canonical and
+  legacy route aliases are persisted together. On a 404, a bounded scan of the
+  24-record detail LRU also clears pre-registry snapshots by matching both the
+  bare slug and canonical `<uid>__<slug>` identity for that account.
+- The root `AppFrame` owns the persistent navigation chrome. Workspace routes
+  compose their content into that frame, while `UploadCenterModal` stays behind
+  an interaction-bound `next/dynamic` overlay. `npm run verify:upload-overlay`
+  checks fresh production manifests for both initial-bundle leakage and a
+  missing loadable registration.
+- Deliberate architectural boundary: private Firebase-authenticated records
+  remain in account-scoped client caches. Vercel Data Cache and Next Cache
+  Components are not enabled until Seriph has server-verifiable session auth.

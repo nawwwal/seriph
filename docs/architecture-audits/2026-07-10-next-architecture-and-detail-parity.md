@@ -102,4 +102,3 @@ Every navigation path shows the same AI-enriched family detail immediately when
 available, then reconciles with live data in the background without blanking the
 specimen or tester. The application has one persistent navigation frame, no
 duplicated route chrome, and no private user data in a shared server cache.
-
