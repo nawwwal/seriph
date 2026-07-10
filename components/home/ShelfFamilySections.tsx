@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { FontFamily } from '@/models/font.models';
 import type { ShelfFamily } from '@/models/shelf.models';
 import type { ShelfSelectionState } from '@/lib/shelf/selectionState';
+import { groupShelfFamilies } from '@/lib/shelf/groupShelfFamilies';
 import ShelfFamilyGrid from './ShelfFamilyGrid';
 import { SHELF_GRID_CLASS } from './shelfGrid';
 
@@ -17,11 +18,6 @@ interface ShelfFamilySectionsProps {
   onOpenContextMenu: (event: { familyId: string; x: number; y: number }) => void;
 }
 
-function groupLabelForFamily(family: FontFamily | ShelfFamily): string {
-  const first = family.name.trim().charAt(0).toUpperCase();
-  return /^[A-Z]$/.test(first) ? first : '#';
-}
-
 export default function ShelfFamilySections({
   families,
   shelfMode,
@@ -31,16 +27,7 @@ export default function ShelfFamilySections({
   onToggleSelected,
   onOpenContextMenu,
 }: ShelfFamilySectionsProps) {
-  const groupedFamilies = useMemo(() => {
-    const groups: Array<{ label: string; families: Array<FontFamily | ShelfFamily> }> = [];
-    for (const family of families) {
-      const label = groupLabelForFamily(family);
-      const current = groups[groups.length - 1];
-      if (current?.label === label) current.families.push(family);
-      else groups.push({ label, families: [family] });
-    }
-    return groups;
-  }, [families]);
+  const groupedFamilies = useMemo(() => groupShelfFamilies(families), [families]);
 
   return groupedFamilies.map((group) => (
     <section key={group.label} aria-labelledby={`shelf-group-${group.label}`}>
