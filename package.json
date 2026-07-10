@@ -15,7 +15,8 @@
     "lint:web": "eslint --report-unused-disable-directives .",
     "lint:functions": "npm run lint --prefix functions",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify:upload-overlay": "node scripts/check-upload-overlay-boundary.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

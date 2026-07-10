@@ -51,7 +51,7 @@ export default function UploadCenterModal() {
 
   return (
     <Modal isOpen={isOpen} onClose={close} title="Upload Center" size="lg">
-      <div className="flex flex-col gap-4 max-h-[70vh]">
+      <div data-upload-center-bundle="seriph-upload-center-modal" className="flex flex-col gap-4 max-h-[70vh]">
         {/* Stats */}
         <div className="grid grid-cols-4 gap-2 text-center">
           {[
