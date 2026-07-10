@@ -1,7 +1,7 @@
 # Final Integration Fix Report
 
-Date: 2026-07-10  
-Branch: `codex/seriph-patterns-and-regressions`  
+Date: 2026-07-10
+Branch: `codex/seriph-patterns-and-regressions`
 Starting HEAD: `f70eaf1`
 
 ## Scope Completed
