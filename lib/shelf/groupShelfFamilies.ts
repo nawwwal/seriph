@@ -4,6 +4,7 @@ import type { ShelfFamily } from '@/models/shelf.models';
 type ShelfItem = FontFamily | ShelfFamily;
 
 export interface ShelfFamilyGroup {
+  key: string;
   label: string;
   families: ShelfItem[];
 }
@@ -14,12 +15,19 @@ function groupLabelForFamily(family: ShelfItem): string {
 }
 
 export function groupShelfFamilies(families: ShelfItem[]): ShelfFamilyGroup[] {
-  const groupsByLabel = new Map<string, ShelfFamilyGroup>();
+  const keyCounts = new Map<string, number>();
+  const groups: ShelfFamilyGroup[] = [];
   for (const family of families) {
     const label = groupLabelForFamily(family);
-    const group = groupsByLabel.get(label);
-    if (group) group.families.push(family);
-    else groupsByLabel.set(label, { label, families: [family] });
+    const current = groups[groups.length - 1];
+    if (current?.label === label) {
+      current.families.push(family);
+      continue;
+    }
+    const baseKey = `${label}-${encodeURIComponent(family.id)}`;
+    const count = keyCounts.get(baseKey) ?? 0;
+    keyCounts.set(baseKey, count + 1);
+    groups.push({ key: count === 0 ? baseKey : `${baseKey}-${count}`, label, families: [family] });
   }
-  return [...groupsByLabel.values()];
+  return groups;
 }
