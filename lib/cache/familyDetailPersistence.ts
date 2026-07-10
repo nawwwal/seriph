@@ -15,7 +15,8 @@ function unique(values: string[]): string[] {
 
 function canonicalCandidates(uid: string, familyId: string): string[] {
   const prefix = `${uid}__`;
-  return unique([familyId, familyId.startsWith(prefix) ? familyId.slice(prefix.length) : '']);
+  if (familyId.startsWith(prefix)) return unique([familyId, familyId.slice(prefix.length)]);
+  return unique([familyId, `${prefix}${familyId}`]);
 }
 
 async function legacySnapshotAliases(uid: string, familyId: string): Promise<string[]> {

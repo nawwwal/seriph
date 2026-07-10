@@ -38,4 +38,19 @@ describe('pre-registry family detail snapshots', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('matches a canonical document id when the request uses its bare slug', async () => {
+    await writeSnapshot({
+      accountId: 'user-a', kind: 'family-detail', key: legacyRoute,
+      payload: { ...rawFamily, id: 'user-a__inter' }, ttlMs: 60_000,
+    });
+    clearFamilyCacheForUser('user-a');
+    const fetchMock = vi.fn(() => failedFamilyResponse(404, 'Family not found'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(loadFamilyDetail(input('user-a', 'inter'))).resolves.toEqual({ kind: 'not-found' });
+    await expect(loadFamilyDetail(input('user-a', legacyRoute))).resolves.toEqual({ kind: 'not-found' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
