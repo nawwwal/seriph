@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import NavBar from '@/components/layout/NavBar';
 import ShelfStats from '@/components/home/ShelfStats';
 import ShelfSelectionBar from '@/components/home/ShelfSelectionBar';
 import HomeHeader from '@/components/home/HomeHeader';
@@ -62,15 +61,14 @@ export default function HomePageContent({ user }: { user: User }) {
   }
 
   return (
-    <div className="w-screen h-screen flex flex-col">
-      <NavBar />
+    <>
       <div
         ref={shelfScrollRef}
         data-shelf-scroll-root="true"
         onPointerDownCapture={saveShelfScroll}
         onClickCapture={saveShelfScroll}
         onKeyDownCapture={saveShelfScroll}
-        className="flex-1 w-full h-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto"
+        className="flex-1 min-h-0 w-full h-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto"
       >
         <HomeHeader isEmpty={isEmpty} onAddFonts={handleAddFonts} onRegenerateCovers={() => setCoverSeed((s) => s + 1)} />
         {!isEmpty && <ShelfStats stats={shelf.stats} pendingCount={pendingIngests.length} shelfMode={shelfMode} setShelfMode={setShelfMode} />}
@@ -101,6 +99,6 @@ export default function HomePageContent({ user }: { user: User }) {
       </div>
       {mutations.pendingDeleteIds && <DeleteFamiliesDialog count={mutations.pendingDeleteIds.length} isDeleting={mutations.isMutating} error={mutations.deleteError} onCancel={() => !mutations.isMutating && mutations.setPendingDeleteIds(null)} onConfirm={mutations.confirmDelete} />}
       {mutations.mergeUndo && <MergeUndoToast undoExpiresAt={mutations.mergeUndo.undoExpiresAt} isMutating={mutations.isMutating} onUndo={mutations.undoMerge} onDismiss={() => mutations.setMergeUndo(null)} />}
-    </div>
+    </>
   );
 }

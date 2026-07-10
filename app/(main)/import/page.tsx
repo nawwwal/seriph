@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import NavBar from '@/components/layout/NavBar';
 import { Button } from '@/components/ui/Button';
 import ImportFooter from '@/components/import/ImportFooter';
 import { ImportWorkspaceFrame, ImportWorkspaceLoading } from '@/components/import/ImportWorkspaceFrame';
@@ -25,22 +24,17 @@ export default function ImportPage() {
 
   if (!user && !isLoading) {
     return (
-      <div className="w-screen h-screen flex flex-col">
-        <NavBar />
-        <div className="flex-1 w-full h-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto">
-          <div className="mt-8 p-8 rule rounded-[var(--radius)] max-w-xl">
-            <div className="text-xl font-bold">Sign in required</div>
-            <p className="mt-2">Sign in to add fonts to your library.</p>
-          </div>
+      <div className="flex-1 min-h-0 w-full h-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto">
+        <div className="mt-8 p-8 rule rounded-[var(--radius)] max-w-xl">
+          <div className="text-xl font-bold">Sign in required</div>
+          <p className="mt-2">Sign in to add fonts to your library.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-screen h-screen flex flex-col">
-      <NavBar />
-      <div className="flex-1 w-full h-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto">
+      <div className="flex-1 min-h-0 w-full h-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto">
         <header className="w-full rule-b pb-4 sm:pb-5 md:pb-6">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
             <h1 className="cap-tight uppercase font-black tracking-tight text-[clamp(56px,9.5vw,140px)] leading-[0.9]">
@@ -82,7 +76,6 @@ export default function ImportPage() {
         </main>
 
         <ImportFooter />
-      </div>
     </div>
   );
 }

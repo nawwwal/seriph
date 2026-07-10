@@ -8,7 +8,6 @@ import { storePendingFonts } from '@/utils/pendingFonts';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useFamilyDetail } from '@/lib/hooks/useFamilyDetail';
 import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
-import NavBar from '@/components/layout/NavBar';
 import CenteredShell from '@/components/layout/CenteredShell';
 import FontDetailLoader from '@/components/ui/FontDetailLoader';
 import FamilyDetailContent from '@/components/font/FamilyDetailContent';
@@ -30,14 +29,7 @@ export default function FamilyDetailPage() {
     router.push('/import');
   };
 
-  if (isLoading) {
-    return (
-      <div className="w-screen h-screen flex flex-col bg-[var(--paper)]">
-        <NavBar />
-        <FontDetailLoader />
-      </div>
-    );
-  }
+  if (isLoading) return <FontDetailLoader />;
   if (!user && !authLoading) {
     return (
       <CenteredShell>
@@ -60,15 +52,12 @@ export default function FamilyDetailPage() {
   }
 
   return (
-    <div className="w-screen h-screen flex flex-col">
-      <NavBar />
-      <FamilyDetailContent
-        family={family}
-        isPreview={isPreview}
-        testerRef={testerRef}
-        onAddStyleFiles={handleAddStyleFiles}
-        onTestInText={scrollToTester}
-      />
-    </div>
+    <FamilyDetailContent
+      family={family}
+      isPreview={isPreview}
+      testerRef={testerRef}
+      onAddStyleFiles={handleAddStyleFiles}
+      onTestInText={scrollToTester}
+    />
   );
 }

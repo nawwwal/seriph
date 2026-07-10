@@ -4,9 +4,10 @@ import { InterfaceKit } from "interface-kit/react";
 import "./globals.css";
 import Script from "next/script";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import AppFrame from "@/components/layout/AppFrame";
 import { AuthProvider } from "@/lib/contexts/AuthContext";
 import { UploadProvider } from "@/lib/contexts/UploadContext";
-import UploadCenterModal from "@/components/upload/UploadCenterModal";
+import UploadCenterOverlay from "@/components/upload/UploadCenterOverlay";
 
 const leagueSpartan = League_Spartan({
   weight: ['400', '700', '900'],
@@ -57,9 +58,11 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             <UploadProvider>
-              {children}
+              <AppFrame>
+                {children}
+              </AppFrame>
               {isDevelopment && <InterfaceKit />}
-              <UploadCenterModal />
+              <UploadCenterOverlay />
             </UploadProvider>
           </AuthProvider>
         </ThemeProvider>

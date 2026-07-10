@@ -1,14 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import NavBar from '@/components/layout/NavBar';
 import { DEMO_SPECIMENS, VALUE_PROPS } from './landingContent';
 
 export default function LandingPage() {
   return (
-    <div className="w-screen min-h-screen flex flex-col">
-      <NavBar />
-      <div className="flex-1 w-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto">
+    <div className="flex-1 min-h-0 w-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto">
         {/* Hero */}
         <header className="w-full rule-b pb-6 sm:pb-8">
           <h1 className="cap-tight uppercase font-black tracking-tight text-[clamp(56px,11vw,180px)] leading-[0.85]">
@@ -81,7 +78,6 @@ export default function LandingPage() {
         <footer className="mt-10 sm:mt-12 rule-t pt-4 text-sm opacity-70">
           One color, many voices. Pick a theme up top and make it yours.
         </footer>
-      </div>
     </div>
   );
 }

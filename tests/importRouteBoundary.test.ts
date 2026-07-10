@@ -8,7 +8,6 @@ vi.mock('next/dynamic', () => ({
   default: (_loader: unknown, options?: { loading?: ComponentType }) => options?.loading ?? (() => null),
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
-vi.mock('@/components/layout/NavBar', () => ({ default: () => createElement('nav') }));
 vi.mock('@/components/import/ImportFooter', () => ({ default: () => createElement('footer') }));
 vi.mock('@/components/ui/Button', () => ({
   Button: ({ children }: { children?: ReactNode }) => createElement('button', null, children),

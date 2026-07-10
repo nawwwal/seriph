@@ -2,7 +2,6 @@
 
 import { Suspense } from 'react';
 import Link from 'next/link';
-import NavBar from '@/components/layout/NavBar';
 import LoadingSplash from '@/components/ui/LoadingSplash';
 import { buttonClassName } from '@/components/ui/buttonStyles';
 import SearchWorkspaceFallback from '@/components/search/SearchWorkspaceFallback';
@@ -11,9 +10,8 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 
 function Gate({ children }: { children: React.ReactNode }) {
   return (
-    <div className="w-screen h-screen flex flex-col bg-[var(--paper)]">
-      <NavBar />
-      <div className="flex-1 flex items-center justify-center p-8">{children}</div>
+    <div className="w-screen flex-1 min-h-0 flex items-center justify-center p-8 bg-[var(--paper)]">
+      {children}
     </div>
   );
 }
@@ -36,11 +34,8 @@ export default function SearchPage() {
   }
 
   return (
-    <div className="w-screen h-screen flex flex-col">
-      <NavBar />
-      <Suspense fallback={<SearchWorkspaceFallback />}>
-        <SearchWorkspace />
-      </Suspense>
-    </div>
+    <Suspense fallback={<SearchWorkspaceFallback />}>
+      <SearchWorkspace />
+    </Suspense>
   );
 }
