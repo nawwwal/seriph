@@ -2,7 +2,7 @@
 
 import type { FontFamily } from '@/models/font.models';
 import { getCachedFamily } from '@/lib/cache/familyCache';
-import { readPersistedFamilyDetail, storeFamilyDetail } from '@/lib/cache/familyDetailPersistence';
+import { cacheFamilyDetailAliases, evictFamilyDetail, readPersistedFamilyDetail, storeFamilyDetail } from '@/lib/cache/familyDetailPersistence';
 import { familyResponseData, familyResponseError, serializeFamilyDetail } from '@/lib/cache/familyDetailSerialization';
 import { hasFamilyDetailNegative, rememberFamilyDetailNegative } from '@/lib/cache/familyDetailNegativeCache';
 
@@ -53,10 +53,15 @@ async function acceptOutcome(
 ): Promise<FamilyDetailLoadOutcome> {
   if (outcome.kind === 'loaded') {
     const { family, canonicalId } = outcome.detail;
-    await storeFamilyDetail({ uid: input.uid, routeId: input.familyId, canonicalId, family });
+    const detail = { uid: input.uid, routeId: input.familyId, canonicalId, family };
+    if (source === 'snapshot') cacheFamilyDetailAliases(detail);
+    else await storeFamilyDetail(detail);
     return { kind: 'loaded', source, family };
   }
-  if (outcome.kind === 'not-found') rememberFamilyDetailNegative(input.uid, input.familyId);
+  if (outcome.kind === 'not-found') {
+    rememberFamilyDetailNegative(input.uid, input.familyId);
+    await evictFamilyDetail(input.uid, input.familyId);
+  }
   return outcome;
 }
 function requestLiveFamilyDetail(input: LoadFamilyDetailInput): Promise<FamilyDetailLoadOutcome> {

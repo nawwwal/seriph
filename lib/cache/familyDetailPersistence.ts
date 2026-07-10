@@ -1,5 +1,5 @@
 import type { FontFamily } from '@/models/font.models';
-import { cacheFamily, cacheFamilyById } from '@/lib/cache/familyCache';
+import { cacheFamily, cacheFamilyById, evictCachedFamilyAliases } from '@/lib/cache/familyCache';
 import { readSnapshot, writeSnapshot } from '@/lib/cache/persistentSnapshots';
 import { serializeFamilyDetail } from '@/lib/cache/familyDetailSerialization';
 
@@ -24,6 +24,18 @@ export function persistFamilyDetail(uid: string, familyId: string, family: FontF
   });
 }
 
+export function cacheFamilyDetailAliases(input: {
+  uid: string;
+  routeId: string;
+  canonicalId: string;
+  family: FontFamily;
+}): void {
+  const { uid, routeId, canonicalId, family } = input;
+  cacheFamily(uid, family);
+  cacheFamilyById(uid, routeId, family);
+  cacheFamilyById(uid, canonicalId, family);
+}
+
 export async function storeFamilyDetail(input: {
   uid: string;
   routeId: string;
@@ -31,11 +43,20 @@ export async function storeFamilyDetail(input: {
   family: FontFamily;
 }): Promise<void> {
   const { uid, routeId, canonicalId, family } = input;
-  cacheFamily(uid, family);
-  cacheFamilyById(uid, routeId, family);
-  cacheFamilyById(uid, canonicalId, family);
+  cacheFamilyDetailAliases(input);
   await Promise.allSettled([
     persistFamilyDetail(uid, routeId, family),
     persistFamilyDetail(uid, canonicalId, family),
   ]);
+}
+
+export async function evictFamilyDetail(uid: string, familyId: string): Promise<void> {
+  const aliases = evictCachedFamilyAliases(uid, familyId);
+  await Promise.allSettled(aliases.map((key) => writeSnapshot({
+    accountId: uid,
+    kind: 'family-detail',
+    key,
+    payload: null,
+    ttlMs: 0,
+  })));
 }

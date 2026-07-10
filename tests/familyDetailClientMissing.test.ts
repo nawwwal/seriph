@@ -1,38 +1,33 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearAccountSnapshots } from '@/lib/cache/persistentSnapshots';
-import { clearFamilyCacheForUser } from '@/lib/cache/familyCache';
+import { clearFamilyCacheForUser, getCachedFamily } from '@/lib/cache/familyCache';
 import * as familyDetailClient from '@/lib/cache/familyDetailClient';
-import { loadFamilyDetail, prefetchFamilyDetail } from '@/lib/cache/familyDetailClient';
+import { loadFamilyDetail, prefetchFamilyDetail, refreshFamilyDetail } from '@/lib/cache/familyDetailClient';
+import { readPersistedFamilyDetail } from '@/lib/cache/familyDetailPersistence';
+import { rawFamily } from './fixtures/familyDetail';
 import { failedFamilyResponse, successfulFamilyResponse } from './fixtures/familyDetail';
 
 describe('family detail missing outcomes', () => {
   beforeEach(async () => {
-    clearFamilyCacheForUser('user-a');
-    clearFamilyCacheForUser('user-b');
-    await clearAccountSnapshots({ accountId: 'user-a' });
-    await clearAccountSnapshots({ accountId: 'user-b' });
+    clearFamilyCacheForUser('user-a'); clearFamilyCacheForUser('user-b');
+    await clearAccountSnapshots({ accountId: 'user-a' }); await clearAccountSnapshots({ accountId: 'user-b' });
     vi.unstubAllGlobals();
   });
 
   afterEach(() => vi.useRealTimers());
 
   it('returns a definitive not-found outcome for a 404 without retrying', async () => {
-    const fetchMock = vi.fn(() => failedFamilyResponse(404, 'Family not found'));
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = vi.fn(() => failedFamilyResponse(404, 'Family not found')); vi.stubGlobal('fetch', fetchMock);
 
-    await expect(loadFamilyDetail({
-      uid: 'user-a', familyId: 'missing-family', getIdToken: async () => 'token',
-    })).resolves.toEqual({ kind: 'not-found' });
+    await expect(loadFamilyDetail({ uid: 'user-a', familyId: 'missing-family', getIdToken: async () => 'token' }))
+      .resolves.toEqual({ kind: 'not-found' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('retains a definitive 404 across prefetch and navigation for one account', async () => {
-    const fetchMock = vi.fn(() => failedFamilyResponse(404, 'Family not found'));
-    vi.stubGlobal('fetch', fetchMock);
-    const input = {
-      uid: 'user-a', familyId: 'prefetched-missing-family', getIdToken: async () => 'token',
-    };
+    const fetchMock = vi.fn(() => failedFamilyResponse(404, 'Family not found')); vi.stubGlobal('fetch', fetchMock);
+    const input = { uid: 'user-a', familyId: 'prefetched-missing-family', getIdToken: async () => 'token' };
 
     await prefetchFamilyDetail(input);
     await expect(loadFamilyDetail(input)).resolves.toEqual({ kind: 'not-found' });
@@ -41,19 +36,34 @@ describe('family detail missing outcomes', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('evicts stale detail aliases when a background refresh returns 404', async () => {
+    const family = { ...rawFamily, id: 'inter-family', normalizedName: 'inter-family' };
+    const input = { uid: 'user-a', familyId: 'inter-route', getIdToken: async () => 'token' };
+    const success = { ok: true, status: 200,
+      json: async () => ({ data: { family, canonicalId: 'inter-canonical' } }) };
+    const fetchMock = vi.fn().mockResolvedValueOnce(success).mockResolvedValueOnce(success)
+      .mockImplementationOnce(() => failedFamilyResponse(404, 'Family not found'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await loadFamilyDetail(input); await loadFamilyDetail({ ...input, uid: 'user-b' });
+    await expect(refreshFamilyDetail(input)).resolves.toEqual({ kind: 'not-found' });
+
+    expect(getCachedFamily('user-a', 'inter-route')).toBeUndefined(); expect(getCachedFamily('user-a', 'inter-family')).toBeUndefined();
+    expect(getCachedFamily('user-a', 'inter-canonical')).toBeUndefined();
+    expect(getCachedFamily('user-b', 'inter-route')).toEqual(family);
+    expect(await readPersistedFamilyDetail('user-a', 'inter-route')).toBeNull(); expect(await readPersistedFamilyDetail('user-a', 'inter-canonical')).toBeNull();
+    await expect(loadFamilyDetail(input)).resolves.toEqual({ kind: 'not-found' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it('settles a 404 before reading its delayed response body', async () => {
     let signalBodyRead = () => {};
-    const bodyRead = new Promise<'body-read'>((resolve) => {
-      signalBodyRead = () => resolve('body-read');
-    });
+    const bodyRead = new Promise<'body-read'>((resolve) => { signalBodyRead = () => resolve('body-read'); });
     const delayedBody = new Promise<never>(() => {});
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: false,
       status: 404,
-      json: () => {
-        signalBodyRead();
-        return delayedBody;
-      },
+      json: () => { signalBodyRead(); return delayedBody; },
     })));
 
     const outcome = loadFamilyDetail({
