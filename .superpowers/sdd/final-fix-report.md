@@ -176,6 +176,19 @@ Result: 7 files and 16 tests passed.
 
 The first build attempt used `source /Users/adi/projects/seriph/.env.local` without auto-export and failed during prerender with missing Firebase variables. Re-running with `set -a` exported the same environment and passed. Root Vitest still emits the existing non-failing `--localstorage-file` warning.
 
+## Final Browser and Preview Verification
+
+Date: 2026-07-10
+
+- The authenticated local in-app browser rendered all 232 catalog cards with `ABC` specimens. The first 48 cards produced 41 distinct deterministic cover signatures from family-name-based seeds.
+- Catalog and search use the same compact card structure. The cover motifs stay within the two-color system and use flat SVG geometry only, with no gradients, images, masks, or filters.
+- Card navigation reached `/family/abc-ginto-nord` with a rendered detail heading in 819 ms. A deliberately missing family route settled into the explicit not-found state rather than remaining on a body loader.
+- A warm in-place search for `technical mono editorial` retained 24 local cards and updated in 133 ms. A cold direct search route took about 1.5 seconds in development while its route and local index hydrated, without blanking populated results.
+- Recreating the shelf after cache merges added zero new React duplicate-key warnings. The fix keeps first-seen letter-section order while assigning unique ID-derived section keys.
+- Two InterfaceCraft critique passes, first on catalog and then on search, found the new cover system structured and legible at the existing density. The only future opportunity is an explicit user-controlled cover-seed or regeneration mode, rather than randomizing covers on render.
+- Final quality gates passed: root line lint, typecheck, lint, 53 web test files / 143 tests, production Next build, 28 Functions test files / 85 tests, and Functions TypeScript build. The pre-existing non-failing Node `--localstorage-file` warning remains during root Vitest.
+- Vercel preview `https://seriph-r7wuxe85q-whimsies.vercel.app` deployed as Ready. Both curl and the in-app browser were redirected to Vercel SSO before the app could render, so deployed authenticated-flow browser verification is blocked by preview access protection rather than an application failure.
+
 ### Changed Files
 
 - `lib/contexts/UploadContext.tsx`
