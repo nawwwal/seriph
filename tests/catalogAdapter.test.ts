@@ -64,4 +64,10 @@ describe('catalog family adapter', () => {
     expect(family.metadata.enrichment).toEqual({});
     expect(family.description).toBe('');
   });
+
+  it('normalizes parseable enrichment dates to ISO date-time output', () => {
+    const family = catalogFamily({ enrichedAt: 'July 10, 2026 00:00:00 UTC' });
+
+    expect(family.metadata.enrichment).toEqual({ enrichedAt: '2026-07-10T00:00:00.000Z' });
+  });
 });

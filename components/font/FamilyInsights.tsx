@@ -30,6 +30,7 @@ function analysisDate(value?: string): string | null {
 export default function FamilyInsights({ enrichment }: FamilyInsightsProps) {
   if (!enrichment) return null;
   const date = analysisDate(enrichment.enrichedAt);
+  const pairingHints = enrichment.pairingHints ?? [];
   const hasTags = Boolean(enrichment.moods?.length || enrichment.useCases?.length);
   const hasContent = Object.values(enrichment).some((value) =>
     Array.isArray(value) ? value.length > 0 : value !== undefined && value !== ''
@@ -50,7 +51,7 @@ export default function FamilyInsights({ enrichment }: FamilyInsightsProps) {
         <dl className="grid content-start gap-3 text-sm">
           {enrichment.voice && <div><dt className="text-[10px] font-black uppercase opacity-60">Voice</dt><dd className="mt-1">{enrichment.voice}</dd></div>}
           {enrichment.classification && <div><dt className="text-[10px] font-black uppercase opacity-60">Classification</dt><dd className="mt-1">{enrichment.classification}</dd></div>}
-          {enrichment.pairingHints?.length && <div><dt className="text-[10px] font-black uppercase opacity-60">Pairing</dt><dd className="mt-1">{enrichment.pairingHints.join(' / ')}</dd></div>}
+          {pairingHints.length > 0 && <div><dt className="text-[10px] font-black uppercase opacity-60">Pairing</dt><dd className="mt-1">{pairingHints.join(' / ')}</dd></div>}
           {enrichment.confidence !== undefined && <div><dt className="text-[10px] font-black uppercase opacity-60">Confidence</dt><dd className="mt-1">{Math.round(enrichment.confidence * 100)}%</dd></div>}
           {date && <div><dt className="text-[10px] font-black uppercase opacity-60">Analyzed</dt><dd className="mt-1">{date}</dd></div>}
         </dl>

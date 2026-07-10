@@ -35,16 +35,21 @@ function populatedTextArray(value: unknown): string[] | undefined {
   return values?.length ? values : undefined;
 }
 
+function normalizedDateTime(value: unknown): string | undefined {
+  const date = toIso(value);
+  if (!date || Number.isNaN(Date.parse(date))) return undefined;
+  return new Date(date).toISOString();
+}
+
 function mapEnrichment(data: unknown): FamilyEnrichment {
   const record = asRecord(data) ?? {};
   const confidence = number(record, 'confidence', Number.NaN);
-  const enrichedAt = toIso(record.enrichedAt);
   const entries: FamilyEnrichment = {
     classification: populatedText(record, 'classification'), summary: populatedText(record, 'summary'),
     moods: populatedTextArray(record.moods), voice: populatedText(record, 'voice'),
     useCases: populatedTextArray(record.useCases), pairingHints: populatedTextArray(record.pairingHints),
     confidence: Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : undefined,
-    enrichedAt: enrichedAt && !Number.isNaN(Date.parse(enrichedAt)) ? enrichedAt : undefined,
+    enrichedAt: normalizedDateTime(record.enrichedAt),
   };
   return Object.fromEntries(Object.entries(entries).filter(([, value]) => value !== undefined));
 }

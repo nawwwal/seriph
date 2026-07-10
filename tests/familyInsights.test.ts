@@ -46,4 +46,13 @@ describe('FamilyInsights', () => {
 
     expect(markup).not.toContain('mt-5 grid gap-5 sm:grid-cols-2');
   });
+
+  it('omits pairing markup without rendering zero for empty pairing hints', () => {
+    const markup = renderToStaticMarkup(createElement(FamilyInsights, {
+      enrichment: { summary: 'A precise neo-grotesk.', pairingHints: [] },
+    }));
+
+    expect(markup).not.toContain('Pairing');
+    expect(markup).not.toContain('>0<');
+  });
 });

@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 
 const specPath = 'docs/openapi/seriph-api.yaml';
+const { load: loadYaml }: { load(input: string): unknown } = createRequire(import.meta.url)('js-yaml');
 
 function pathBlock(spec: string, path: string): string {
   const start = spec.indexOf(`  ${path}:`);
@@ -54,17 +56,22 @@ describe('OpenAPI contract', () => {
 
   it('documents typed family enrichment while preserving legacy metadata fields', () => {
     const spec = readFileSync(specPath, 'utf8');
+    const document = loadYaml(spec) as {
+      components: { schemas: { FamilyEnrichment: { properties: Record<string, Record<string, unknown>> } } };
+    };
     const detail = spec.slice(spec.indexOf('    FontFamilyDetail:'), spec.indexOf('    FamilyListEnvelope:'));
-    const enrichment = spec.slice(spec.indexOf('    FamilyEnrichment:'), spec.indexOf('    FontFamilyDetail:'));
+    const enrichment = document.components.schemas.FamilyEnrichment.properties;
 
     expect(spec).toContain('    FamilyEnrichment:');
     expect(detail).toContain("$ref: '#/components/schemas/FamilyEnrichment'");
     for (const field of ['description:', 'moods:', 'useCases:']) expect(detail).toContain(field);
-    for (const field of ['classification:', 'summary:', 'moods:', 'voice:', 'useCases:', 'pairingHints:', 'confidence:', 'enrichedAt:']) {
-      expect(enrichment).toContain(field);
+    for (const field of ['classification', 'summary', 'voice']) {
+      expect(enrichment[field]).toMatchObject({ type: 'string' });
     }
-    expect(enrichment).toContain('minimum: 0');
-    expect(enrichment).toContain('maximum: 1');
-    expect(enrichment).toContain('format: date-time');
+    for (const field of ['moods', 'useCases', 'pairingHints']) {
+      expect(enrichment[field]).toMatchObject({ type: 'array', items: { type: 'string' } });
+    }
+    expect(enrichment.confidence).toMatchObject({ type: 'number', minimum: 0, maximum: 1 });
+    expect(enrichment.enrichedAt).toMatchObject({ type: 'string', format: 'date-time' });
   });
 });
