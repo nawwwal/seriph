@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   clearAccountSnapshots,
   invalidateSnapshots,
+  listSnapshots,
   readSnapshot,
   writeSnapshot,
 } from '@/lib/cache/persistentSnapshots';
@@ -36,6 +37,15 @@ describe('persistent snapshots', () => {
     await expect(readSnapshot({ accountId: 'ada', kind: 'family-detail', key: 'a' })).resolves.toBeNull();
     await expect(readSnapshot({ accountId: 'ada', kind: 'family-detail', key: 'b' })).resolves.toMatchObject({ payload: 'b' });
     await expect(readSnapshot({ accountId: 'ada', kind: 'family-detail', key: 'c' })).resolves.toMatchObject({ payload: 'c' });
+  });
+
+  it('lists only fresh records for the requested account and kind', async () => {
+    await writeSnapshot({ accountId: 'ada', kind: 'family-detail', key: 'fresh', payload: 'fresh', ttlMs: 60_000 });
+    await writeSnapshot({ accountId: 'ada', kind: 'family-detail', key: 'expired', payload: 'expired', ttlMs: -1 });
+    await writeSnapshot({ accountId: 'bea', kind: 'family-detail', key: 'other', payload: 'other', ttlMs: 60_000 });
+
+    await expect(listSnapshots({ accountId: 'ada', kind: 'family-detail', limit: 24 }))
+      .resolves.toEqual([expect.objectContaining({ key: 'fresh', payload: 'fresh' })]);
   });
 
   it('invalidates one kind without clearing other account snapshots', async () => {

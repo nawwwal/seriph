@@ -1,13 +1,7 @@
 'use client';
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import {
-  isSnapshotRecord,
-  type SnapshotKind,
-  type SnapshotRecord,
-  type SnapshotScope,
-  type SnapshotWrite,
-} from '@/lib/cache/persistentSnapshotTypes';
+import { isSnapshotRecord, type SnapshotKind, type SnapshotRecord, type SnapshotScope, type SnapshotWrite } from '@/lib/cache/persistentSnapshotTypes';
 
 export type { SnapshotKind, SnapshotRecord, SnapshotScope, SnapshotWrite } from '@/lib/cache/persistentSnapshotTypes';
 
@@ -50,6 +44,27 @@ async function snapshotsFor(db: IDBPDatabase<SnapshotDb>, accountId: string, kin
   return kind
     ? db.getAllFromIndex('snapshots', 'by-account-kind', [accountId, kind])
     : db.getAllFromIndex('snapshots', 'by-account', accountId);
+}
+
+export async function listSnapshots(input: {
+  accountId: string;
+  kind: SnapshotKind;
+  limit: number;
+}): Promise<SnapshotRecord[]> {
+  const pending = database();
+  if (!pending || input.limit < 1) return [];
+  const db = await pending;
+  const timestamp = now();
+  const records = await snapshotsFor(db, input.accountId, input.kind);
+  const valid = records.filter((record) => (
+    isSnapshotRecord(record)
+    && record.accountId === input.accountId
+    && record.kind === input.kind
+    && record.expiresAt > timestamp
+  ));
+  const stale = records.filter((record) => !valid.includes(record));
+  await Promise.all(stale.map((record) => db.delete('snapshots', record.id)));
+  return valid.sort((left, right) => right.lastAccessedAt - left.lastAccessedAt).slice(0, input.limit);
 }
 
 export async function readSnapshot(scope: SnapshotScope): Promise<SnapshotRecord | null> {

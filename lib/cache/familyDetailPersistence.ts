@@ -4,13 +4,27 @@ import {
   takePersistedFamilyDetailAliases,
 } from '@/lib/cache/familyDetailAliasRegistry';
 import { cacheFamily, cacheFamilyById, evictCachedFamilyAliases } from '@/lib/cache/familyCache';
-import { readSnapshot, writeSnapshot } from '@/lib/cache/persistentSnapshots';
+import { listSnapshots, readSnapshot, writeSnapshot } from '@/lib/cache/persistentSnapshots';
 import { serializeFamilyDetail } from '@/lib/cache/familyDetailSerialization';
 
 const DETAIL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 function unique(values: string[]): string[] {
   return [...new Set(values.filter((value) => value.length > 0))];
+}
+
+function canonicalCandidates(uid: string, familyId: string): string[] {
+  const prefix = `${uid}__`;
+  return unique([familyId, familyId.startsWith(prefix) ? familyId.slice(prefix.length) : '']);
+}
+
+async function legacySnapshotAliases(uid: string, familyId: string): Promise<string[]> {
+  const candidates = new Set(canonicalCandidates(uid, familyId));
+  const snapshots = await listSnapshots({ accountId: uid, kind: 'family-detail', limit: 24 });
+  return snapshots.flatMap((snapshot) => {
+    const family = serializeFamilyDetail(snapshot.payload);
+    return family && candidates.has(family.id) ? [snapshot.key] : [];
+  });
 }
 
 export async function readPersistedFamilyDetail(
@@ -64,9 +78,14 @@ export async function storeFamilyDetail(input: {
 }
 
 export async function evictFamilyDetail(uid: string, familyId: string): Promise<string[]> {
-  const aliases = unique([
-    ...evictCachedFamilyAliases(uid, familyId),
+  const persistedAliases = unique([
+    familyId,
     ...(await takePersistedFamilyDetailAliases({ accountId: uid, familyId })),
+    ...(await legacySnapshotAliases(uid, familyId)),
+  ]);
+  const aliases = unique([
+    ...persistedAliases.flatMap((alias) => evictCachedFamilyAliases(uid, alias)),
+    ...persistedAliases,
   ]);
   await Promise.allSettled(aliases.map((key) => writeSnapshot({
     accountId: uid,
