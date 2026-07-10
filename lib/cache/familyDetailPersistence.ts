@@ -1,9 +1,17 @@
 import type { FontFamily } from '@/models/font.models';
+import {
+  rememberPersistedFamilyDetailAliases,
+  takePersistedFamilyDetailAliases,
+} from '@/lib/cache/familyDetailAliasRegistry';
 import { cacheFamily, cacheFamilyById, evictCachedFamilyAliases } from '@/lib/cache/familyCache';
 import { readSnapshot, writeSnapshot } from '@/lib/cache/persistentSnapshots';
 import { serializeFamilyDetail } from '@/lib/cache/familyDetailSerialization';
 
 const DETAIL_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function unique(values: string[]): string[] {
+  return [...new Set(values.filter((value) => value.length > 0))];
+}
 
 export async function readPersistedFamilyDetail(
   uid: string,
@@ -47,11 +55,19 @@ export async function storeFamilyDetail(input: {
   await Promise.allSettled([
     persistFamilyDetail(uid, routeId, family),
     persistFamilyDetail(uid, canonicalId, family),
+    rememberPersistedFamilyDetailAliases({
+      accountId: uid,
+      canonicalId,
+      aliases: [routeId, family.id],
+    }),
   ]);
 }
 
-export async function evictFamilyDetail(uid: string, familyId: string): Promise<void> {
-  const aliases = evictCachedFamilyAliases(uid, familyId);
+export async function evictFamilyDetail(uid: string, familyId: string): Promise<string[]> {
+  const aliases = unique([
+    ...evictCachedFamilyAliases(uid, familyId),
+    ...(await takePersistedFamilyDetailAliases({ accountId: uid, familyId })),
+  ]);
   await Promise.allSettled(aliases.map((key) => writeSnapshot({
     accountId: uid,
     kind: 'family-detail',
@@ -59,4 +75,5 @@ export async function evictFamilyDetail(uid: string, familyId: string): Promise<
     payload: null,
     ttlMs: 0,
   })));
+  return aliases;
 }

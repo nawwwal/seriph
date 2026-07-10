@@ -1,4 +1,6 @@
-export const SNAPSHOT_KINDS = ['shelf', 'search-index', 'semantic-search', 'family-detail'] as const;
+export const SNAPSHOT_KINDS = [
+  'shelf', 'search-index', 'semantic-search', 'family-detail', 'family-detail-aliases',
+] as const;
 export type SnapshotKind = typeof SNAPSHOT_KINDS[number];
 
 export interface SnapshotRecord {

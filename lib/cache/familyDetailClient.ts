@@ -59,8 +59,8 @@ async function acceptOutcome(
     return { kind: 'loaded', source, family };
   }
   if (outcome.kind === 'not-found') {
-    rememberFamilyDetailNegative(input.uid, input.familyId);
-    await evictFamilyDetail(input.uid, input.familyId);
+    const aliases = await evictFamilyDetail(input.uid, input.familyId);
+    for (const alias of aliases) rememberFamilyDetailNegative(input.uid, alias);
   }
   return outcome;
 }
@@ -75,10 +75,10 @@ function requestLiveFamilyDetail(input: LoadFamilyDetailInput): Promise<FamilyDe
   return pending;
 }
 export function loadFamilyDetail(input: LoadFamilyDetailInput): Promise<FamilyDetailLoadOutcome> {
+  if (hasFamilyDetailNegative(input.uid, input.familyId)) return Promise.resolve({ kind: 'not-found' });
   const cached = getCachedFamily(input.uid, input.familyId);
   if (cached) return Promise.resolve({ kind: 'loaded', source: 'memory', family: cached });
   const key = cacheKey(input.uid, input.familyId);
-  if (hasFamilyDetailNegative(input.uid, input.familyId)) return Promise.resolve({ kind: 'not-found' });
   const existing = inFlightLoads.get(key);
   if (existing) return existing;
   const pending = readPersistedFamilyDetail(input.uid, input.familyId)
