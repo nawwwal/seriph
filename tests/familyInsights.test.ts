@@ -38,4 +38,12 @@ describe('FamilyInsights', () => {
     }
     expect(renderToStaticMarkup(createElement(FamilyInsights, { enrichment: {} }))).toBe('');
   });
+
+  it('omits the mood and use-case grid when both lists are empty', () => {
+    const markup = renderToStaticMarkup(createElement(FamilyInsights, {
+      enrichment: { summary: 'A precise neo-grotesk.', moods: [], useCases: [] },
+    }));
+
+    expect(markup).not.toContain('mt-5 grid gap-5 sm:grid-cols-2');
+  });
 });

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { adaptFamilyDoc, isCatalogAliasDoc, mergedInto } from '@/lib/db/catalogAdapter';
-import './familyInsights.test';
 
 function catalogFamily(enrichment: Record<string, unknown>) {
   return adaptFamilyDoc({

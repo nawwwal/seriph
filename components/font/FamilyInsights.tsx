@@ -30,6 +30,7 @@ function analysisDate(value?: string): string | null {
 export default function FamilyInsights({ enrichment }: FamilyInsightsProps) {
   if (!enrichment) return null;
   const date = analysisDate(enrichment.enrichedAt);
+  const hasTags = Boolean(enrichment.moods?.length || enrichment.useCases?.length);
   const hasContent = Object.values(enrichment).some((value) =>
     Array.isArray(value) ? value.length > 0 : value !== undefined && value !== ''
   );
@@ -41,10 +42,10 @@ export default function FamilyInsights({ enrichment }: FamilyInsightsProps) {
         <div>
           <h2 id="family-insights-title" className="text-xl font-black uppercase sm:text-2xl">AI Insights</h2>
           {enrichment.summary && <p className="mt-3 max-w-3xl text-base sm:text-lg">{enrichment.summary}</p>}
-          <div className="mt-5 grid gap-5 sm:grid-cols-2">
+          {hasTags && <div className="mt-5 grid gap-5 sm:grid-cols-2">
             <Chips label="Mood" values={enrichment.moods} filled />
             <Chips label="Best for" values={enrichment.useCases} />
-          </div>
+          </div>}
         </div>
         <dl className="grid content-start gap-3 text-sm">
           {enrichment.voice && <div><dt className="text-[10px] font-black uppercase opacity-60">Voice</dt><dd className="mt-1">{enrichment.voice}</dd></div>}
