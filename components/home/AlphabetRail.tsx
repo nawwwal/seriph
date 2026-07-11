@@ -1,10 +1,16 @@
 'use client';
 
-import { ALPHABET_INITIALS, type AlphabetInitial } from './alphabetFilter';
+import { ArrowUpFromLine } from 'lucide-react';
+import {
+  toggleAlphabetInitial,
+  type AlphabetInitial,
+  type LetterInitial,
+} from './alphabetFilter';
 import { Button } from '@/components/ui/Button';
 
 interface AlphabetRailProps {
   selected: AlphabetInitial;
+  availableInitials: readonly LetterInitial[];
   onSelect: (initial: AlphabetInitial) => void;
   onImport: () => void;
   uploadCount: number;
@@ -13,6 +19,7 @@ interface AlphabetRailProps {
 
 export default function AlphabetRail({
   selected,
+  availableInitials,
   onSelect,
   onImport,
   uploadCount,
@@ -24,34 +31,33 @@ export default function AlphabetRail({
       className="h-full min-w-0 w-full max-w-full overflow-x-auto overflow-y-auto"
     >
       <div className="min-w-0 w-full px-4 py-3 md:pt-8 md:pr-[33px] md:pb-4 md:pl-10">
-        <div className="flex items-center justify-between gap-2">
-          <Button onClick={onImport} size="compact">Import</Button>
-          {uploadCount > 0 ? (
-            <Button onClick={onOpenUploads} size="compact" aria-live="polite">
-              Uploads {uploadCount}
-            </Button>
-          ) : null}
-        </div>
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <h2 className="text-xs font-black uppercase">Browse by alphabet</h2>
-          <button type="button" aria-pressed={selected === 'ALL'} onClick={() => onSelect('ALL')} className={`theme-focus-ring px-2 py-1 text-[10px] font-black uppercase ${selected === 'ALL' ? 'ink-bg' : 'hover:ink-bg'}`}>All</button>
-        </div>
-        <div className="mt-2 grid w-[295px] grid-cols-5 border-t border-l border-[var(--ink)]">
-          {ALPHABET_INITIALS.slice(1).map((initial) => {
-            const isSelected = initial === selected;
-            return (
-              <button
-                key={initial}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => onSelect(initial)}
-                className={`theme-focus-ring flex aspect-square items-center justify-center border-r border-b border-[var(--ink)] text-base font-black uppercase hover:ink-bg ${isSelected ? 'ink-bg' : ''}`}
-              >
-                {initial}
-              </button>
-            );
-          })}
-        </div>
+        <Button onClick={onImport} size="compact" tone="solid" className="w-full flex h-12 items-center justify-between rounded-none px-4 text-sm font-black">
+          <span>Import</span>
+          <ArrowUpFromLine size={16} aria-hidden="true" />
+        </Button>
+        {uploadCount > 0 ? (
+          <Button onClick={onOpenUploads} size="compact" className="mt-2 w-full" aria-live="polite">
+            Uploads {uploadCount}
+          </Button>
+        ) : null}
+        {availableInitials.length > 0 ? (
+          <div className="mt-3 grid w-[295px] grid-cols-5 border-t border-l border-[var(--ink)]">
+            {availableInitials.map((initial) => {
+              const isSelected = initial === selected;
+              return (
+                <button
+                  key={initial}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => onSelect(toggleAlphabetInitial(selected, initial))}
+                  className={`theme-focus-ring flex aspect-square items-center justify-center border-r border-b border-[var(--ink)] text-base font-black uppercase hover:ink-bg ${isSelected ? 'ink-bg' : ''}`}
+                >
+                  {initial}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
     </nav>
   );

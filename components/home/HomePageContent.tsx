@@ -16,7 +16,11 @@ import { clearShelfFamilyCache, useInfiniteFamilies } from '@/lib/hooks/useInfin
 import { useShelfScrollRestoration } from '@/lib/hooks/useShelfScrollRestoration';
 import { useShelfMutations } from '@/lib/hooks/useShelfMutations';
 import { storePendingFonts } from '@/utils/pendingFonts';
-import { filterFamiliesByInitial, type AlphabetInitial } from './alphabetFilter';
+import {
+  deriveAvailableInitials,
+  filterFamiliesByInitial,
+  type AlphabetInitial,
+} from './alphabetFilter';
 import type { User } from 'firebase/auth';
 
 export default function HomePageContent({ user }: { user: User }) {
@@ -43,9 +47,13 @@ export default function HomePageContent({ user }: { user: User }) {
   const uploadCount = Math.max(activeCount, pendingIngests.length);
   const showShelfSkeleton = shelf.isInitialLoading && shelf.families.length === 0;
   const isEmpty = !showShelfSkeleton && shelf.families.length === 0 && pendingIngests.length === 0;
+  const availableInitials = useMemo(() => deriveAvailableInitials(shelf.families), [shelf.families]);
+  const activeInitial = selectedInitial !== 'ALL' && !availableInitials.includes(selectedInitial)
+    ? 'ALL'
+    : selectedInitial;
   const visibleFamilies = useMemo(
-    () => filterFamiliesByInitial(shelf.families, selectedInitial),
-    [selectedInitial, shelf.families]
+    () => filterFamiliesByInitial(shelf.families, activeInitial),
+    [activeInitial, shelf.families]
   );
   const saveShelfScroll = useShelfScrollRestoration({
     uid: user.uid,
@@ -61,7 +69,7 @@ export default function HomePageContent({ user }: { user: User }) {
   return (
     <>
       <HomeShell
-        alphabetRail={<AlphabetRail selected={selectedInitial} onSelect={setSelectedInitial} onImport={handleAddFonts} uploadCount={uploadCount} onOpenUploads={openUploadCenter} />}
+        alphabetRail={<AlphabetRail selected={activeInitial} availableInitials={availableInitials} onSelect={setSelectedInitial} onImport={handleAddFonts} uploadCount={uploadCount} onOpenUploads={openUploadCenter} />}
         statusStrip={<ShelfStats stats={shelf.stats} pendingCount={uploadCount} />}
         catalogCanvas={(
           <div ref={shelfScrollRef} data-shelf-scroll-root="true" onPointerDownCapture={saveShelfScroll} onClickCapture={saveShelfScroll} onKeyDownCapture={saveShelfScroll} className="h-full min-w-0 w-full max-w-full overflow-x-hidden overflow-y-auto p-4 sm:p-6">

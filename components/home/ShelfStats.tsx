@@ -18,8 +18,8 @@ export default function ShelfStats({ stats, pendingCount }: ShelfStatsProps) {
     ['Families', familyCount],
     ['Styles', styleCount],
     ['Recent', recentFamily],
-    ['Uploads', String(pendingCount)],
   ];
+  if (pendingCount > 0) items.push(['Uploads', String(pendingCount)]);
   return (
     <section aria-label="Library status" className="flex h-full min-w-0 items-center gap-2 px-4 text-xs uppercase">
       <div data-status-metrics className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain">

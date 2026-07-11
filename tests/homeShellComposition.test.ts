@@ -51,11 +51,11 @@ describe('signed-in home shell composition', () => {
     expect(shell).toContain('md:h-10');
   });
 
-  it('renders the exact five-column alphabet matrix with a separate All control', () => {
+  it('renders represented initials in the exact five-column alphabet matrix', () => {
     const rail = read('components/home/AlphabetRail.tsx');
 
-    expect(rail).toContain('ALPHABET_INITIALS.slice(1)');
-    expect(rail).toContain('Browse by alphabet');
+    expect(rail).toContain('availableInitials.map');
+    expect(rail).toContain('availableInitials.length > 0');
     expect(rail).toContain('grid-cols-5');
     expect(rail).toContain('aspect-square');
     expect(rail).toContain('overflow-x-auto');
