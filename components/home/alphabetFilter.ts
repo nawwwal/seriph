@@ -9,6 +9,11 @@ type NamedFamily = {
   name: string;
 };
 
+export function filterFamiliesByInitial<T extends NamedFamily>(families: T[], initial: AlphabetInitial): T[];
+export function filterFamiliesByInitial<T extends NamedFamily>(
+  families: readonly T[],
+  initial: AlphabetInitial
+): readonly T[];
 export function filterFamiliesByInitial<T extends NamedFamily>(
   families: readonly T[],
   initial: AlphabetInitial

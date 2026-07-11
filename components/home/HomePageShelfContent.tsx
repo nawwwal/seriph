@@ -7,12 +7,14 @@ import WelcomeState from '@/components/home/WelcomeState';
 import type { useInfiniteFamilies } from '@/lib/hooks/useInfiniteFamilies';
 import type { useShelfMutations } from '@/lib/hooks/useShelfMutations';
 import type { IngestRecord } from '@/models/ingest.models';
+import type { ShelfFamily } from '@/models/shelf.models';
 
 type ShelfController = ReturnType<typeof useInfiniteFamilies>;
 type ShelfMutations = ReturnType<typeof useShelfMutations>;
 
 interface HomePageShelfContentProps {
   shelf: ShelfController;
+  families: ShelfFamily[];
   mutations: ShelfMutations;
   isEmpty: boolean;
   showShelfSkeleton: boolean;
@@ -25,6 +27,7 @@ interface HomePageShelfContentProps {
 
 export default function HomePageShelfContent({
   shelf,
+  families,
   mutations,
   isEmpty,
   showShelfSkeleton,
@@ -40,7 +43,7 @@ export default function HomePageShelfContent({
   return (
     <>
       <ShelfState
-        families={shelf.families}
+        families={families}
         pendingIngests={pendingIngests}
         shelfMode={shelfMode}
         onAddFonts={onAddFonts}
