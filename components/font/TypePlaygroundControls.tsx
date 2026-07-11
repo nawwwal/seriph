@@ -74,7 +74,12 @@ export default function TypePlaygroundControls({
               </button>
             ))}
           </div>
-          {state.lineHeightMode === 'auto' ? <div className="h-8 rule-b" aria-label="Automatic line height" /> : (
+          {state.lineHeightMode === 'auto' ? (
+            <div data-line-height-mode="auto" className="h-8 rule-b flex items-center justify-between gap-3" aria-label="Automatic line height">
+              <span className="text-xs font-extrabold uppercase opacity-70">Line height</span>
+              <span className="font-mono text-xs font-extrabold uppercase">Auto</span>
+            </div>
+          ) : (
             <TypePlaygroundRange id="playground-line-height" label="Line height"
               {...LINE_HEIGHT_RANGES[state.lineHeightMode]} value={state.lineHeightValue} unit={state.lineHeightMode}
               ariaValueText={`${state.lineHeightValue}${state.lineHeightMode} line height`}

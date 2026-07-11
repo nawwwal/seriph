@@ -6,7 +6,7 @@ import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
 import { useVariableFontFace } from '@/lib/hooks/useVariableFontFace';
 import TypePlaygroundControls from './TypePlaygroundControls';
 import TypePlaygroundEditor from './TypePlaygroundEditor';
-import { buildVariationSettings, isItalicFace, serializePlaygroundCss,
+import { buildPlaygroundFaceRegistration, buildVariationSettings, isItalicFace, serializePlaygroundCss,
   uniqueFacesById } from './typePlaygroundModel';
 import { createPlaygroundState, reconcilePlaygroundState, resetFaceState,
   type FacePlaygroundState } from './typePlaygroundState';
@@ -24,18 +24,12 @@ async function copyTextWithFallback(text: string): Promise<boolean> {
     return true;
   } catch {
     const input = document.createElement('textarea');
-    input.value = text;
-    input.style.position = 'fixed';
-    input.style.opacity = '0';
+    input.value = text; input.style.position = 'fixed'; input.style.opacity = '0';
     document.body.appendChild(input);
     input.select();
-    try {
-      return document.execCommand('copy');
-    } catch {
-      return false;
-    } finally {
-      input.remove();
-    }
+    try { return document.execCommand('copy'); }
+    catch { return false; }
+    finally { input.remove(); }
   }
 }
 
@@ -55,10 +49,20 @@ export default function TypePlayground({ family, testerRef }: TypePlaygroundProp
     : undefined;
   const axes = selectedFace?.isVariable ? selectedFace.variableAxes ?? [] : [];
   const variableFamily = useVariableFontFace(selectedFace, family.name, axes.length > 0);
+  const fixedRegistration = useMemo(() => selectedFace && !selectedFace.isVariable
+    ? buildPlaygroundFaceRegistration(family.name, selectedFace) : null,
+  [family.name, selectedFace]);
 
   useEffect(() => () => {
     if (copyTimer.current) clearTimeout(copyTimer.current);
   }, []);
+  useEffect(() => {
+    if (!fixedRegistration) return;
+    const style = document.createElement('style');
+    style.id = fixedRegistration.styleId; style.textContent = fixedRegistration.rule;
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, [fixedRegistration]);
 
   if (!selectedFace || !faceState) return null;
   const patchFace = (patch: Partial<FacePlaygroundState>) => setStoredState((current) => {
@@ -89,7 +93,7 @@ export default function TypePlayground({ family, testerRef }: TypePlaygroundProp
             onPatch={patchFace} onAxisChange={(tag, value) => patchFace({ axisValues: { ...faceState.axisValues, [tag]: value } })}
             onReset={() => patchFace(resetFaceState(selectedFace, family.name))} onCopy={() => void copyCss()}>
             <TypePlaygroundEditor value={faceState.text} onChange={(text) => patchFace({ text })}
-              fontFamily={axes.length ? `'${variableFamily}'` : family.name}
+              fontFamily={axes.length ? `'${variableFamily}'` : fixedRegistration ? `'${fixedRegistration.cssFamily}'` : family.name}
               fontWeight={axes.length ? Math.round(faceState.axisValues.wght ?? selectedFace.weight) : selectedFace.weight}
               fontStyle={axes.length ? 'normal' : isItalicFace(selectedFace) ? 'italic' : 'normal'}
               fontSize={faceState.fontSize} letterSpacing={letterSpacingCss(faceState.letterSpacingValue, faceState.letterSpacingMode)}

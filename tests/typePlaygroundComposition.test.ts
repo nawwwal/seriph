@@ -25,7 +25,7 @@ describe('unified type playground composition', () => {
     const selector = read('components/font/TypePlaygroundStyleSelect.tsx');
     const controls = read('components/font/TypePlaygroundControls.tsx');
 
-    expect(selector).toContain('value={font.id}');
+    expect(selector).toContain('value={option.id}');
     expect(playground).toContain('selectedFaceId');
     expect(playground).toContain('selectedFace.variableAxes');
     expect(controls).toContain('axes.map');
