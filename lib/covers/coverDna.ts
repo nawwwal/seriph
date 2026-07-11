@@ -1,14 +1,18 @@
 import type { ShelfFamily } from '@/models/shelf.models';
 export { renderCoverSvgParts } from '@/lib/covers/coverPatternRender';
 
-export type CoverGrammar = 'editorial-pattern';
+export type CoverGrammar = 'swiss-poster';
 export type CoverPattern =
-  | 'folded-facets'
-  | 'concentric-portals'
-  | 'ribbon-curves'
-  | 'stepped-bands'
-  | 'radial-bursts'
-  | 'modular-dots-bars';
+  | 'disc'
+  | 'bars'
+  | 'spine'
+  | 'band'
+  | 'block'
+  | 'pinstripe'
+  | 'twin-disc'
+  | 'nest'
+  | 'leading'
+  | 'sweep';
 
 export interface CoverDna {
   seed: number;
@@ -22,15 +26,20 @@ export interface CoverDna {
   specimenScale: number;
   specimenX: number;
   specimenY: number;
+  rareAccent: boolean;
 }
 
 const PATTERNS: CoverPattern[] = [
-  'folded-facets',
-  'concentric-portals',
-  'ribbon-curves',
-  'stepped-bands',
-  'radial-bursts',
-  'modular-dots-bars',
+  'disc',
+  'bars',
+  'spine',
+  'band',
+  'block',
+  'pinstripe',
+  'twin-disc',
+  'nest',
+  'leading',
+  'sweep',
 ];
 
 function hashString(input: string): number {
@@ -56,20 +65,20 @@ const round = (value: number, places = 3) => Math.round(value * 10 ** places) / 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 export function deriveCoverDna(family: ShelfFamily, coverSeed = 0): CoverDna {
-  const seed = hashString(`${family.normalizedName || family.name}|${coverSeed}`);
+  const seed = hashString([family.name, family.normalizedName || family.name, String(coverSeed)].join('|'));
   const rng = createRng(seed);
-  const density = round(clamp(0.44 + rng() * 0.38, 0.44, 0.82));
   return {
     seed,
-    grammar: 'editorial-pattern',
-    pattern: PATTERNS[(seed >>> 8) % PATTERNS.length] ?? 'folded-facets',
-    angle: round(rng() > 0.5 ? 12 + rng() * 18 : -18 - rng() * 12),
-    density,
-    contrast: round(0.16 + rng() * 0.18),
-    ruleWeight: round(0.42 + rng() * 0.34),
-    rhythm: [round(12 + rng() * 8), round(18 + rng() * 18), round(3 + rng() * 5)],
+    grammar: 'swiss-poster',
+    pattern: PATTERNS[Math.floor(rng() * PATTERNS.length)] ?? 'disc',
+    angle: round(8 + rng() * 28),
+    density: round(clamp(0.5 + rng() * 0.3, 0.5, 0.85)),
+    contrast: round(0.2 + rng() * 0.14),
+    ruleWeight: round(0.85 + rng() * 0.5),
+    rhythm: [round(4 + rng() * 6), round(12 + rng() * 16), round(3 + rng() * 4)],
     specimenScale: 1,
     specimenX: 16,
     specimenY: 46,
+    rareAccent: false,
   };
 }
