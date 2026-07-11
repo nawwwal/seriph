@@ -2,6 +2,7 @@
 @import '../styles/themes.css';
 @import '../styles/utilities.css';
 @import '../styles/utilities-slider.css';
+@import '../styles/utilities-scrollbar.css';
 
 @import 'tailwindcss';
 @config '../tailwind.config.ts';

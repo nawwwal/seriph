@@ -152,6 +152,10 @@ The catalogue and everything behind it are only shown after Firebase email/passw
   sliders, buttons, dialogs, and any `theme-focus-ring` surface should focus in
   the active theme foreground, not in accent blues, pinks, yellows, or other
   one-off palette colors.
+- Scrollbars are product chrome, not OS chrome. `styles/utilities-scrollbar.css`
+  themes every scrollbar (document and nested overflow roots) with paper track,
+  rule edge, and a block ink thumb with grip marks, matching the elastic slider
+  family. Do not reintroduce unstyled system scrollbars.
 - **Rule:** never hardcode Tailwind palette colors (`blue-500`, `red-600`,
   `bg-white`, `text-gray-*`). Use the CSS-var tokens, e.g.
   `text-[var(--danger)]`, `bg-[var(--surface)]`, or
