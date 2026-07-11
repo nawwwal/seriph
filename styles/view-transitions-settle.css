@@ -1,0 +1,31 @@
+/**
+ * Post-nav settle (CSS). Shell chrome is Framer Motion.
+ * Timing mirrors TIMING in catalogDetailStoryboard.ts (180ms / 40ms).
+ */
+
+@keyframes status-metric-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.status-metric-enter {
+  animation: status-metric-in 160ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@keyframes detail-settle-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.detail-settle-item {
+  animation: detail-settle-in 200ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  /* After body enter (~240ms); matches TIMING.settleStartMs */
+  animation-delay: calc(200ms + var(--i, 0) * 40ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-metric-enter,
+  .detail-settle-item {
+    animation: none;
+  }
+}

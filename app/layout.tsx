@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { League_Spartan } from "next/font/google";
 import { InterfaceKit } from "interface-kit/react";
+import { Agentation } from "agentation";
 import "./globals.css";
 import Script from "next/script";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
@@ -10,9 +11,10 @@ import { UploadProvider } from "@/lib/contexts/UploadContext";
 import UploadCenterOverlay from "@/components/upload/UploadCenterOverlay";
 
 const leagueSpartan = League_Spartan({
-  weight: ['400', '700', '900'],
-  subsets: ["latin"],
-  variable: "--font-league-spartan",
+  // Variable wght axis — theme roller interpolates weight continuously.
+  weight: 'variable',
+  subsets: ['latin'],
+  variable: '--font-league-spartan',
 });
 
 export const metadata: Metadata = {
@@ -62,6 +64,7 @@ export default function RootLayout({
                 {children}
               </AppFrame>
               {isDevelopment && <InterfaceKit />}
+              {isDevelopment && <Agentation />}
               <UploadCenterOverlay />
             </UploadProvider>
           </AuthProvider>
