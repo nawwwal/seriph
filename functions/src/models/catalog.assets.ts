@@ -12,6 +12,12 @@ export interface ServedAsset {
 }
 
 export interface FontFaceMeta {
+  familyName?: string;
+  subfamilyName?: string;
+  preferredFamily?: string;
+  preferredSubfamily?: string;
+  wwsFamilyName?: string;
+  wwsSubfamilyName?: string;
   characterSetCoverage?: string[];
   openTypeFeatures?: string[];
   glyphCount?: number;
