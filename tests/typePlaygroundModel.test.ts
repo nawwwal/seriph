@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Font } from '@/models/font.models';
-import { clampFontSize, createPlaygroundState, resetFaceState, selectDefaultFace,
+import { clampFontSize, createPlaygroundState, reconcilePlaygroundState, resetFaceState, selectDefaultFace,
   serializePlaygroundCss, uniqueFacesById } from '@/components/font/typePlaygroundModel';
 import { convertLetterSpacing } from '@/components/font/typePlaygroundUnits';
 
@@ -52,13 +52,8 @@ describe('type playground model', () => {
   it('stores Auto, percent, and px line-height modes per face', () => {
     const state = createPlaygroundState([font()], 'Inter').faces.regular;
 
-    expect(state).toMatchObject({
-      lineHeightMode: 'auto',
-      lineHeightValue: 120,
-      letterSpacingMode: '%',
-      letterSpacingValue: 0,
-      fontSize: 48,
-    });
+    expect(state).toMatchObject({ lineHeightMode: 'auto', lineHeightValue: 120,
+      letterSpacingMode: '%', letterSpacingValue: 0, fontSize: 48 });
   });
 
   it('serializes only playground CSS declarations with valid relative tracking', () => {
@@ -104,5 +99,16 @@ describe('type playground model', () => {
 
     expect(resetFaceState(face, 'Inter')).toEqual(createPlaygroundState([face], 'Inter').faces.regular);
     expect(resetFaceState(face, 'Inter').axisValues).toEqual({ wght: 450, wdth: 100 });
+  });
+
+  it('retains selected per-face values while reconciling refreshed family data', () => {
+    const regular = font();
+    const prior = createPlaygroundState([regular], 'Inter');
+    prior.faces.regular = { ...prior.faces.regular, text: 'Keep me', fontSize: 72 };
+    const refreshed = reconcilePlaygroundState(prior, [regular, font({ id: 'bold', weight: 700 })], 'Inter');
+
+    expect(refreshed.selectedFaceId).toBe('regular');
+    expect(refreshed.faces.regular).toMatchObject({ text: 'Keep me', fontSize: 72 });
+    expect(refreshed.faces.bold).toMatchObject({ fontSize: 48, lineHeightMode: 'auto' });
   });
 });
