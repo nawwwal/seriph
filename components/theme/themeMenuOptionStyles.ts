@@ -1,13 +1,13 @@
-import { cn } from '@/lib/utils/cn';
+/** Class names for theme menu list options (Base UI Select item states). */
 
-interface ThemeMenuOptionStyleOptions {
-  highlighted: boolean;
-  selected: boolean;
-}
-
-const optionBaseClass =
+const BASE =
   'flex h-10 w-full cursor-pointer items-center justify-between px-3 text-left uppercase text-sm font-bold leading-none';
 
-export function themeMenuOptionClassName({ highlighted, selected }: ThemeMenuOptionStyleOptions): string {
-  return cn(optionBaseClass, selected ? 'ink-bg' : 'btn-ink', highlighted && !selected ? 'bg-[var(--muted)]' : '');
+export function themeMenuOptionClassName(opts: {
+  highlighted: boolean;
+  selected: boolean;
+}): string {
+  if (opts.selected) return `${BASE} ink-bg`;
+  if (opts.highlighted) return `${BASE} btn-ink bg-[var(--muted)]`;
+  return `${BASE} btn-ink`;
 }

@@ -1,4 +1,5 @@
 export const themeOptions = [
+  // Original Seriph presses (unchanged)
   { value: 'ink', label: 'Ink' },
   { value: 'noir', label: 'Noir' },
   { value: 'sunset', label: 'Sunset' },
@@ -13,6 +14,14 @@ export const themeOptions = [
   { value: 'sanctuary', label: 'Sanctuary' },
   { value: 'baguette', label: 'Baguette' },
   { value: 'cathedral', label: 'Cathedral' },
+  // Variant archive palettes (added, not replacements)
+  { value: 'phosphor', label: 'Phosphor' },
+  { value: 'slate', label: 'Slate' },
+  { value: 'flare', label: 'Flare' },
+  { value: 'abyss', label: 'Abyss' },
+  { value: 'grove', label: 'Grove' },
+  { value: 'acid', label: 'Acid' },
+  { value: 'orchid', label: 'Orchid' },
 ] as const;
 
 export type ThemeName = (typeof themeOptions)[number]['value'];

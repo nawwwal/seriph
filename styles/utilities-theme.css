@@ -30,3 +30,10 @@
 .theme-overlay {
   background: var(--overlay);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .seriph-card-hover,
+  .btn-ink {
+    transition: none;
+  }
+}

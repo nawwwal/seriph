@@ -1,17 +1,34 @@
+/* @property registration must load before theme token assignments. */
+@import './theme-transitions.css';
 @import './themes-core.css';
 @import './themes-bright.css';
 @import './themes-warm.css';
 @import './themes-places.css';
+@import './themes-archive-a.css';
+@import './themes-archive-b.css';
 
 :root,
 [data-theme] {
+  /*
+   * Overlay derived from tokens so it tracks --ink/--paper mid-blend
+   * (no hard swap of mix recipe when entering dark presses).
+   */
   --overlay: color-mix(in srgb, var(--ink) 72%, transparent);
   --control-track: var(--muted);
+  --accent: var(--ink);
 }
 
-[data-theme="noir"],
-[data-theme="copper"],
-[data-theme="sanctuary"],
-[data-theme="cathedral"] {
+/*
+ * Dark paper: prefer paper-based scrim. Both sides are @property colors,
+ * so the mix still eases instead of slamming.
+ */
+[data-theme='noir'],
+[data-theme='copper'],
+[data-theme='sanctuary'],
+[data-theme='cathedral'],
+[data-theme='phosphor'],
+[data-theme='slate'],
+[data-theme='abyss'],
+[data-theme='grove'] {
   --overlay: color-mix(in srgb, var(--paper) 76%, transparent);
 }

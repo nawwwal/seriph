@@ -1,0 +1,39 @@
+/* Variant archive B: paper=bg, ink=Variant accent (fg if unreadable). */
+
+/* Acid ← volt: accent black */
+[data-theme="acid"] {
+  --paper: #CCFF00;
+  --ink: #000000;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --muted: color-mix(in srgb, var(--ink) 16%, transparent);
+  --surface: #FFFFFF;
+  --shadow: color-mix(in srgb, var(--ink) 22%, transparent);
+  --focus: var(--ink);
+  --success: #0F8A4D;
+  --danger: #B00020;
+  --warning: #6B5600;
+  --info: #003D99;
+  --surface-muted: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  --on-surface: #000000;
+}
+
+/* Orchid ← lilac: white accent unreadable → fg */
+[data-theme="orchid"] {
+  --paper: #C8A2C8;
+  --ink: #32174D;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --muted: color-mix(in srgb, var(--ink) 16%, transparent);
+  --surface: #FFFFFF;
+  --shadow: color-mix(in srgb, var(--ink) 18%, transparent);
+  --focus: var(--ink);
+  --success: #2E8B57;
+  --danger: #B83A54;
+  --warning: #9C7416;
+  --info: #4B2E83;
+  --surface-muted: color-mix(in srgb, var(--ink) 6%, var(--surface));
+  --on-surface: #32174D;
+}
