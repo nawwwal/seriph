@@ -19,7 +19,7 @@ Outside: silence. You cannot *see* them. So you open Google Fonts again.
 with your eyes, search by mood, and use in one click.
 
 > Visual-first. Instantly usable. Enrichment later.  
-> The type is the product. Everything else is backstage.
+> The type is the product.
 
 ---
 
@@ -28,20 +28,15 @@ with your eyes, search by mood, and use in one click.
 | You do | Seriph does |
 | --- | --- |
 | Drop a zip of `.otf` / `.ttf` / `.woff2` | Parses, groups families, serves specimens **before** AI finishes thinking |
-| Scroll a shelf of covers | A–Z rail, voice filters, infinite grid, no “please wait for taxonomy” |
-| Open a family | Play with axes, test copy, copy CSS / download, read moods & use-cases |
-| Ask for *warm editorial* | Hybrid search (name + semantics + vision embeddings, progressive) |
-
-Two readers, one shelf:
-
-1. **You** — rediscover what you already own.  
-2. **Agents** (the long game) — query type by intent when software needs to *choose* fonts.
+| Scroll a shelf of covers | A–Z rail, voice filters, infinite grid |
+| Open a family | Play with axes, test copy, copy CSS / download |
+| Ask for *warm editorial* | Hybrid search: name, semantics, and vision |
 
 Live: [seriph.naw.al](https://seriph.naw.al) · Font CDN: `https://seriph.web.app`
 
 ---
 
-## Stack, without the brochure
+## Stack
 
 ```
   browser ──► Next.js (App Router) ──► Firebase Auth / Firestore / Storage
@@ -51,13 +46,12 @@ Live: [seriph.naw.al](https://seriph.naw.al) · Font CDN: `https://seriph.web.ap
            parse · canonicalize · woff2 · Vertex enrich · vectors
                     │
                     ▼
-           Hosting routes: /s  /d  /css2   (the CDN surface)
+           Hosting routes: /s  /d  /css2
 ```
 
 - **Web:** React 19, TypeScript, Tailwind 4, Framer Motion, Vercel  
-- **Data:** Auth, Firestore (incl. vector search), Storage  
-- **Brain:** Gemini / Vertex for multimodal enrichment & embeddings  
-- **Rule of house:** `npm run lint:lines` — **100 non-empty lines max per file**. Split by responsibility, not by golfing.
+- **Data:** Auth, Firestore (vector search), Storage  
+- **AI:** Gemini / Vertex for multimodal enrichment and embeddings  
 
 ---
 
@@ -70,7 +64,7 @@ cp .env.example .env.local   # then fill the blanks
 npm run dev                  # http://localhost:3000
 ```
 
-### Env (the short version)
+### Environment
 
 | Kind | Examples |
 | --- | --- |
@@ -78,9 +72,9 @@ npm run dev                  # http://localhost:3000
 | Admin / bucket | `FIREBASE_ADMIN_*`, `FIREBASE_STORAGE_BUCKET` |
 | Optional | `UPLOAD_SECRET_TOKEN` (dev), Vertex project/location for functions |
 
-Secrets stay out of git. Production lives on Vercel / Firebase / Actions.
+Do not commit secrets. Production values live on Vercel, Firebase, and GitHub Actions.
 
-### Functions (the other package)
+### Functions
 
 ```bash
 cd functions && npm install && npm run build
@@ -88,55 +82,40 @@ cd functions && npm install && npm run build
 firebase emulators:start --only functions,firestore,storage
 ```
 
-Deploy / CDN / Remote Config: see [DEPLOYMENT.md](./DEPLOYMENT.md) and `.agents/deployment.md`.
+Deploy and CDN setup: [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ---
 
-## Prove it still works
+## Quality
 
 ```bash
-npm run lint        # lines + web ESLint + functions
+npm run lint
 npm run typecheck
 npm test
 npm run build
 ```
 
-CI runs the same gate. Do not “fix” a 101-line file with a comment. Split it.
+Source files stay under **100 non-empty lines** each (`npm run lint:lines`).
 
 ---
 
-## Map of the house
+## Layout
 
-| Path | Soul |
+| Path | Role |
 | --- | --- |
-| `app/` | Routes & API |
-| `components/` | UI (shell, shelf, detail, playground, themes) |
+| `app/` | Routes and API |
+| `components/` | UI |
 | `lib/` | Auth, hooks, cache, search, server |
 | `functions/` | Ingestion, enrichment, CDN handlers |
 | `models/` | Shared TypeScript contracts |
-| `.agents/` | Product, architecture, status, how agents should work |
-
-Start agents and humans here: [`.agents/AGENTS.md`](./.agents/AGENTS.md) → [`implementation-status.md`](./.agents/implementation-status.md).
 
 ---
 
-## Product commandments (abridged)
+## Contributing
 
-1. **Never block “see / download” on AI.** Enrichment is progressive.  
-2. **The front-end feel is the fixed point.** Pipeline may rewrite; the chrome may not become a generic dashboard.  
-3. **New retrievable truth goes in search/embeddings**, not only Storage.  
-4. **Remote Config owns model names and rollout flags** — no hardcoded model lottery in source.
-
-Full doctrine: [`.agents/product.md`](./.agents/product.md).
-
----
-
-## Contributing (the boring part, still required)
-
-- Branch, PR, green CI.  
-- New env vars → `.env.example`.  
-- Functions changes → keep `functions/package.json` honest.  
-- Prefer small modules over clever walls of code.
+- Open a PR with green CI.  
+- Document new env vars in `.env.example`.  
+- Keep `functions/package.json` in sync when Functions change.
 
 ---
 
