@@ -1,10 +1,42 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
+import type { User } from 'firebase/auth';
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('@/lib/contexts/UploadContext', () => ({
+  useUploads: () => ({ ingests: [], onCompleted: () => vi.fn() }),
+}));
+vi.mock('@/lib/hooks/useInfiniteFamilies', () => ({
+  clearShelfFamilyCache: vi.fn(),
+  useInfiniteFamilies: () => ({ families: [], stats: null, reload: vi.fn(), isInitialLoading: false, hasMore: false, isLoadingMore: false, isRefreshing: false, error: null, loadMore: vi.fn() }),
+}));
+vi.mock('@/lib/hooks/useShelfScrollRestoration', () => ({ useShelfScrollRestoration: () => vi.fn() }));
+vi.mock('@/lib/hooks/useShelfMutations', () => ({
+  useShelfMutations: () => ({ selectionState: { mode: 'idle' }, selectedFamilyIds: [], selectionCanMerge: vi.fn(), isMutating: false, mutationError: null, pendingDeleteIds: null, mergeUndo: null }),
+}));
+vi.mock('@/components/home/HomeShellActions', () => ({ default: () => createElement('div', { 'data-slot': 'header' }) }));
+vi.mock('@/components/home/AlphabetRail', () => ({ default: () => createElement('div', { 'data-slot': 'alphabet' }) }));
+vi.mock('@/components/home/ShelfStats', () => ({ default: () => createElement('div', { 'data-slot': 'status' }) }));
+vi.mock('@/components/home/HomePageShelfContent', () => ({ default: () => createElement('div', { 'data-slot': 'catalog' }) }));
+
+import HomePageContent from '@/components/home/HomePageContent';
 
 const read = (file: string) => fs.readFileSync(path.join(process.cwd(), file), 'utf8');
 
 describe('signed-in home shell composition', () => {
+  it('renders the shell and every supplied home region', () => {
+    const user = { uid: 'user-a' } as User;
+    const markup = renderToStaticMarkup(createElement(HomePageContent, { user }));
+
+    expect(markup).toContain('data-home-shell');
+    for (const slot of ['header', 'alphabet', 'catalog', 'status']) {
+      expect(markup).toContain(`data-slot="${slot}"`);
+    }
+  });
+
   it('provides the approved responsive shell regions and dimensions', () => {
     const shell = read('components/home/HomeShell.tsx');
 
