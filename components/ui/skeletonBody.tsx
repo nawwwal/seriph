@@ -29,24 +29,27 @@ export function SkeletonStyles() {
   );
 }
 
+/** Controls-only skeleton; specimen loads via SkeletonSpecimen above. */
 export function SkeletonTester() {
   return (
     <section className="mt-6">
-      <div className="h-8 w-48 bg-[var(--muted)] rounded-[var(--radius)] pulse rule-b pb-4"></div>
-      <div className="mt-6 rule p-6 rounded-[var(--radius)]">
-        <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
-          <div className="h-10 w-36 rule rounded-[var(--radius)] bg-[var(--muted)] pulse"></div>
+      <div className="rounded-[var(--radius)] rule p-4 sm:p-6">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-wrap gap-1.5">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-7 w-16 rounded-[var(--radius)] rule bg-[var(--muted)] pulse" />
+            ))}
+          </div>
           <div className="flex gap-2">
-            <div className="h-7 w-16 rule rounded-[var(--radius)] bg-[var(--muted)] pulse"></div>
-            <div className="h-7 w-16 rule rounded-[var(--radius)] bg-[var(--muted)] pulse"></div>
+            <div className="h-7 w-16 rounded-[var(--radius)] rule bg-[var(--muted)] pulse" />
+            <div className="h-7 w-20 rounded-[var(--radius)] rule bg-[var(--muted)] pulse" />
           </div>
         </div>
-        <div className="h-36 bg-[var(--muted)] rounded-[var(--radius)] pulse"></div>
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+        <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 md:grid-cols-2">
           {[1, 2, 3].map((i) => (
             <div key={i} className="space-y-2">
-              <div className="h-4 w-24 bg-[var(--muted)] rounded-[var(--radius)] pulse"></div>
-              <div className="h-3 w-full bg-[var(--muted)] rounded-[var(--radius)] pulse"></div>
+              <div className="h-4 w-24 rounded-[var(--radius)] bg-[var(--muted)] pulse" />
+              <div className="h-3 w-full rounded-[var(--radius)] bg-[var(--muted)] pulse" />
             </div>
           ))}
         </div>

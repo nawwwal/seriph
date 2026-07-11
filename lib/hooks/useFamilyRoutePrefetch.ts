@@ -33,7 +33,9 @@ export function useFamilyRoutePrefetch(
     if (prefetchedKeyRef.current === key) return;
     prefetchedKeyRef.current = key;
     familyDetailPrefetchQueue.enqueue(key, () => prefetchFamilyDetail({
-      uid: user.uid, familyId, getIdToken: () => user.getIdToken(),
+      uid: user.uid,
+      familyId,
+      getIdToken: (forceRefresh) => user.getIdToken(Boolean(forceRefresh)),
     }));
   }, [enabled, familyId, preview, router, user]);
 }
