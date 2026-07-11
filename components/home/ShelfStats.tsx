@@ -29,9 +29,9 @@ export default function ShelfStats({ stats, pendingCount, shelfMode, setShelfMod
           </div>
         ))}
       </dl>
-      <div className="ml-auto flex shrink-0 items-center gap-1" aria-label="Shelf mode">
-        <Button onClick={() => setShelfMode('spines')} size="filterTiny" tone={shelfMode === 'spines' ? 'active' : 'default'}>Spines</Button>
-        <Button onClick={() => setShelfMode('covers')} size="filterTiny" tone={shelfMode === 'covers' ? 'active' : 'default'}>Covers</Button>
+      <div role="group" aria-label="Shelf mode" className="ml-auto flex shrink-0 items-center gap-1">
+        <Button aria-pressed={shelfMode === 'spines'} onClick={() => setShelfMode('spines')} size="filterTiny" tone={shelfMode === 'spines' ? 'active' : 'default'}>Spines</Button>
+        <Button aria-pressed={shelfMode === 'covers'} onClick={() => setShelfMode('covers')} size="filterTiny" tone={shelfMode === 'covers' ? 'active' : 'default'}>Covers</Button>
       </div>
     </section>
   );
