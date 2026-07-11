@@ -36,7 +36,7 @@ describe('type playground fixed-face styles', () => {
   });
 
   it('builds collision-free registrations for fixed faces', () => {
-    const regular = buildPlaygroundFaceRegistration('Acid Grotesk', face({}));
+    const regular = buildPlaygroundFaceRegistration('Acid Grotesk', face({ format: 'OTF' }));
     const italic = buildPlaygroundFaceRegistration('Acid Grotesk', face({
       id: 'italic', metadata: { cdnUrl: 'https://fonts.test/italic.woff2', italic: true },
     }));
