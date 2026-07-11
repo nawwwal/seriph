@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { useUploads } from '@/lib/contexts/UploadContext';
 import { Button } from '@/components/ui/Button';
 import { buttonClassName } from '@/components/ui/buttonStyles';
+import SeriphLogo from '@/components/brand/SeriphLogo';
 
 export default function NavBar() {
   const pathname = usePathname();
@@ -32,7 +33,7 @@ export default function NavBar() {
             <NavSearch />
           </>
         ) : (
-          <span className="uppercase font-black tracking-tight text-lg">Seriph</span>
+          <SeriphLogo className="w-24" label="Seriph" />
         )}
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {user && (

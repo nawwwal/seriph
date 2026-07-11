@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import SeriphLogo from '@/components/brand/SeriphLogo';
 import { DEMO_SPECIMENS, VALUE_PROPS } from './landingContent';
 
 export default function LandingPage() {
@@ -8,9 +9,7 @@ export default function LandingPage() {
     <div className="flex-1 min-h-0 w-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto">
         {/* Hero */}
         <header className="w-full rule-b pb-6 sm:pb-8">
-          <h1 className="cap-tight uppercase font-black tracking-tight text-[clamp(56px,11vw,180px)] leading-[0.85]">
-            Seriph
-          </h1>
+          <h1><SeriphLogo className="w-full max-w-[724px]" label="Seriph" /></h1>
           <div className="mt-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6">
             <p className="max-w-2xl text-lg sm:text-xl md:text-2xl tracking-tight">
               A visual, semantically searchable home for your type. Turn a scattered attic of
