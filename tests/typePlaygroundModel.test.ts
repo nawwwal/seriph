@@ -2,19 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { Font } from '@/models/font.models';
 import { clampFontSize, createPlaygroundState, reconcilePlaygroundState, resetFaceState, selectDefaultFace,
   serializePlaygroundCss, uniqueFacesById } from '@/components/font/typePlaygroundModel';
-import { convertLetterSpacing } from '@/components/font/typePlaygroundUnits';
+import { convertLetterSpacing, convertLineHeight } from '@/components/font/typePlaygroundUnits';
 
 function font(overrides: Partial<Font> = {}): Font {
   return {
-    id: 'regular',
-    filename: 'Regular.woff2',
-    format: 'WOFF2',
-    subfamily: 'Regular',
-    weight: 400,
-    style: 'Regular',
-    isVariable: false,
-    fileSize: 1_024,
-    metadata: {},
+    id: 'regular', filename: 'Regular.woff2', format: 'WOFF2',
+    subfamily: 'Regular', weight: 400, style: 'Regular',
+    isVariable: false, fileSize: 1_024, metadata: {},
     ...overrides,
   };
 }
@@ -23,12 +17,14 @@ describe('type playground model', () => {
   it('selects the closest upright face to Regular 400', () => {
     const faces = [
       font({ id: 'italic-400', subfamily: 'Italic', style: 'Italic' }),
+      font({ id: 'oblique-400', subfamily: 'Regular Oblique' }),
+      font({ id: 'metadata-400', metadata: { italic: true } }),
       font({ id: 'upright-500', subfamily: 'Medium', style: 'Medium', weight: 500 }),
       font({ id: 'upright-400' }),
     ];
 
     expect(selectDefaultFace(faces)?.id).toBe('upright-400');
-    expect(selectDefaultFace(faces.slice(0, 2))?.id).toBe('upright-500');
+    expect(selectDefaultFace(faces.slice(0, 4))?.id).toBe('upright-500');
   });
 
   it('keeps one selector option and state entry per face ID', () => {
@@ -44,16 +40,24 @@ describe('type playground model', () => {
     expect(clampFontSize(240)).toBe(200);
   });
 
-  it('converts px tracking to and from em-relative percent-like values', () => {
-    expect(convertLetterSpacing(4, 'px', '%', 40)).toBeCloseTo(0.1);
-    expect(convertLetterSpacing(0.1, '%', 'px', 40)).toBeCloseTo(4);
+  it('converts px tracking to explicit em values and normalizes the target range', () => {
+    expect(convertLetterSpacing(4, 'px', 'em', 40)).toBeCloseTo(0.1);
+    expect(convertLetterSpacing(0.1, 'em', 'px', 40)).toBeCloseTo(4);
+    expect(convertLetterSpacing(40, 'px', 'em', 12)).toBe(0.5);
+    expect(convertLetterSpacing(0.123, 'em', 'em', 40)).toBe(0.125);
+  });
+
+  it('converts line height and clamps it to the target mode range', () => {
+    expect(convertLineHeight(300, '%', 'px', 48)).toBe(144);
+    expect(convertLineHeight(200, 'px', '%', 48)).toBe(300);
+    expect(convertLineHeight(120, 'auto', 'px', 48)).toBe(58);
   });
 
   it('stores Auto, percent, and px line-height modes per face', () => {
     const state = createPlaygroundState([font()], 'Inter').faces.regular;
 
     expect(state).toMatchObject({ lineHeightMode: 'auto', lineHeightValue: 120,
-      letterSpacingMode: '%', letterSpacingValue: 0, fontSize: 48 });
+      letterSpacingMode: 'em', letterSpacingValue: 0, fontSize: 48 });
   });
 
   it('serializes only playground CSS declarations with valid relative tracking', () => {
@@ -66,11 +70,8 @@ describe('type playground model', () => {
     });
     const state = {
       ...createPlaygroundState([face], "Director's Cut").faces.variable,
-      fontSize: 64,
-      letterSpacingMode: '%' as const,
-      letterSpacingValue: 0.08,
-      lineHeightMode: '%' as const,
-      lineHeightValue: 135,
+      fontSize: 64, letterSpacingMode: 'em' as const, letterSpacingValue: 0.08,
+      lineHeightMode: '%' as const, lineHeightValue: 135,
       axisValues: { wght: 625 },
     };
 

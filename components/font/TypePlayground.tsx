@@ -17,6 +17,28 @@ interface TypePlaygroundProps {
   testerRef: RefObject<HTMLDivElement | null>;
 }
 
+async function copyTextWithFallback(text: string): Promise<boolean> {
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const input = document.createElement('textarea');
+    input.value = text;
+    input.style.position = 'fixed';
+    input.style.opacity = '0';
+    document.body.appendChild(input);
+    input.select();
+    try {
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    } finally {
+      input.remove();
+    }
+  }
+}
+
 export default function TypePlayground({ family, testerRef }: TypePlaygroundProps) {
   useRegisterFamilyFonts(family);
   const fonts = useMemo(() => uniqueFacesById(family.fonts ?? []), [family.fonts]);
@@ -47,8 +69,10 @@ export default function TypePlayground({ family, testerRef }: TypePlaygroundProp
     } };
   });
   const copyCss = async () => {
-    await navigator.clipboard.writeText(serializePlaygroundCss({ familyName: family.name, face: selectedFace, state: faceState }));
-    setCopyLabel('Copied');
+    const css = serializePlaygroundCss({ familyName: family.name, face: selectedFace, state: faceState });
+    const copied = await copyTextWithFallback(css);
+    if (copied) setCopyLabel('Copied');
+    else setCopyLabel('Copy failed');
     if (copyTimer.current) clearTimeout(copyTimer.current);
     copyTimer.current = setTimeout(() => setCopyLabel('Copy CSS'), 1_600);
   };

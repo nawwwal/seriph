@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import ElasticSliderValue from './ElasticSliderValue';
-import { keyboardSliderValue, pointerValue, valueToPercentage } from './elasticSliderMath';
+import { keyboardSliderValue, pointerValue, snapSliderValue, valueToPercentage } from './elasticSliderMath';
 
 interface SliderStyle extends CSSProperties {
   '--elastic-pct': string;
@@ -22,7 +22,8 @@ export default function ElasticSlider({
   const trackRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
   const reduceMotion = useReducedMotion();
-  const style: SliderStyle = { '--elastic-pct': `${valueToPercentage(value, min, max)}%` };
+  const normalizedValue = snapSliderValue(value, min, max, step);
+  const style: SliderStyle = { '--elastic-pct': `${valueToPercentage(normalizedValue, min, max)}%` };
   const transition = reduceMotion
     ? { duration: 0 }
     : { type: 'spring' as const, stiffness: active ? 520 : 360, damping: active ? 28 : 20 };
@@ -43,7 +44,7 @@ export default function ElasticSlider({
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const next = keyboardSliderValue({ key: event.key, value, min, max, step, shiftKey: event.shiftKey });
+    const next = keyboardSliderValue({ key: event.key, value: normalizedValue, min, max, step, shiftKey: event.shiftKey });
     if (next === null) return;
     event.preventDefault();
     onChange(next);
@@ -54,7 +55,7 @@ export default function ElasticSlider({
       <div className="elastic-slider__head">
         <label htmlFor={id} className="elastic-slider__label">{label}</label>
         <motion.div animate={{ y: active ? -1 : 0 }} transition={transition}>
-          <ElasticSliderValue inputId={id} value={value} min={min} max={max} step={step} unit={unit} onChange={onChange} />
+          <ElasticSliderValue inputId={id} label={label} value={normalizedValue} min={min} max={max} step={step} unit={unit} onChange={onChange} />
         </motion.div>
       </div>
       <div
@@ -64,8 +65,8 @@ export default function ElasticSlider({
         tabIndex={0}
         aria-valuemin={min}
         aria-valuemax={max}
-        aria-valuenow={value}
-        aria-valuetext={ariaValueText ?? `${value}${unit ?? ''}`}
+        aria-valuenow={normalizedValue}
+        aria-valuetext={ariaValueText ?? `${normalizedValue}${unit ?? ''}`}
         aria-label={ariaLabel ?? label}
         className="elastic-slider__track-hit"
         onPointerDown={(event) => {
