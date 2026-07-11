@@ -75,7 +75,7 @@ export default function HomePageContent({ user }: { user: User }) {
                 <Button onClick={shelf.reload} className="mt-4 px-6" size="mdText">Try Again</Button>
               </div>
             ) : (
-              <HomePageShelfContent shelf={shelf} families={visibleFamilies} mutations={mutations} isEmpty={isEmpty} showShelfSkeleton={showShelfSkeleton} pendingIngests={pendingIngests} onAddFonts={handleAddFonts} onFilesSelected={handleFilesSelected} />
+              <HomePageShelfContent shelf={shelf} families={visibleFamilies} mutations={mutations} isEmpty={isEmpty} showShelfSkeleton={showShelfSkeleton} pendingIngests={pendingIngests} onFilesSelected={handleFilesSelected} />
             )}
           </div>
         )}

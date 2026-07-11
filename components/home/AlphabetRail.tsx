@@ -23,7 +23,7 @@ export default function AlphabetRail({
       aria-label="Filter families by initial"
       className="h-full min-w-0 w-full max-w-full overflow-x-auto overflow-y-auto"
     >
-      <div className="min-w-0 w-full p-4 md:pt-12 md:pr-[33px] md:pl-10">
+      <div className="min-w-0 w-full px-4 py-3 md:pt-8 md:pr-[33px] md:pb-4 md:pl-10">
         <div className="flex items-center justify-between gap-2">
           <Button onClick={onImport} size="compact">Import</Button>
           {uploadCount > 0 ? (
@@ -32,11 +32,11 @@ export default function AlphabetRail({
             </Button>
           ) : null}
         </div>
-        <div className="mt-4 flex items-center justify-between gap-3">
+        <div className="mt-3 flex items-center justify-between gap-3">
           <h2 className="text-xs font-black uppercase">Browse by alphabet</h2>
           <button type="button" aria-pressed={selected === 'ALL'} onClick={() => onSelect('ALL')} className={`theme-focus-ring px-2 py-1 text-[10px] font-black uppercase ${selected === 'ALL' ? 'ink-bg' : 'hover:ink-bg'}`}>All</button>
         </div>
-        <div className="mt-3 grid w-[295px] grid-cols-5 border-t border-l border-[var(--ink)]">
+        <div className="mt-2 grid w-[295px] grid-cols-5 border-t border-l border-[var(--ink)]">
           {ALPHABET_INITIALS.slice(1).map((initial) => {
             const isSelected = initial === selected;
             return (

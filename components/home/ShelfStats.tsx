@@ -21,16 +21,18 @@ export default function ShelfStats({ stats, pendingCount }: ShelfStatsProps) {
     ['Uploads', String(pendingCount)],
   ];
   return (
-    <section aria-label="Library status" className="flex min-h-10 min-w-0 flex-wrap items-center gap-x-4 gap-y-1 px-4 py-1 text-xs uppercase">
-      <dl className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
-        {items.map(([label, value]) => (
-          <div key={label} className="flex min-w-0 items-baseline gap-1">
-            <dt className="font-bold opacity-60">{label}</dt>
-            <dd className="max-w-48 truncate font-black" title={value}>{value}</dd>
-          </div>
-        ))}
-      </dl>
-      <div className="ml-auto flex shrink-0 items-center gap-2">
+    <section aria-label="Library status" className="flex h-full min-w-0 items-center gap-2 px-4 text-xs uppercase">
+      <div data-status-metrics className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain">
+        <dl className="flex min-w-max items-center gap-x-4 whitespace-nowrap pr-2">
+          {items.map(([label, value]) => (
+            <div key={label} className="flex items-baseline gap-1">
+              <dt className="font-bold opacity-60">{label}</dt>
+              <dd className="max-w-48 truncate font-black" title={value}>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+      <div className="ml-auto flex h-full shrink-0 items-center gap-2 bg-[var(--paper)]">
         <ProfileMenu />
         <ThemeSwitcher />
       </div>

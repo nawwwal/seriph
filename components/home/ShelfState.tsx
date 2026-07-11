@@ -11,7 +11,6 @@ import type { ShelfSelectionState } from '@/lib/shelf/selectionState';
 import FamilyContextMenu from './FamilyContextMenu';
 import ShelfFamilySections from './ShelfFamilySections';
 import { useShelfUploadAnnouncements } from './useShelfUploadAnnouncements';
-import AddFontsCard from './AddFontsCard';
 import { ShelfCardSkeletonGrid } from './ShelfSkeleton';
 import { LOAD_MORE_SKELETON_COUNT, SHELF_GRID_CLASS } from './shelfGrid';
 
@@ -21,7 +20,6 @@ interface ShelfStateProps {
   families: Array<FontFamily | ShelfFamily>;
   pendingIngests: IngestRecord[];
   shelfMode: 'spines' | 'covers';
-  onAddFonts: () => void;
   coverSeed?: number;
   hasMore?: boolean;
   isLoadingMore?: boolean;
@@ -37,7 +35,6 @@ export default function ShelfState({
   families,
   pendingIngests,
   shelfMode,
-  onAddFonts,
   coverSeed = 0,
   hasMore = false,
   isLoadingMore = false,
@@ -82,9 +79,6 @@ export default function ShelfState({
         onOpenContextMenu={openContextMenu}
       />
 
-      <div className={SHELF_GRID_CLASS}>
-        <AddFontsCard onAddFonts={onAddFonts} />
-      </div>
       {hasMore && <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />}
       {(hasMore || isLoadingMore) && <ShelfCardSkeletonGrid count={LOAD_MORE_SKELETON_COUNT} />}
       {contextMenu && (

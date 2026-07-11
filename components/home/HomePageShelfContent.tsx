@@ -19,7 +19,6 @@ interface HomePageShelfContentProps {
   isEmpty: boolean;
   showShelfSkeleton: boolean;
   pendingIngests: IngestRecord[];
-  onAddFonts: () => void;
   onFilesSelected: (files: File[]) => void;
 }
 
@@ -30,7 +29,6 @@ export default function HomePageShelfContent({
   isEmpty,
   showShelfSkeleton,
   pendingIngests,
-  onAddFonts,
   onFilesSelected,
 }: HomePageShelfContentProps) {
   if (showShelfSkeleton) return <ShelfSkeleton />;
@@ -42,7 +40,6 @@ export default function HomePageShelfContent({
         families={families}
         pendingIngests={pendingIngests}
         shelfMode="covers"
-        onAddFonts={onAddFonts}
         hasMore={shelf.hasMore}
         isLoadingMore={shelf.isLoadingMore}
         isRefreshing={shelf.isRefreshing}

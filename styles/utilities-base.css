@@ -56,6 +56,16 @@ body {
   box-shadow: 0 4px 0 var(--ink);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .seriph-card-hover {
+    transition: none;
+  }
+
+  .seriph-card-hover:hover {
+    transform: none;
+  }
+}
+
 .theme-range {
   appearance: none;
   background: var(--control-track);
