@@ -1,5 +1,4 @@
 import type { ShelfStatsSummary } from '@/models/shelf.models';
-import Stat from '@/components/ui/Stat';
 import { Button } from '@/components/ui/Button';
 
 interface ShelfStatsProps {
@@ -14,20 +13,25 @@ export default function ShelfStats({ stats, pendingCount, shelfMode, setShelfMod
   const styleCount = stats ? String(stats.styleCount) : '-';
   const recentFamily = stats?.recentFamilyName ?? '-';
 
+  const items = [
+    ['Families', familyCount],
+    ['Styles', styleCount],
+    ['Recent', recentFamily],
+    ['Uploads', String(pendingCount)],
+  ];
   return (
-    <section className="mt-4 sm:mt-6 md:mt-8 rule-t rule-b">
-      <div className="grid grid-cols-2 sm:grid-cols-5">
-        <Stat label="Families" value={familyCount} />
-        <Stat label="Styles" value={styleCount} />
-        <Stat label="Recently Added" value={recentFamily} />
-        <Stat label="Uploads In Progress" value={pendingCount} />
-        <div className="p-3 sm:p-4">
-          <div className="uppercase text-xs sm:text-sm font-bold opacity-80">Shelf Mode</div>
-          <div className="flex gap-2 mt-1">
-            <Button onClick={() => setShelfMode('spines')} size="sm" tone={shelfMode === 'spines' ? 'active' : 'default'}>Spines</Button>
-            <Button onClick={() => setShelfMode('covers')} size="sm" tone={shelfMode === 'covers' ? 'active' : 'default'}>Covers</Button>
+    <section aria-label="Library status" className="flex min-h-10 min-w-0 flex-wrap items-center gap-x-4 gap-y-1 px-4 py-1 text-xs uppercase">
+      <dl className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-1">
+        {items.map(([label, value]) => (
+          <div key={label} className="flex min-w-0 items-baseline gap-1">
+            <dt className="font-bold opacity-60">{label}</dt>
+            <dd className="max-w-48 truncate font-black" title={value}>{value}</dd>
           </div>
-        </div>
+        ))}
+      </dl>
+      <div className="ml-auto flex shrink-0 items-center gap-1" aria-label="Shelf mode">
+        <Button onClick={() => setShelfMode('spines')} size="filterTiny" tone={shelfMode === 'spines' ? 'active' : 'default'}>Spines</Button>
+        <Button onClick={() => setShelfMode('covers')} size="filterTiny" tone={shelfMode === 'covers' ? 'active' : 'default'}>Covers</Button>
       </div>
     </section>
   );

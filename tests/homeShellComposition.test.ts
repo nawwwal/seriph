@@ -38,4 +38,30 @@ describe('signed-in home shell composition', () => {
     ]) expect(actions).toContain(contract);
   });
 
+  it('replaces hero chrome while retaining shelf behavior composition', () => {
+    const home = read('components/home/HomePageContent.tsx');
+    const shelf = read('components/home/HomePageShelfContent.tsx');
+
+    expect(home).not.toContain("@/components/home/HomeHeader");
+    expect(home).not.toContain("@/components/home/HomeFooter");
+    for (const contract of [
+      'useInfiniteFamilies', 'onCompleted', 'useShelfMutations',
+      'useShelfScrollRestoration', 'ShelfSelectionBar',
+      'DeleteFamiliesDialog', 'MergeUndoToast', 'filterFamiliesByInitial',
+    ]) expect(home).toContain(contract);
+    expect(shelf).toContain('<ShelfState');
+    expect(shelf).toContain('pendingIngests={pendingIngests}');
+    expect(shelf).toContain('selectionState={mutations.selectionState}');
+    expect(shelf).toContain('families={families}');
+  });
+
+  it('suppresses the global NavBar only on the signed-in home route', () => {
+    const frame = read('components/layout/AppFrame.tsx');
+
+    expect(frame).toContain('usePathname');
+    expect(frame).toContain("pathname === '/'");
+    expect(frame).toContain('showGlobalNav');
+    expect(frame).toContain('showGlobalNav && <NavBar />');
+  });
+
 });

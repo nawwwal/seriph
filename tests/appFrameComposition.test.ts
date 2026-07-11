@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const uploadState = vi.hoisted(() => ({ isOpen: false }));
 const authState = vi.hoisted<{ user: null | { uid: string } }>(() => ({ user: null }));
+const navigationState = vi.hoisted(() => ({ pathname: '/' }));
 
 vi.mock('@/components/layout/NavBar', () => ({
   default: () => createElement('nav', { 'data-testid': 'navigation' }, 'Navigation'),
@@ -16,6 +17,7 @@ vi.mock('@/lib/contexts/UploadContext', () => ({
 vi.mock('@/lib/contexts/AuthContext', () => ({
   useAuth: () => authState,
 }));
+vi.mock('next/navigation', () => ({ usePathname: () => navigationState.pathname }));
 vi.mock('next/dynamic', () => ({
   default: (_loader: unknown, _options: { ssr: boolean }) =>
     function MockUploadCenterModal() {
@@ -45,6 +47,7 @@ function read(file: string): string {
 afterEach(() => {
   uploadState.isOpen = false;
   authState.user = null;
+  navigationState.pathname = '/';
 });
 
 describe('persistent application frame', () => {
@@ -74,6 +77,7 @@ describe('persistent application frame', () => {
 
   it('keeps authenticated workspace routes on a fixed internal scroll frame', () => {
     authState.user = { uid: 'user-a' };
+    navigationState.pathname = '/search';
 
     const markup = renderToStaticMarkup(
       createElement(AppFrame, null, createElement('main', null, 'Workspace route content'))

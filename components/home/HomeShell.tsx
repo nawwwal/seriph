@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import SeriphLogo from '@/components/brand/SeriphLogo';
 
 interface HomeShellProps {
@@ -21,7 +22,9 @@ export default function HomeShell({
           data-home-header
           className="rule-b flex shrink-0 flex-wrap items-center gap-4 px-5 py-3 md:h-24 md:flex-nowrap md:py-0"
         >
-          <SeriphLogo className="w-28 shrink-0 md:w-36" label="Seriph" />
+          <Link href="/" scroll={false} aria-label="Seriph shelf" className="shrink-0 theme-focus-ring">
+            <SeriphLogo className="w-28 md:w-36" label="Seriph" />
+          </Link>
           <div className="min-w-0 flex-1">{headerActions}</div>
         </header>
         <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[368px_minmax(0,1fr)] md:grid-rows-1">
