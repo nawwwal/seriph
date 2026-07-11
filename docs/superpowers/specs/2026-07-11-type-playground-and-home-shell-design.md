@@ -30,11 +30,11 @@ At desktop widths, the signed-in home page follows Figma node `5:5`:
 - Flexible catalog canvas on the right.
 - 40px footer/status strip with a top rule.
 
-The header places the 193x48 themed wordmark on the left. Existing essential actions remain available on the right in a restrained row: search, import/add fonts, uploads, profile, and theme. Familiar icon controls should be used where the action is recognizable; text remains for commands whose meaning would otherwise be ambiguous.
+The header places only the 193x48 themed wordmark on the left. It must not become a general toolbar.
 
-The left rail contains `BROWSE BY ALPHABET` and a five-column A-Z grid. Each cell is a stable square-like track with 1px rules. The active letter inverts foreground/background. Selecting a letter filters the already-loaded catalog by family name without navigation or a full-screen loader. `All` is represented by a compact control above or below the grid and is the default.
+The left rail begins with one `Import` action, which is the same action as Add Fonts. Beneath it, `BROWSE BY ALPHABET` uses the exact five-column A-Z grid: A-E, F-J, K-O, P-T, U-Y, then Z alone in the first cell. Each cell has equal dimensions and 1px rules; the active letter inverts foreground/background. Selecting a letter filters the already-loaded catalog by family name without navigation or a full-screen loader. `All` is a compact separate control and must not distort the A-Z grid.
 
-The right catalog canvas keeps the real shelf: selection, pending uploads, covers/spines, infinite loading, empty state, mutations, and scroll restoration. Remove the previous oversized hero and prose from the signed-in home. Compact stats and shelf mode live in the footer/status strip or a narrow canvas toolbar, not in a large band above the catalog.
+The right catalog canvas keeps the real shelf: selection, pending uploads, covers, infinite loading, empty state, mutations, and scroll restoration. Remove the previous oversized hero and prose from the signed-in home. Remove cover regeneration and the nonfunctional spines/covers mode entirely. The bottom status strip contains compact server-owned stats, upload progress/count, profile access if needed, and the theme switcher. A transient upload-center control may appear in the left rail only while an upload is active; there is no permanent Uploads button.
 
 On tablet/mobile, the shell keeps its border and radius with a smaller outer inset. The header may wrap actions beneath the logo. The alphabet rail becomes a horizontal, scrollable control above the catalog; it must not squeeze the catalog into an unusable column. The status strip may wrap to two rows while retaining rules and readable labels.
 

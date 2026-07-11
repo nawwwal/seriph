@@ -193,6 +193,8 @@ Commits:
 
 Verify desktop and mobile home, warm/cold catalog, alphabet filter, cards, selection, uploads, search access, theme switching, fixed-family detail, variable-family detail, LTR typing, every metric mode, axes, Reset, Copy CSS, and reduced motion.
 
+The browser is the primary acceptance surface for the corrective home pass. Keep automated test additions minimal and focused on behavior that can regress silently.
+
 - [ ] **Step 2: Run independent InterfaceCraft critique agents**
 
 Review screenshots for hierarchy, density, alignment, control ergonomics, transition quality, text overflow, and fidelity to Figma node `5:5`. Record only actionable findings.
@@ -200,6 +202,8 @@ Review screenshots for hierarchy, density, alignment, control ergonomics, transi
 - [ ] **Step 3: Fix findings test-first with one commit per finding cluster**
 
 Add focused regressions, verify red, implement minimal fixes, and keep home-fidelity, playground-interaction, accessibility, and regression fixes in separate commits.
+
+The home-fidelity fix must use a logo-only header, one Import/Add Fonts action at the top of the left rail, the exact five-column A-Z grid, no cover refresh, no spines/covers mode, no permanent uploads action, transient upload affordance only while active, and the theme switcher in the bottom status strip.
 
 - [ ] **Step 4: Run full local gates**
 
