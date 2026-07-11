@@ -24,6 +24,11 @@
 .DS_Store
 *.pem
 
+# local artifacts (screenshots, fermata dumps, playwright output)
+/output/
+/output/**
+
+
 # debug
 npm-debug.log*
 yarn-debug.log*
@@ -36,8 +41,10 @@ firebase-debug.log
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 .secret*
 functions/.env*
+!functions/.env.example
 functions/.secret*
 
 # Firebase & Google Cloud secrets
