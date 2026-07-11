@@ -102,3 +102,9 @@ credentials/
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+
+# local agent plans and session dumps (not product source)
+/plans/
+/plans/**
+/docs/superpowers/
+/docs/superpowers/**
