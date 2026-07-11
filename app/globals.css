@@ -1,6 +1,7 @@
 /* Import theme variables and utilities */
 @import '../styles/themes.css';
 @import '../styles/utilities.css';
+@import '../styles/utilities-slider.css';
 
 @import 'tailwindcss';
 @config '../tailwind.config.ts';
