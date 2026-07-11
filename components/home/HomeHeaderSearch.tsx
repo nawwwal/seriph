@@ -53,7 +53,7 @@ export default function HomeHeaderSearch() {
           }}
           placeholder="SEARCH YOUR TYPE…"
           aria-label="Search your type library"
-          className="header-search-input min-w-0 flex-1 border-0 bg-transparent text-2xl font-bold uppercase not-italic tracking-tight text-[var(--ink)] shadow-none outline-none ring-0 placeholder:text-[var(--ink)]/35 focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none sm:text-3xl md:text-4xl"
+          className="header-search-input min-w-0 flex-1 border-0 bg-transparent text-2xl font-bold uppercase not-italic tracking-tight text-[var(--ink)] outline-none ring-0 placeholder:text-[var(--ink)]/35 focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none sm:text-3xl md:text-4xl"
           style={{ fontFamily: 'var(--font-league-spartan), system-ui, -apple-system, sans-serif' }}
         />
       </label>

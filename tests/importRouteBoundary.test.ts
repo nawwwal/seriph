@@ -16,6 +16,34 @@ vi.mock('@/lib/contexts/AuthContext', () => ({
   useAuth: () => ({ user: { uid: 'user-a' }, isLoading: false }),
 }));
 vi.mock('@/lib/contexts/UploadContext', () => ({ useUploads: () => ({ open: vi.fn() }) }));
+vi.mock('framer-motion', () => {
+  const React = require('react') as typeof import('react');
+  const passthrough = ({ children, ...props }: { children?: React.ReactNode }) =>
+    React.createElement('div', props, children);
+  return {
+    motion: new Proxy(
+      {},
+      {
+        get: () => passthrough,
+      },
+    ),
+    LayoutGroup: passthrough,
+    useReducedMotion: () => true,
+    AnimatePresence: ({ children }: { children?: React.ReactNode }) => children ?? null,
+  };
+});
+vi.mock('@/components/motion/shellMotion', () => {
+  const React = require('react') as typeof import('react');
+  const pass = ({ children }: { children?: React.ReactNode }) => children ?? null;
+  return {
+    MotionBody: pass,
+    MotionCanvas: pass,
+    MotionRail: pass,
+    MotionHeader: pass,
+    MotionSlot: pass,
+    useShellMove: () => ({ duration: 0 }),
+  };
+});
 
 import ImportPage from '@/app/(main)/import/page';
 

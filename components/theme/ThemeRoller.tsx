@@ -54,8 +54,8 @@ export default function ThemeRoller({ committed, onPreview, onCommit }: ThemeRol
       <div
         className="absolute inset-0 z-10 overflow-hidden"
         style={{
-          maskImage: 'linear-gradient(transparent, #000 10%, #000 90%, transparent)',
-          WebkitMaskImage: 'linear-gradient(transparent, #000 10%, #000 90%, transparent)',
+          maskImage: 'linear-gradient(transparent, black 10%, black 90%, transparent)',
+          WebkitMaskImage: 'linear-gradient(transparent, black 10%, black 90%, transparent)',
           transformStyle: 'preserve-3d',
         }}
       >
