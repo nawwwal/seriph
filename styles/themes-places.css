@@ -5,7 +5,6 @@
   --rule: 1.5px;
   --rhythm: 10px;
   --radius: 2px;
-  --accent: #FFFFFF;
   --muted: color-mix(in srgb, var(--ink) 16%, transparent);
   --surface: #1C0E14;
   --shadow: rgba(0, 0, 0, 0.5);
@@ -25,7 +24,6 @@
   --rule: 1.5px;
   --rhythm: 10px;
   --radius: 2px;
-  --accent: #1FC8A9;
   --muted: color-mix(in srgb, var(--ink) 16%, transparent);
   --surface: #FFFFFF;
   --shadow: color-mix(in srgb, var(--ink) 17%, transparent);
@@ -45,7 +43,6 @@
   --rule: 1.5px;
   --rhythm: 10px;
   --radius: 2px;
-  --accent: #FDFF50;
   --muted: color-mix(in srgb, var(--ink) 16%, transparent);
   --surface: #252C16;
   --shadow: rgba(0, 0, 0, 0.42);

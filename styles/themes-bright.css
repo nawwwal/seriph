@@ -5,7 +5,6 @@
   --rule: 1.5px;
   --rhythm: 10px;
   --radius: 2px;
-  --accent: #FDFF50;
   --muted: color-mix(in srgb, var(--ink) 16%, transparent);
   --surface: #F6FAF0;
   --shadow: color-mix(in srgb, var(--ink) 18%, transparent);
@@ -25,7 +24,6 @@
   --rule: 1.5px;
   --rhythm: 10px;
   --radius: 2px;
-  --accent: #0B64C0;
   --muted: color-mix(in srgb, var(--ink) 16%, transparent);
   --surface: #FFFFFF;
   --shadow: color-mix(in srgb, var(--ink) 22%, transparent);
@@ -34,7 +32,7 @@
   --danger: #D31B33;
   --warning: #8A6500;
   --info: #005397;
-  --surface-muted: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  --surface-muted: color-mix(in srgb, var(--ink) 9%, var(--surface));
   --on-surface: #28292B;
 }
 
@@ -45,7 +43,6 @@
   --rule: 1.5px;
   --rhythm: 10px;
   --radius: 2px;
-  --accent: #2D1FE8;
   --muted: color-mix(in srgb, var(--ink) 16%, transparent);
   --surface: #FFFFFF;
   --shadow: color-mix(in srgb, var(--ink) 16%, transparent);
@@ -65,7 +62,6 @@
   --rule: 1.5px;
   --rhythm: 10px;
   --radius: 2px;
-  --accent: #BF8351;
   --muted: color-mix(in srgb, var(--ink) 16%, transparent);
   --surface: #202838;
   --shadow: rgba(0, 0, 0, 0.46);

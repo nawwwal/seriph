@@ -23,10 +23,15 @@ const themeChangedEvent = 'seriph-theme-change';
 const themeStorageKey = 'seriph-theme:v1';
 const legacyThemeStorageKey = 'theme';
 
+/** Avoid redundant DOM writes when roller re-fires the same theme. */
+let paintedKey = '';
+
 function readStoredTheme(): ThemeName {
   if (typeof window === 'undefined') return 'ink';
   try {
-    const saved = window.localStorage.getItem(themeStorageKey) ?? window.localStorage.getItem(legacyThemeStorageKey);
+    const saved =
+      window.localStorage.getItem(themeStorageKey) ??
+      window.localStorage.getItem(legacyThemeStorageKey);
     return isThemeName(saved) ? saved : 'ink';
   } catch {
     return 'ink';
@@ -46,30 +51,44 @@ function getServerThemeSnapshot(): ThemeName {
   return 'ink';
 }
 
+function paintTheme(next: ThemeName, preview: boolean) {
+  const key = `${next}:${preview ? '1' : '0'}`;
+  if (paintedKey === key) return;
+  paintedKey = key;
+  const root = document.documentElement;
+  // Preview flag first so duration/ease apply to this paint.
+  root.dataset.themePreview = preview ? 'true' : 'false';
+  root.setAttribute('data-theme', next);
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const theme = useSyncExternalStore(subscribeToThemeChanges, readStoredTheme, getServerThemeSnapshot);
+  const theme = useSyncExternalStore(
+    subscribeToThemeChanges,
+    readStoredTheme,
+    getServerThemeSnapshot,
+  );
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    paintTheme(theme, false);
   }, [theme]);
 
   const setTheme = (newTheme: ThemeName) => {
-    document.documentElement.setAttribute('data-theme', newTheme);
+    paintTheme(newTheme, false);
     try {
       localStorage.setItem(themeStorageKey, newTheme);
       localStorage.removeItem(legacyThemeStorageKey);
     } catch {
-      // The DOM theme still updates when storage is blocked.
+      // DOM theme still updates when storage is blocked.
     }
     window.dispatchEvent(new Event(themeChangedEvent));
   };
 
   const previewTheme = (previewedTheme: ThemeName) => {
-    document.documentElement.setAttribute('data-theme', previewedTheme);
+    paintTheme(previewedTheme, true);
   };
 
   const clearPreviewTheme = (committedTheme?: ThemeName) => {
-    document.documentElement.setAttribute('data-theme', committedTheme ?? readStoredTheme());
+    paintTheme(committedTheme ?? readStoredTheme(), false);
   };
 
   return (

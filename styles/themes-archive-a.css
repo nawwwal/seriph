@@ -1,0 +1,96 @@
+/* Variant archive A: paper=bg, ink=Variant accent (fg if unreadable). */
+
+/* Phosphor ← ink: accent #00FF41 */
+[data-theme="phosphor"] {
+  --paper: #000000;
+  --ink: #00FF41;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --muted: color-mix(in srgb, var(--ink) 18%, transparent);
+  --surface: #0A0A0A;
+  --shadow: rgba(0, 255, 65, 0.2);
+  --focus: var(--ink);
+  --success: #4ADE80;
+  --danger: #F87171;
+  --warning: #FBBF24;
+  --info: #00FF41;
+  --surface-muted: #121212;
+  --on-surface: #FFFFFF;
+}
+
+/* Slate ← noir: accent white */
+[data-theme="slate"] {
+  --paper: #1A1A1A;
+  --ink: #FFFFFF;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --muted: color-mix(in srgb, var(--ink) 16%, transparent);
+  --surface: #242424;
+  --shadow: rgba(0, 0, 0, 0.5);
+  --focus: var(--ink);
+  --success: #4ADE80;
+  --danger: #F87171;
+  --warning: #FBBF24;
+  --info: #93C5FD;
+  --surface-muted: #2e2e2e;
+  --on-surface: #888888;
+}
+
+/* Flare ← sunset: accent #FFEB00 yellow */
+[data-theme="flare"] {
+  --paper: #FF4D00;
+  --ink: #FFEB00;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --muted: color-mix(in srgb, var(--ink) 20%, transparent);
+  --surface: #FF6A1A;
+  --shadow: color-mix(in srgb, #000 28%, transparent);
+  --focus: var(--ink);
+  --success: #0F8A4D;
+  --danger: #7A0000;
+  --warning: #5C4400;
+  --info: #002B6B;
+  --surface-muted: color-mix(in srgb, #000 10%, var(--paper));
+  --on-surface: #000000;
+}
+
+/* Abyss ← ocean: accent white */
+[data-theme="abyss"] {
+  --paper: #002244;
+  --ink: #FFFFFF;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --muted: color-mix(in srgb, var(--ink) 16%, transparent);
+  --surface: #001830;
+  --shadow: rgba(0, 0, 0, 0.5);
+  --focus: var(--ink);
+  --success: #4ADE80;
+  --danger: #F87171;
+  --warning: #FBBF24;
+  --info: #A0D2EB;
+  --surface-muted: #002a52;
+  --on-surface: #A0D2EB;
+}
+
+/* Grove ← moss: accent white */
+[data-theme="grove"] {
+  --paper: #3A4E1B;
+  --ink: #FFFFFF;
+  --rule: 1.5px;
+  --rhythm: 10px;
+  --radius: 2px;
+  --muted: color-mix(in srgb, var(--ink) 16%, transparent);
+  --surface: #2A3A14;
+  --shadow: rgba(0, 0, 0, 0.42);
+  --focus: var(--ink);
+  --success: #9EE6B5;
+  --danger: #FF9AA2;
+  --warning: #F0CF61;
+  --info: #B1FDEB;
+  --surface-muted: #33451a;
+  --on-surface: #EFC0C1;
+}

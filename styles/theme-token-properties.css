@@ -1,0 +1,82 @@
+/*
+ * Animatable theme tokens. Must load before theme assignments.
+ * Without @property, --paper/--ink swaps snap even with transitions.
+ */
+
+@property --paper {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #f4f29a;
+}
+
+@property --ink {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #0d7e6c;
+}
+
+@property --surface {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #ffffff;
+}
+
+@property --surface-muted {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #f3f6e8;
+}
+
+@property --on-surface {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #1a1a1a;
+}
+
+@property --muted {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #0d7e6c29;
+}
+
+@property --shadow {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #0d7e6c33;
+}
+
+@property --overlay {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #0d7e6cb8;
+}
+
+@property --focus {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #0d7e6c;
+}
+
+@property --success {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #0f8a4d;
+}
+
+@property --danger {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #c0392b;
+}
+
+@property --warning {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #b8860b;
+}
+
+@property --info {
+  syntax: '<color>';
+  inherits: true;
+  initial-value: #0d7e6c;
+}

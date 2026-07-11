@@ -2,61 +2,83 @@
 
 import { Select } from '@base-ui/react/select';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
-import { themeOptions, ThemeName } from '@/lib/theme/themes';
-import { ThemeMenuOption } from './ThemeMenuOption';
-import { buttonClassName } from '@/components/ui/buttonStyles';
+import type { ThemeName } from '@/lib/theme/themes';
+import { themeMetaFor } from '@/lib/theme/themeMeta';
+import ThemeSwitcherPanel from './ThemeSwitcherPanel';
+import ThemeSwitcherTrigger from './ThemeSwitcherTrigger';
 
 export default function ThemeSwitcher() {
   const { theme, setTheme, previewTheme, clearPreviewTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const committedThemeRef = useRef(theme);
-  const currentTheme = themeOptions.find((option) => option.value === theme) ?? themeOptions[0];
+  /** Last theme under the roller band (preview + pending commit). */
+  const pendingThemeRef = useRef(theme);
+  const committed = themeMetaFor(theme);
+
   useEffect(() => {
     committedThemeRef.current = theme;
-  }, [theme]);
-  const chooseTheme = useCallback((newTheme: ThemeName) => {
-    committedThemeRef.current = newTheme;
-    setTheme(newTheme);
-    setOpen(false);
-    clearPreviewTheme(newTheme);
-  }, [clearPreviewTheme, setTheme]);
-  const handleOpenChange = useCallback((nextOpen: boolean) => {
-    setOpen(nextOpen);
-    if (nextOpen) previewTheme(committedThemeRef.current);
-    else clearPreviewTheme(committedThemeRef.current);
-  }, [clearPreviewTheme, previewTheme]);
-  const handleValueChange = useCallback((newTheme: ThemeName | null) => {
-    if (newTheme) chooseTheme(newTheme);
-  }, [chooseTheme]);
+    // Keep pending in sync when theme changes outside the menu.
+    if (!open) pendingThemeRef.current = theme;
+  }, [theme, open]);
+
+  const chooseTheme = useCallback(
+    (next: ThemeName) => {
+      committedThemeRef.current = next;
+      pendingThemeRef.current = next;
+      setTheme(next);
+      setOpen(false);
+      clearPreviewTheme(next);
+      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+        navigator.vibrate(10);
+      }
+    },
+    [clearPreviewTheme, setTheme],
+  );
+
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen);
+      if (nextOpen) {
+        pendingThemeRef.current = committedThemeRef.current;
+        previewTheme(committedThemeRef.current);
+        return;
+      }
+      // Closing the menu commits whatever is centered on the roller —
+      // not the theme from when the menu opened.
+      const next = pendingThemeRef.current;
+      committedThemeRef.current = next;
+      setTheme(next);
+      clearPreviewTheme(next);
+    },
+    [clearPreviewTheme, previewTheme, setTheme],
+  );
+
+  const handlePreview = useCallback(
+    (next: ThemeName) => {
+      if (pendingThemeRef.current === next) return;
+      pendingThemeRef.current = next;
+      previewTheme(next);
+    },
+    [previewTheme],
+  );
 
   return (
-    <Select.Root<ThemeName> value={theme} open={open} onOpenChange={handleOpenChange} onValueChange={handleValueChange} modal={false}>
-      <Select.Trigger
-        type="button"
-        className={buttonClassName({ size: 'themeSelect' })}
-        aria-label="Select theme"
-        aria-expanded={open}
-      >
-        <span>{currentTheme.label}</span>
-        <ChevronDown size={16} strokeWidth={2} aria-hidden="true" />
-      </Select.Trigger>
-      <Select.Portal>
-        <Select.Positioner side="bottom" align="end" sideOffset={1.5} alignItemWithTrigger={false} className="z-30">
-          <Select.Popup
-            data-theme={theme}
-            onMouseLeave={() => clearPreviewTheme(committedThemeRef.current)}
-            className="max-h-[min(70vh,32rem)] w-40 overflow-y-auto rule rounded-[var(--radius)] bg-[var(--paper)] text-[var(--ink)] theme-shadow-lg"
-          >
-            <Select.List>
-              {themeOptions.map((option) => (
-                <ThemeMenuOption key={option.value} option={option} previewTheme={previewTheme} />
-              ))}
-            </Select.List>
-          </Select.Popup>
-        </Select.Positioner>
-      </Select.Portal>
+    <Select.Root<ThemeName>
+      value={theme}
+      open={open}
+      onOpenChange={handleOpenChange}
+      onValueChange={(next) => {
+        if (next) chooseTheme(next);
+      }}
+      modal={false}
+    >
+      <ThemeSwitcherTrigger open={open} current={committed} />
+      <ThemeSwitcherPanel
+        committedValue={theme}
+        onPreview={handlePreview}
+        onCommit={chooseTheme}
+      />
     </Select.Root>
   );
 }

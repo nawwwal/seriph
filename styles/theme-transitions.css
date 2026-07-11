@@ -1,0 +1,51 @@
+/*
+ * Theme switch — soft token cross-fade (no View Transitions).
+ * Spec: lib/motion/themeSwitchStoryboard.ts
+ *
+ * Only @property colors on <html> interpolate. Descendants using
+ * var(--paper)/var(--ink) re-resolve each frame — cheap + smooth.
+ */
+
+@import './theme-token-properties.css';
+
+html {
+  /* Commit default */
+  --theme-duration: 240ms;
+  --theme-ease: ease-in-out;
+}
+
+html[data-theme-preview='true'] {
+  --theme-duration: 200ms;
+  --theme-ease: ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  html[data-theme-preview='true'] {
+    --theme-duration: 0ms;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /*
+   * Transition the custom properties themselves (not background/color).
+   * That way every var(--paper) / var(--ink) use site-wide blends as one
+   * material — the cross-fade illusion — without per-node transition cost.
+   */
+  html {
+    transition:
+      --paper var(--theme-duration) var(--theme-ease),
+      --ink var(--theme-duration) var(--theme-ease),
+      --surface var(--theme-duration) var(--theme-ease),
+      --surface-muted var(--theme-duration) var(--theme-ease),
+      --on-surface var(--theme-duration) var(--theme-ease),
+      --muted var(--theme-duration) var(--theme-ease),
+      --shadow var(--theme-duration) var(--theme-ease),
+      --overlay var(--theme-duration) var(--theme-ease),
+      --focus var(--theme-duration) var(--theme-ease),
+      --success var(--theme-duration) var(--theme-ease),
+      --danger var(--theme-duration) var(--theme-ease),
+      --warning var(--theme-duration) var(--theme-ease),
+      --info var(--theme-duration) var(--theme-ease);
+  }
+}
