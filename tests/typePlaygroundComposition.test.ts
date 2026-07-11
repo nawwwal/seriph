@@ -4,6 +4,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import TypePlaygroundEditor from '@/components/font/TypePlaygroundEditor';
+import ElasticSliderValue from '@/components/ui/ElasticSliderValue';
 
 const repoRoot = process.cwd();
 const read = (file: string) => fs.readFileSync(path.join(repoRoot, file), 'utf8');
@@ -37,6 +38,27 @@ describe('unified type playground composition', () => {
     expect(controls).toContain('Reset');
     expect(controls).toContain('Copy CSS');
     expect(playground).toContain("setCopyLabel('Copied')");
+    expect(playground).toContain("setCopyLabel('Copy failed')");
+    expect(playground).toContain('copyTextWithFallback');
+  });
+
+  it('uses explicit em tracking and distinct numeric input names', () => {
+    const controls = read('components/font/TypePlaygroundControls.tsx');
+    const markup = renderToStaticMarkup(createElement(ElasticSliderValue, {
+      inputId: 'font-size', label: 'Font size', value: 48, min: 12, max: 200,
+      step: 1, unit: 'px', onChange: () => {},
+    }));
+
+    expect(controls).toContain("['em', 'px']");
+    expect(markup).toContain('aria-label="Font size value"');
+  });
+
+  it('cancels numeric edits on Escape without triggering a blur commit', () => {
+    const valueInput = read('components/ui/ElasticSliderValue.tsx');
+    const escapeBranch = valueInput.slice(valueInput.indexOf("event.key === 'Escape'"));
+
+    expect(escapeBranch).toContain('event.preventDefault()');
+    expect(escapeBranch.slice(0, escapeBranch.indexOf('inputMode'))).not.toContain('.blur()');
   });
 
   it('replaces both legacy detail testers with one correctly ordered playground', () => {

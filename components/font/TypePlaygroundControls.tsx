@@ -9,7 +9,7 @@ import TypePlaygroundStyleSelect from './TypePlaygroundStyleSelect';
 import type { FacePlaygroundState } from './typePlaygroundState';
 import { clampFontSize } from './typePlaygroundModel';
 import { FONT_SIZE_RANGE, LETTER_SPACING_RANGES, LINE_HEIGHT_RANGES,
-  convertLetterSpacing, letterSpacingDisplayValue, letterSpacingStoredValue,
+  convertLetterSpacing, convertLineHeight,
   type LetterSpacingMode, type LineHeightMode } from './typePlaygroundUnits';
 
 interface TypePlaygroundControlsProps {
@@ -28,14 +28,16 @@ export default function TypePlaygroundControls({
   onSelectFace, onPatch, onAxisChange, onReset, onCopy,
 }: TypePlaygroundControlsProps) {
   const spacingRange = LETTER_SPACING_RANGES[state.letterSpacingMode];
-  const spacingValue = letterSpacingDisplayValue(state.letterSpacingValue, state.letterSpacingMode);
   const setSpacingMode = (mode: LetterSpacingMode) => onPatch({
     letterSpacingMode: mode,
     letterSpacingValue: convertLetterSpacing(
       state.letterSpacingValue, state.letterSpacingMode, mode, state.fontSize
     ),
   });
-  const setLineHeightMode = (mode: LineHeightMode) => onPatch({ lineHeightMode: mode });
+  const setLineHeightMode = (mode: LineHeightMode) => onPatch({
+    lineHeightMode: mode,
+    lineHeightValue: convertLineHeight(state.lineHeightValue, state.lineHeightMode, mode, state.fontSize),
+  });
   return (
     <>
       <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
@@ -53,15 +55,15 @@ export default function TypePlaygroundControls({
           onChange={(fontSize) => onPatch({ fontSize: clampFontSize(fontSize) })} />
         <div>
           <div className="flex justify-end mb-1" role="group" aria-label="Letter spacing unit">
-            {(['%', 'px'] satisfies LetterSpacingMode[]).map((mode) => (
+            {(['em', 'px'] satisfies LetterSpacingMode[]).map((mode) => (
               <button type="button" key={mode} className={modeClass(state.letterSpacingMode === mode)}
                 aria-pressed={state.letterSpacingMode === mode} onClick={() => setSpacingMode(mode)}>{mode}</button>
             ))}
           </div>
           <TypePlaygroundRange id="playground-letter-spacing" label="Letter spacing"
-            {...spacingRange} value={spacingValue} unit={state.letterSpacingMode}
-            ariaValueText={`${spacingValue}${state.letterSpacingMode} letter spacing`}
-            onChange={(value) => onPatch({ letterSpacingValue: letterSpacingStoredValue(value, state.letterSpacingMode) })} />
+            {...spacingRange} value={state.letterSpacingValue} unit={state.letterSpacingMode}
+            ariaValueText={`${state.letterSpacingValue}${state.letterSpacingMode} letter spacing`}
+            onChange={(letterSpacingValue) => onPatch({ letterSpacingValue })} />
         </div>
         <div>
           <div className="flex justify-end mb-1" role="group" aria-label="Line height mode">

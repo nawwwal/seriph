@@ -1,5 +1,7 @@
+import type { Font, VariableAxis } from '@/models/font.models';
+
 export const DEFAULT_FONT_SIZE = 48;
-export const DEFAULT_LETTER_SPACING_MODE = '%' as const;
+export const DEFAULT_LETTER_SPACING_MODE = 'em' as const;
 export const DEFAULT_LETTER_SPACING_VALUE = 0;
 export const DEFAULT_LINE_HEIGHT_MODE = 'auto' as const;
 export const DEFAULT_LINE_HEIGHT_VALUE = 120;
@@ -7,7 +9,7 @@ export const DEFAULT_LINE_HEIGHT_VALUE = 120;
 export interface FacePlaygroundState {
   text: string;
   fontSize: number;
-  letterSpacingMode: 'px' | '%';
+  letterSpacingMode: 'px' | 'em';
   letterSpacingValue: number;
   lineHeightMode: 'auto' | '%' | 'px';
   lineHeightValue: number;
@@ -23,8 +25,15 @@ export function defaultSampleText(familyName: string): string {
   return `Type here to test ${familyName}. The quick brown fox jumps over the lazy dog.`;
 }
 
-export function isItalicFace(font: Pick<Font, 'subfamily' | 'style'>): boolean {
-  return /italic/i.test(`${font.subfamily} ${font.style}`);
+type FacePosture = Pick<Font, 'subfamily' | 'style' | 'metadata'> & { italic?: boolean };
+
+export function isItalicFace(font: FacePosture): boolean {
+  const metadata = font.metadata;
+  const canonicalStyle = [metadata.styleName, metadata.fontStyle]
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ');
+  return font.italic === true || metadata.italic === true || metadata.isItalic === true
+    || /italic|oblique/i.test(`${font.subfamily} ${font.style} ${canonicalStyle}`);
 }
 
 export function uniqueFacesById(fonts: Font[]): Font[] {
@@ -91,4 +100,3 @@ export function reconcilePlaygroundState(
   if (next.faces[previous.selectedFaceId]) next.selectedFaceId = previous.selectedFaceId;
   return next;
 }
-import type { Font, VariableAxis } from '@/models/font.models';

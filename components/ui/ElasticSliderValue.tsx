@@ -5,6 +5,7 @@ import { snapSliderValue } from './elasticSliderMath';
 
 interface ElasticSliderValueProps {
   inputId: string;
+  label: string;
   value: number;
   min: number;
   max: number;
@@ -20,6 +21,7 @@ function formatValue(value: number, step: number): string {
 
 export default function ElasticSliderValue({
   inputId,
+  label,
   value,
   min,
   max,
@@ -52,12 +54,12 @@ export default function ElasticSliderValue({
         onKeyDown={(event) => {
           if (event.key === 'Enter') event.currentTarget.blur();
           if (event.key === 'Escape') {
+            event.preventDefault();
             setDraft(null);
-            event.currentTarget.blur();
           }
         }}
         inputMode="decimal"
-        aria-label="Numeric value"
+        aria-label={`${label} value`}
         spellCheck={false}
       />
       {unit ? <span className="elastic-slider__unit">{unit}</span> : null}
