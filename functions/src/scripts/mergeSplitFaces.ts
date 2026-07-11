@@ -12,8 +12,12 @@ export function normalizeFace(
   face: FontFace
 ): { identity: ReturnType<typeof resolveCanonicalFontIdentity>; face: FontFace } {
   const identity = resolveCanonicalFontIdentity({
-    familyName: source.name,
-    subfamilyName: face.styleName || face.weightName,
+    familyName: face.meta?.familyName ?? source.name,
+    subfamilyName: face.meta?.subfamilyName ?? face.styleName ?? face.weightName,
+    preferredFamily: face.meta?.preferredFamily,
+    preferredSubfamily: face.meta?.preferredSubfamily,
+    wwsFamilyName: face.meta?.wwsFamilyName,
+    wwsSubfamilyName: face.meta?.wwsSubfamilyName,
     postScriptName: face.postScriptName,
     fullName: face.fullName,
     isVariable: face.isVariable,

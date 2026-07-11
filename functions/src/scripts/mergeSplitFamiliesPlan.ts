@@ -20,9 +20,9 @@ export function buildSplitFamilyMergePlan(families: FontFamilyDoc[]): SplitFamil
       const normalized = normalizeFace(family, face);
       const target = targetFor(targets, family, normalized.identity);
       if (!target.sourceSlugs.includes(family.slug)) target.sourceSlugs.push(family.slug);
-      if (family.slug !== target.slug && !target.aliases.includes(family.slug)) {
-        const sourceDocId = catalogFamilyDocIdFor(family);
-        target.aliases.push(family.slug);
+      const sourceDocId = catalogFamilyDocIdFor(family);
+      if (sourceDocId !== target.docId && !target.aliasDocIds.includes(sourceDocId)) {
+        if (family.slug !== target.slug && !target.aliases.includes(family.slug)) target.aliases.push(family.slug);
         target.aliasDocIds.push(sourceDocId);
         aliases.push({
           sourceSlug: family.slug,

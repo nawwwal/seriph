@@ -9,6 +9,7 @@ import {
 } from '@/lib/server/familyMutationTypes';
 import { cleanCatalogDoc, faceList, isRecord, lookupFamilies, unique, validateOwnedVisibleFamilies } from '@/lib/server/familyMutationUtils';
 import { mergeFaces } from '@/lib/server/familyMergeFaces';
+import { coverFaceFor, coverFaceIdFor } from '@/lib/server/familyShelfSummary';
 function mergedAxes(families: CatalogFamily[]): unknown[] | undefined {
   const axesByTag = new Map<string, unknown>();
   for (const family of families) {
@@ -45,16 +46,17 @@ export function buildFamilyMergePlan({
   const requestedAt = now.toISOString();
   const undoExpiresAt = new Date(now.getTime() + UNDO_WINDOW_MS).toISOString();
   const faces = mergeFaces(targetFamilyId, selected);
+  const coverFaceId = coverFaceIdFor(faces, target.coverFaceId);
   const targetDoc: CatalogFamily = {
     ...cleanCatalogDoc(target),
     id: targetFamilyId,
     slug: target.slug ?? targetFamilyId,
     faces,
     styleCount: faces.length,
+    isVariable: faces.some((face) => face.isVariable === true),
     axes: mergedAxes(selected.map((item) => item.data)),
-    coverFaceId: target.coverFaceId && faces.some((face) => face.id === target.coverFaceId)
-      ? target.coverFaceId
-      : faces.find((face) => face.weight === 400 && face.italic !== true)?.id ?? faces[0]?.id,
+    coverFaceId,
+    coverFace: coverFaceFor(faces, coverFaceId),
     status: 'ready',
     hidden: false,
     manualMerge: { version: MERGE_VERSION, mergeId, targetFamilyId, sourceFamilyIds: sourceIds, selectedFamilyIds: selectedIds, displayNamePending: true, requestedAt },
