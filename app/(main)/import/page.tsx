@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
-import { useRouter } from 'next/navigation';
+import AppShell from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/Button';
 import ImportFooter from '@/components/import/ImportFooter';
 import { ImportWorkspaceFrame, ImportWorkspaceLoading } from '@/components/import/ImportWorkspaceFrame';
@@ -15,7 +15,6 @@ const ImportWorkspace = dynamic(() => import('@/components/import/ImportWorkspac
 });
 
 export default function ImportPage() {
-  const router = useRouter();
   const { user, isLoading } = useAuth();
   const { open: openUploadCenter } = useUploads();
   const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(
@@ -24,44 +23,42 @@ export default function ImportPage() {
 
   if (!user && !isLoading) {
     return (
-      <div className="flex-1 min-h-0 w-full h-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto">
-        <div className="mt-8 p-8 rule rounded-[var(--radius)] max-w-xl">
-          <div className="text-xl font-bold">Sign in required</div>
-          <p className="mt-2">Sign in to add fonts to your library.</p>
+      <AppShell density="compact">
+        <div className="h-full overflow-auto p-6 sm:p-8 md:p-10">
+          <div className="max-w-xl rounded-[var(--radius)] rule p-8">
+            <div className="text-xl font-bold">Sign in required</div>
+            <p className="mt-2">Sign in to add fonts to your library.</p>
+          </div>
         </div>
-      </div>
+      </AppShell>
     );
   }
 
   return (
-      <div className="flex-1 min-h-0 w-full h-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto">
-        <header className="w-full rule-b pb-4 sm:pb-5 md:pb-6">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <h1 className="cap-tight uppercase font-black tracking-tight text-[clamp(56px,9.5vw,140px)] leading-[0.9]">
-              Import Fonts
-            </h1>
-            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-              <Button
-                onClick={openUploadCenter}
-              >
-                Upload Center
-              </Button>
-              <Button
-                onClick={() => router.push('/')}
-              >
-                ← Back to Shelf
-              </Button>
-            </div>
-          </div>
-          <p className="mt-3 sm:mt-4 max-w-3xl text-base sm:text-lg tracking-tight">
+    <AppShell
+      density="compact"
+      headerActions={
+        <div className="ml-auto flex h-full shrink-0 items-center">
+          <Button onClick={openUploadCenter} size="sm">
+            Upload Center
+          </Button>
+        </div>
+      }
+    >
+      <div className="h-full min-h-0 overflow-auto p-5 sm:p-6 md:p-8">
+        <header className="rule-b w-full pb-4 sm:pb-5">
+          <h1 className="cap-tight text-[clamp(40px,6vw,72px)] font-black uppercase leading-[0.9] tracking-tight">
+            Import Fonts
+          </h1>
+          <p className="mt-3 max-w-3xl text-base tracking-tight sm:text-lg">
             Drop a whole folder, loose files, or zips. Seriph unpacks everything, groups it into
-            families, and analyzes each face. Track live progress in the Upload Center.
+            families, and analyzes each face.
           </p>
         </header>
 
-        <main className="mt-6 sm:mt-8 md:mt-10">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tight">
+        <main className="mt-6 sm:mt-8">
+          <div className="mb-6 text-center">
+            <h2 className="text-2xl font-black uppercase tracking-tight md:text-3xl">
               Add your type
             </h2>
             <p className="mt-2 text-lg">
@@ -76,6 +73,7 @@ export default function ImportPage() {
         </main>
 
         <ImportFooter />
-    </div>
+      </div>
+    </AppShell>
   );
 }

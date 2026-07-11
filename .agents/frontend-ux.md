@@ -16,10 +16,12 @@ front-end surface. The existing editorial feel is the fixed point.
 
 ## App frame and detail parity
 
-- `AppFrame` is the single owner of `NavBar`. Route surfaces compose into it;
-  do not reintroduce route-local navigation shells. Logged-out/public routes
-  retain document scroll, while authenticated workspaces keep their bounded
-  internal scroll roots.
+- Signed-in workspaces use shared `AppShell` (logo, header search, optional
+  sidebar, canvas, status strip with uploads/theme/profile). `AppFrame` only
+  owns the fixed `h-screen` viewport for signed-in routes and shows `NavBar`
+  for public/logged-out surfaces. Do not reintroduce a second nav shell on
+  import/search/family. Logged-out routes retain document scroll; signed-in
+  routes keep bounded internal scroll roots inside `AppShell`.
 - Every catalog or search route resolves to the same family detail surface.
   The AI Insights section belongs above styles/tester and renders only validated
   enrichment: summary, voice, mood, best-for tags, pairing hints,
@@ -139,7 +141,10 @@ The catalogue and everything behind it are only shown after Firebase email/passw
 - Tokens live in `styles/themes.css` as `[data-theme="..."]` blocks; switched via
   `components/theme/ThemeProvider.tsx` (writes `data-theme` on `<html>`,
   persists to localStorage) and `ThemeSwitcher.tsx`.
-- Four themes: `ink` (default), `noir`, `sunset`, `ocean`.
+- Core themes: `ink` (default), `noir`, `sunset`, `ocean`, plus extended
+  Seriph presses and Variant-archive additions (`phosphor`…`cloister`). See
+  `lib/theme/themes.ts` for the full list. Existing presses are never replaced
+  when new archive palettes are added.
 - Core tokens: `--paper`, `--ink`, `--accent`, `--muted`, `--surface`, `--shadow`,
   `--focus`. Plus semantic status tokens added for theme-aware states:
   `--success`, `--danger`, `--warning`, `--info`, `--surface-muted`, `--on-surface`.
@@ -164,9 +169,10 @@ The catalogue and everything behind it are only shown after Firebase email/passw
 - **Adding a theme:** add a `[data-theme="name"]` block in `styles/themes.css`
   with the full token set, then add the option to `ThemeSwitcher.tsx`. ~12 lines.
 - Theme startup and previews must use the same storage contract:
-  `seriph-theme:v1` first, legacy `theme` only as a fallback. The theme popup is
-  pinned to the committed `data-theme` while hover/focus previews repaint the
-  page, so menu rows and the body do not clash during preview.
+  `seriph-theme:v1` first, legacy `theme` only as a fallback. Hover/focus
+  previews set `data-theme` on `<html>` so both the page and the theme panel
+  (which does not pin its own `data-theme`) repaint together. Swatches keep
+  per-option `data-theme` so each ink well still shows its own paper/ink.
 
 ## Motion and splash
 

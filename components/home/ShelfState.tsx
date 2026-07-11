@@ -58,7 +58,7 @@ export default function ShelfState({
   }, [hasMore, inView, isLoadingMore, onLoadMore]);
 
   return (
-    <main className="mt-6 sm:mt-8 md:mt-10 space-y-8">
+    <main className="space-y-8">
       {activeUploads.length > 0 && (
         <div className={SHELF_GRID_CLASS}>
           <AnimatePresence mode="popLayout">
