@@ -10,6 +10,7 @@ export {
   createPlaygroundState, defaultSampleText, initialAxisValues, isItalicFace,
   reconcilePlaygroundState, resetFaceState, selectDefaultFace, uniqueFacesById,
 } from './typePlaygroundState';
+export { buildPlaygroundFaceOptions, buildPlaygroundFaceRegistration } from './typePlaygroundStyles';
 
 export function clampFontSize(value: number): number {
   return Math.min(FONT_SIZE_RANGE.max, Math.max(FONT_SIZE_RANGE.min, value));
