@@ -1,13 +1,15 @@
 import { FieldValue, getFirestore, type Query, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import type { FontFamilyDoc } from "../models/catalog.models";
 import { FAMILIES_COLLECTION } from "../storage/familyStore";
+import { familySlug } from "../storage/canonicalize";
 import { buildSearchDocument } from "../search/searchDocument";
 import { currentSearchBackfillVersion } from "./backfillSearchVectors";
 import { mergedFamilyDoc } from "./mergeSplitFamilyDoc";
 import type { MergeArgs, SplitFamilyMergePlan } from "./mergeSplitFamiliesTypes";
-import { catalogDocIdArg } from "./mergeSplitFamiliesTypes";
+import { catalogDocIdArg, unique } from "./mergeSplitFamiliesTypes";
 
 const MERGE_VERSION = "2026-06-canonical-family-merge";
+const DEFAULT_MAX_BATCH_WRITES = 50;
 
 function familyFromSnapshot(doc: QueryDocumentSnapshot): FontFamilyDoc {
   return { ...doc.data(), id: doc.id, slug: (doc.data() as FontFamilyDoc).slug ?? doc.id } as FontFamilyDoc;
@@ -16,9 +18,11 @@ function familyFromSnapshot(doc: QueryDocumentSnapshot): FontFamilyDoc {
 export async function listCatalogFamilies(args: MergeArgs): Promise<FontFamilyDoc[]> {
   const db = getFirestore();
   if (args.familyIds?.length) {
-    const refs = args.familyIds.map((id) => db.collection(FAMILIES_COLLECTION).doc(catalogDocIdArg(id, args.ownerId)));
+    const ids = unique(args.familyIds.flatMap((id) => [catalogDocIdArg(id, args.ownerId), id.trim(), familySlug(id)]));
+    const refs = ids.map((id) => db.collection(FAMILIES_COLLECTION).doc(id));
     const snaps = await Promise.all(refs.map((ref) => ref.get()));
-    return snaps.filter((snap) => snap.exists).map((snap) => ({ ...snap.data(), id: snap.id, slug: (snap.data() as FontFamilyDoc).slug ?? snap.id }) as FontFamilyDoc);
+    const families = snaps.filter((snap) => snap.exists).map((snap) => ({ ...snap.data(), id: snap.id, slug: (snap.data() as FontFamilyDoc).slug ?? snap.id }) as FontFamilyDoc);
+    return [...new Map(families.map((family) => [family.id, family])).values()];
   }
 
   let query: Query = db.collection(FAMILIES_COLLECTION);
@@ -27,10 +31,15 @@ export async function listCatalogFamilies(args: MergeArgs): Promise<FontFamilyDo
   return (await query.get()).docs.map(familyFromSnapshot);
 }
 
-export async function applyPlan(plan: SplitFamilyMergePlan, force: boolean): Promise<void> {
+export async function applyPlan(
+  plan: SplitFamilyMergePlan,
+  force: boolean,
+  options: { maxBatchWrites?: number } = {}
+): Promise<void> {
   if (plan.conflicts.length && !force) throw new Error(`Refusing to apply ${plan.conflicts.length} face conflicts without --force`);
   const db = getFirestore();
   const searchVersion = currentSearchBackfillVersion();
+  const maxBatchWrites = options.maxBatchWrites ?? DEFAULT_MAX_BATCH_WRITES;
   let batch = db.batch();
   let writes = 0;
   const commit = async () => {
@@ -47,6 +56,11 @@ export async function applyPlan(plan: SplitFamilyMergePlan, force: boolean): Pro
     batch.set(ref, {
       ...doc,
       ...buildSearchDocument({ ...doc, canonicalMerge }, searchVersion),
+      hidden: false,
+      mergedInto: FieldValue.delete(),
+      aliasOf: FieldValue.delete(),
+      mergedIntoId: FieldValue.delete(),
+      aliasOfId: FieldValue.delete(),
       enrichment: FieldValue.delete(),
       text_vec: FieldValue.delete(),
       mood_vec: FieldValue.delete(),
@@ -81,7 +95,7 @@ export async function applyPlan(plan: SplitFamilyMergePlan, force: boolean): Pro
       }, { merge: true });
       writes += 1;
     }
-    if (writes > 400) await commit();
+    if (writes >= maxBatchWrites) await commit();
   }
   await commit();
 }
