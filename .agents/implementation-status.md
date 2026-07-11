@@ -142,6 +142,28 @@ Live endpoints:
   `http://localhost:3000` returned `/api/v1/uploads/active` HTTP 200 with
   `{"ingests":[]}` and emitted no new console errors. `npm run build` passed.
 
+## OpenType family metadata repair (local/live data, 2026-07-01)
+
+- Family grouping now treats OpenType typographic names as the source of truth:
+  name-table preferred family/subfamily fields are stored on `face.meta` during
+  ingest and are trusted ahead of legacy family/subfamily strings. Legacy
+  suffix repair remains only as a fallback for old records without preferred
+  names.
+- `merge:split-families --reparseOriginals` reparses each face's original font
+  binary before planning a merge, so existing degraded catalog records are
+  repaired from the actual font metadata instead of filename/name-word guesses.
+  The planner now targets the owner-scoped canonical document and hides legacy
+  same-slug duplicate docs as aliases after merging their faces.
+- Live repair was applied for Aeonik Pro and Audacious. The actual binaries
+  report `preferredFamily: "Aeonik Pro"` for Light/Black/Medium/Thin/Air and
+  `preferredFamily: "Audacious"` for Black/Medium/SemiBold/Display cuts. Current
+  visible owner-scoped docs are `aeonik-pro` with 16 faces and `audacious` with
+  20 faces; legacy split/duplicate docs are hidden aliases.
+- Verification: focused Functions tests for canonical identity, split-family
+  merge planning, original-binary reparsing, and duplicate-doc reconciliation
+  pass; `npm run lint:lines`, `npm run lint --prefix functions`, and
+  metadata-based live dry runs completed with zero conflicts before apply.
+
 ## Shelf stats and loading performance (local, 2026-06-30)
 
 - Top-row shelf stats are no longer derived from the loaded infinite-scroll
