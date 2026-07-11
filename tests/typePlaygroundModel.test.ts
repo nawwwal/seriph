@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Font } from '@/models/font.models';
-import {
-  clampFontSize,
-  createPlaygroundState,
-  resetFaceState,
-  selectDefaultFace,
-  serializePlaygroundCss,
-  uniqueFacesById,
-} from '@/components/font/typePlaygroundModel';
+import { clampFontSize, createPlaygroundState, resetFaceState, selectDefaultFace,
+  serializePlaygroundCss, uniqueFacesById } from '@/components/font/typePlaygroundModel';
 import { convertLetterSpacing } from '@/components/font/typePlaygroundUnits';
 
 function font(overrides: Partial<Font> = {}): Font {
