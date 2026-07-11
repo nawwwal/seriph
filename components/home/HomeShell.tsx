@@ -14,25 +14,25 @@ export default function HomeShell({
   statusStrip,
 }: HomeShellProps) {
   return (
-    <section data-home-shell className="flex-1 min-h-0 w-full overflow-hidden p-5">
-      <div className="rule flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--radius)] bg-[var(--paper)]">
+    <section data-home-shell className="flex-1 min-h-0 min-w-0 w-full overflow-hidden p-5">
+      <div className="rule flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-[13px] bg-[var(--paper)]">
         <header
           data-home-header
-          className="rule-b flex shrink-0 flex-wrap items-center gap-4 px-5 py-3 md:h-24 md:flex-nowrap md:py-0"
+          className="rule-b flex h-24 shrink-0 items-center px-6"
         >
           <Link href="/" scroll={false} aria-label="Seriph shelf" className="shrink-0 theme-focus-ring">
-            <SeriphLogo className="w-28 md:w-36" label="Seriph" />
+            <SeriphLogo className="w-[193px]" label="Seriph" />
           </Link>
         </header>
-        <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[368px_minmax(0,1fr)] md:grid-rows-1">
-          <aside data-alphabet-rail className="border-b border-[var(--ink)] md:border-b-0 md:border-r">
+        <div className="grid min-h-0 min-w-0 w-full flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[368px_minmax(0,1fr)] md:grid-rows-1">
+          <aside data-alphabet-rail className="min-w-0 w-full overflow-hidden border-b border-[var(--ink)] md:border-b-0 md:border-r">
             {alphabetRail}
           </aside>
-          <div data-catalog-canvas className="min-h-0 min-w-0 overflow-hidden">
+          <div data-catalog-canvas className="min-h-0 min-w-0 w-full max-w-full overflow-hidden">
             {catalogCanvas}
           </div>
         </div>
-        <footer data-status-strip className="border-t border-[var(--ink)] min-h-10 shrink-0">
+        <footer data-status-strip className="h-10 min-h-10 shrink-0 overflow-hidden border-t border-[var(--ink)] md:h-10">
           {statusStrip}
         </footer>
       </div>

@@ -64,7 +64,7 @@ export default function HomePageContent({ user }: { user: User }) {
         alphabetRail={<AlphabetRail selected={selectedInitial} onSelect={setSelectedInitial} onImport={handleAddFonts} uploadCount={uploadCount} onOpenUploads={openUploadCenter} />}
         statusStrip={<ShelfStats stats={shelf.stats} pendingCount={uploadCount} />}
         catalogCanvas={(
-          <div ref={shelfScrollRef} data-shelf-scroll-root="true" onPointerDownCapture={saveShelfScroll} onClickCapture={saveShelfScroll} onKeyDownCapture={saveShelfScroll} className="h-full overflow-auto p-4 sm:p-6">
+          <div ref={shelfScrollRef} data-shelf-scroll-root="true" onPointerDownCapture={saveShelfScroll} onClickCapture={saveShelfScroll} onKeyDownCapture={saveShelfScroll} className="h-full min-w-0 w-full max-w-full overflow-x-hidden overflow-y-auto p-4 sm:p-6">
             {mutations.selectionState.mode === 'selecting' && (
               <ShelfSelectionBar selectedCount={mutations.selectedFamilyIds.length} canMerge={mutations.selectionCanMerge(mutations.selectionState)} isMutating={mutations.isMutating} error={mutations.mutationError} onMerge={mutations.mergeSelected} onDelete={() => mutations.requestDelete(mutations.selectedFamilyIds)} onCancel={mutations.cancelSelection} />
             )}

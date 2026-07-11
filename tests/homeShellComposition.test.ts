@@ -41,23 +41,38 @@ describe('signed-in home shell composition', () => {
 
     expect(shell).toContain("@/components/brand/SeriphLogo");
     expect(shell).toContain('data-home-shell');
-    expect(shell).toContain('data-home-header');
     expect(shell).toContain('data-alphabet-rail');
     expect(shell).toContain('data-catalog-canvas');
     expect(shell).toContain('data-status-strip');
     expect(shell).toContain('p-5');
     expect(shell).toContain('md:grid-cols-[368px_minmax(0,1fr)]');
-    expect(shell).toContain('md:h-24');
-    expect(shell).toContain('min-h-10');
+    expect(shell).toContain('h-24');
+    expect(shell).toContain('w-[193px]');
+    expect(shell).toContain('md:h-10');
   });
 
-  it('moves alphabet controls from a horizontal scroller to a desktop rail', () => {
+  it('renders the exact five-column alphabet matrix with a separate All control', () => {
     const rail = read('components/home/AlphabetRail.tsx');
 
-    expect(rail).toContain('ALPHABET_INITIALS');
+    expect(rail).toContain('ALPHABET_INITIALS.slice(1)');
+    expect(rail).toContain('Browse by alphabet');
+    expect(rail).toContain('grid-cols-5');
+    expect(rail).toContain('aspect-square');
     expect(rail).toContain('overflow-x-auto');
-    expect(rail).toContain('md:overflow-y-auto');
     expect(rail).toContain('aria-pressed');
+  });
+
+  it('contains mobile rail and catalog widths inside the clipped shell', () => {
+    const home = read('components/home/HomePageContent.tsx');
+    const shell = read('components/home/HomeShell.tsx');
+    const rail = read('components/home/AlphabetRail.tsx');
+
+    for (const source of [home, shell, rail]) {
+      expect(source).toContain('min-w-0');
+      expect(source).toContain('w-full');
+    }
+    expect(home).toContain('max-w-full');
+    expect(rail).toContain('max-w-full');
   });
 
   it('keeps the header logo-only and moves account controls to status', () => {
