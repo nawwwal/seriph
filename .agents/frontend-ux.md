@@ -35,6 +35,13 @@ front-end surface. The existing editorial feel is the fixed point.
 
 ## Shelf loading and stats
 
+- A catalog card represents a canonical font family, not a filename-derived
+  uploaded file group. Server ingest and repair scripts must prefer OpenType
+  typographic family/subfamily names (`preferredFamily`/`preferredSubfamily`)
+  stored in `face.meta`; legacy family/subfamily strings are fallback data only.
+  If the original font metadata says `Audacious Display Medium` belongs to
+  typographic family `Audacious`, the shelf should show one Audacious family
+  with `Display Medium` as a face style.
 - The logged-in shelf uses `useInfiniteFamilies()` for the paginated card grid
   and `GET /api/v1/families/stats` for aggregate stats. Do not derive top-row
   Families, Styles, or Recently Added from the currently loaded page; infinite
