@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { filterFamiliesByInitial } from '@/components/home/alphabetFilter';
+import {
+  deriveAvailableInitials,
+  filterFamiliesByInitial,
+  toggleAlphabetInitial,
+} from '@/components/home/alphabetFilter';
 
 const families = [
   { id: 'z', name: 'Zed' },
@@ -30,5 +34,15 @@ describe('home alphabet filter', () => {
   it('does not place non-letter family names under a letter', () => {
     expect(filterFamiliesByInitial(families, 'A')).not.toContain(families[2]);
     expect(filterFamiliesByInitial(families, 'Z')).not.toContain(families[2]);
+  });
+
+  it('derives represented initials once in alphabet order', () => {
+    expect(deriveAvailableInitials(families)).toEqual(['A', 'Z']);
+    expect(deriveAvailableInitials([{ name: '123 Sans' }])).toEqual([]);
+  });
+
+  it('toggles a repeated letter back to ALL', () => {
+    expect(toggleAlphabetInitial('A', 'A')).toBe('ALL');
+    expect(toggleAlphabetInitial('A', 'Z')).toBe('Z');
   });
 });
