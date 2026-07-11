@@ -61,9 +61,10 @@ function cssString(value: string): string {
 
 function cssFormat(font: Font, src: string): string {
   const extension = (src.split('?')[0].split('.').pop() || '').toLowerCase();
-  if (extension === 'ttf' || font.format === 'TTF') return 'truetype';
-  if (extension === 'otf' || font.format === 'OTF') return 'opentype';
-  return extension || font.format.toLowerCase();
+  if (extension === 'ttf') return 'truetype';
+  if (extension === 'otf') return 'opentype';
+  if (extension) return extension;
+  return font.format === 'TTF' ? 'truetype' : font.format === 'OTF' ? 'opentype' : font.format.toLowerCase();
 }
 
 export function buildPlaygroundFaceRegistration(
