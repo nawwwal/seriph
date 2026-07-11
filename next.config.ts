@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   // ERR_REQUIRE_ESM. Marking it external lets Node load it natively (Node 22
   // supports require(ESM)), which is the supported way to use the Admin SDK.
   serverExternalPackages: ["firebase-admin"],
+  // Shell chrome uses Framer Motion (see lib/motion/catalogDetailStoryboard.ts).
+  // View Transitions experimental flag intentionally off.
 };
 
 export default nextConfig;
