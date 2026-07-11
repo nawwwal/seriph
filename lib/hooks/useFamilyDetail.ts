@@ -60,10 +60,14 @@ export function useFamilyDetail(familyId: string | undefined) {
     if (authLoading || !user || !familyId) return;
     let isActive = true;
     void loadFamilyDetailWithRefresh(
-      { uid: user.uid, familyId, getIdToken: () => user.getIdToken() },
+      {
+        uid: user.uid,
+        familyId,
+        getIdToken: (forceRefresh) => user.getIdToken(Boolean(forceRefresh)),
+      },
       (outcome) => {
         if (!isActive) return;
-        if (outcome.kind === 'load-error') {
+        if (outcome.kind === 'load-error' && !/unauthorized/i.test(outcome.error.message)) {
           console.error(`Error fetching font family ${familyId}:`, outcome.error);
         }
         setRequest({ uid: user.uid, familyId, outcome });
