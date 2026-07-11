@@ -54,11 +54,32 @@ vi.mock('@/components/home/useHomeShelfView', () => ({
   }),
 }));
 
-const slot = (name: string) => () => createElement('div', { 'data-slot': name });
-vi.mock('@/components/home/AlphabetRail', () => ({ default: slot('alphabet') }));
-vi.mock('@/components/home/ShelfStats', () => ({ default: slot('status') }));
-vi.mock('@/components/home/HomeCatalogCanvas', () => ({ default: slot('catalog') }));
+function SlotMock({ name }: { name: string }) {
+  return createElement('div', { 'data-slot': name });
+}
+SlotMock.displayName = 'SlotMock';
+
+vi.mock('@/components/home/AlphabetRail', () => ({
+  default: function AlphabetRailMock() {
+    return createElement(SlotMock, { name: 'alphabet' });
+  },
+}));
+vi.mock('@/components/home/ShelfStats', () => ({
+  default: function ShelfStatsMock() {
+    return createElement(SlotMock, { name: 'status' });
+  },
+}));
+vi.mock('@/components/home/HomeCatalogCanvas', () => ({
+  default: function HomeCatalogCanvasMock() {
+    return createElement(SlotMock, { name: 'catalog' });
+  },
+}));
 vi.mock('@/components/layout/AppStatusStrip', () => ({
-  default: ({ children }: { children?: React.ReactNode }) =>
-    createElement('div', { 'data-testid': 'status-strip' }, children),
+  default: function AppStatusStripMock({
+    children,
+  }: {
+    children?: React.ReactNode;
+  }) {
+    return createElement('div', { 'data-testid': 'status-strip' }, children);
+  },
 }));

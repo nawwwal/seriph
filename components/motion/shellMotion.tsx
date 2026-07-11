@@ -23,11 +23,13 @@ export function useShellMove(to: ShellSnap) {
   const reduce = useReducedMotion();
   const params = useShellMotionParams();
   const from = useMemo(() => peekShellSnap(), []);
-  const changed = shellGeometryChanged(from, to);
+  const compact = to.compact;
+  const railOpen = to.railOpen;
+  const changed = shellGeometryChanged(from, { compact, railOpen });
 
   useEffect(() => {
-    commitShellSnap(to);
-  }, [to.compact, to.railOpen]);
+    commitShellSnap({ compact, railOpen });
+  }, [compact, railOpen]);
 
   if (reduce || !changed) return { duration: 0 };
   return {
