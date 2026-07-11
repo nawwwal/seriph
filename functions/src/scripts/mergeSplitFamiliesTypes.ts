@@ -8,6 +8,10 @@ export interface MergeArgs {
   familyIds?: string[];
   limit?: number;
   force: boolean;
+  skipConflicts: boolean;
+  reparseOriginals: boolean;
+  reparseConcurrency?: number;
+  batchWrites?: number;
 }
 
 export interface AliasPlan {
@@ -54,10 +58,20 @@ export function catalogDocIdArg(value: string, ownerId: string | undefined): str
 }
 
 export function parseMergeArgs(argv: string[]): MergeArgs {
-  const args: MergeArgs = { apply: false, force: false };
+  const args: MergeArgs = { apply: false, force: false, skipConflicts: false, reparseOriginals: false };
   for (const arg of argv) {
     if (arg === "--apply") args.apply = true;
     else if (arg === "--force") args.force = true;
+    else if (arg === "--skipConflicts") args.skipConflicts = true;
+    else if (arg === "--reparseOriginals") args.reparseOriginals = true;
+    else if (arg.startsWith("--reparseConcurrency=")) {
+      const concurrency = Number(arg.slice("--reparseConcurrency=".length));
+      if (Number.isInteger(concurrency) && concurrency > 0) args.reparseConcurrency = concurrency;
+    }
+    else if (arg.startsWith("--batchWrites=")) {
+      const batchWrites = Number(arg.slice("--batchWrites=".length));
+      if (Number.isInteger(batchWrites) && batchWrites > 0) args.batchWrites = batchWrites;
+    }
     else if (arg.startsWith("--ownerId=")) args.ownerId = arg.slice("--ownerId=".length);
     else if (arg.startsWith("--familyIds=")) args.familyIds = unique(arg.slice("--familyIds=".length).split(","));
     else if (arg.startsWith("--limit=")) {

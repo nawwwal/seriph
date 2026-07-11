@@ -8,9 +8,9 @@ export function targetFor(
   source: FontFamilyDoc,
   identity: ReturnType<typeof resolveCanonicalFontIdentity>
 ): MergeTarget {
-  const docId = catalogFamilyDocId(source.ownerId, identity.slug);
-  const existing = targets.get(docId);
-  const isCanonicalSource = source.slug === identity.slug || source.id === docId;
+  const canonicalDocId = catalogFamilyDocId(source.ownerId, identity.slug);
+  const isCanonicalSource = source.slug === identity.slug || source.id === canonicalDocId;
+  const existing = targets.get(canonicalDocId);
   if (existing) {
     if (isCanonicalSource && !existing.base) {
       existing.base = source;
@@ -21,7 +21,7 @@ export function targetFor(
   }
 
   const target: MergeTarget = {
-    docId,
+    docId: canonicalDocId,
     slug: identity.slug,
     name: identity.familyName,
     fileBase: identity.fileBase || familyFileBase(identity.familyName),
@@ -33,6 +33,6 @@ export function targetFor(
     faces: [],
     base: isCanonicalSource ? source : undefined,
   };
-  targets.set(docId, target);
+  targets.set(canonicalDocId, target);
   return target;
 }

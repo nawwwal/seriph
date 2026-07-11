@@ -42,8 +42,10 @@ export interface CatalogFamily {
   aliasOf?: string;
   faces?: CatalogFace[];
   styleCount?: number;
+  isVariable?: boolean;
   axes?: unknown[];
   coverFaceId?: string;
+  coverFace?: Record<string, unknown>;
   manualMerge?: Record<string, unknown>;
   [key: string]: unknown;
 }
