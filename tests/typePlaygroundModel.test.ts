@@ -50,14 +50,14 @@ describe('type playground model', () => {
   it('converts line height and clamps it to the target mode range', () => {
     expect(convertLineHeight(300, '%', 'px', 48)).toBe(144);
     expect(convertLineHeight(200, 'px', '%', 48)).toBe(300);
-    expect(convertLineHeight(120, 'auto', 'px', 48)).toBe(58);
+    expect(convertLineHeight(100, '%', 'px', 48)).toBe(48);
   });
 
-  it('stores Auto, percent, and px line-height modes per face', () => {
+  it('defaults line height to 100% (no auto mode)', () => {
     const state = createPlaygroundState([font()], 'Inter').faces.regular;
 
-    expect(state).toMatchObject({ lineHeightMode: 'auto', lineHeightValue: 120,
-      letterSpacingMode: 'em', letterSpacingValue: 0, fontSize: 48 });
+    expect(state).toMatchObject({ lineHeightMode: '%', lineHeightValue: 100,
+      letterSpacingMode: 'em', letterSpacingValue: 0, fontSize: 80 });
   });
 
   it('serializes only playground CSS declarations with valid relative tracking', () => {
@@ -85,8 +85,8 @@ describe('type playground model', () => {
     expect(serializePlaygroundCss({
       familyName: 'Inter',
       face: font(),
-      state: { ...state, lineHeightMode: 'auto', axisValues: {} },
-    })).toContain('line-height: normal;');
+      state: { ...state, lineHeightMode: '%', lineHeightValue: 100, axisValues: {} },
+    })).toContain('line-height: 100%;');
   });
 
   it('resets text, metrics, and every axis to declared defaults', () => {
@@ -110,6 +110,6 @@ describe('type playground model', () => {
 
     expect(refreshed.selectedFaceId).toBe('regular');
     expect(refreshed.faces.regular).toMatchObject({ text: 'Keep me', fontSize: 72 });
-    expect(refreshed.faces.bold).toMatchObject({ fontSize: 48, lineHeightMode: 'auto' });
+    expect(refreshed.faces.bold).toMatchObject({ fontSize: 80, lineHeightMode: '%', lineHeightValue: 100 });
   });
 });

@@ -48,10 +48,14 @@ describe('type playground fixed-face styles', () => {
     expect(italic?.rule).toContain('font-style: italic');
   });
 
-  it('keeps the line-height noun visible in Auto mode', () => {
-    const controls = fs.readFileSync(path.join(process.cwd(), 'components/font/TypePlaygroundControls.tsx'), 'utf8');
+  it('uses % / px line-height units with no Auto mode', () => {
+    const lineHeight = fs.readFileSync(
+      path.join(process.cwd(), 'components/font/typePlaygroundLineHeight.tsx'),
+      'utf8',
+    );
 
-    expect(controls).toContain('data-line-height-mode="auto"');
-    expect(controls).toContain('>Line height</span>');
+    expect(lineHeight).not.toContain('auto');
+    expect(lineHeight).toContain("['%', 'px']");
+    expect(lineHeight).toContain('Line height');
   });
 });

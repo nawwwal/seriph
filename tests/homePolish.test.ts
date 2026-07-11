@@ -23,11 +23,11 @@ describe('home visual polish', () => {
     expect(grid).not.toContain('lg:grid-cols-3');
   });
 
-  it('uses dynamic letters and one full-width Import action', () => {
+  it('uses a full A–Z matrix and one full-width Import action', () => {
     const rail = read('components/home/AlphabetRail.tsx');
 
-    expect(rail).toContain('availableInitials');
-    expect(rail).toContain('availableInitials.length > 0');
+    expect(rail).toContain('LETTER_INITIALS');
+    expect(rail).toContain('presentInitials');
     expect(rail).toContain('className="w-full');
     expect(rail).not.toContain('Browse by alphabet');
     expect(rail).not.toContain('>All</button>');
