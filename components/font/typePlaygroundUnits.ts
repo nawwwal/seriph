@@ -1,5 +1,5 @@
 export type LetterSpacingMode = 'px' | 'em';
-export type LineHeightMode = 'auto' | '%' | 'px';
+export type LineHeightMode = '%' | 'px';
 
 export const FONT_SIZE_RANGE = { min: 12, max: 200, step: 1 } as const;
 export const LETTER_SPACING_RANGES = {
@@ -36,9 +36,9 @@ export function convertLineHeight(
   to: LineHeightMode,
   fontSize: number
 ): number {
-  if (to === 'auto') return value;
+  if (from === to) return normalizeRangeValue(value, LINE_HEIGHT_RANGES[to]);
   const safeFontSize = Math.max(fontSize, 1);
-  const ratio = from === 'auto' ? 1.2 : from === '%' ? value / 100 : value / safeFontSize;
+  const ratio = from === '%' ? value / 100 : value / safeFontSize;
   const converted = to === '%' ? ratio * 100 : ratio * safeFontSize;
   return normalizeRangeValue(converted, LINE_HEIGHT_RANGES[to]);
 }
@@ -52,6 +52,5 @@ export function letterSpacingCss(value: number, mode: LetterSpacingMode): string
 }
 
 export function lineHeightCss(value: number, mode: LineHeightMode): string {
-  if (mode === 'auto') return 'normal';
   return `${formatCssNumber(value)}${mode}`;
 }

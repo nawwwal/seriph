@@ -1,104 +1,90 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import type { RefObject } from 'react';
 import type { FontFamily } from '@/models/font.models';
-import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
-import { useVariableFontFace } from '@/lib/hooks/useVariableFontFace';
+import TypePlaygroundActions from './TypePlaygroundActions';
 import TypePlaygroundControls from './TypePlaygroundControls';
 import TypePlaygroundEditor from './TypePlaygroundEditor';
-import { buildPlaygroundFaceRegistration, buildVariationSettings, isItalicFace, serializePlaygroundCss,
-  uniqueFacesById } from './typePlaygroundModel';
-import { createPlaygroundState, reconcilePlaygroundState, resetFaceState,
-  type FacePlaygroundState } from './typePlaygroundState';
+import TypePlaygroundStyleSelect from './TypePlaygroundStyleSelect';
+import {
+  buildVariationSettings,
+  isItalicFace,
+  serializePlaygroundCss,
+} from './typePlaygroundModel';
+import { resetFaceState } from './typePlaygroundState';
 import { letterSpacingCss, lineHeightCss } from './typePlaygroundUnits';
+import { copyTextWithFallback } from './typePlaygroundCopy';
+import { useTypePlayground } from './typePlaygroundHooks';
 
 interface TypePlaygroundProps {
   family: FontFamily;
   testerRef: RefObject<HTMLDivElement | null>;
 }
 
-async function copyTextWithFallback(text: string): Promise<boolean> {
-  try {
-    if (!navigator.clipboard?.writeText) throw new Error('Clipboard API unavailable');
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    const input = document.createElement('textarea');
-    input.value = text; input.style.position = 'fixed'; input.style.opacity = '0';
-    document.body.appendChild(input);
-    input.select();
-    try { return document.execCommand('copy'); }
-    catch { return false; }
-    finally { input.remove(); }
-  }
-}
-
 export default function TypePlayground({ family, testerRef }: TypePlaygroundProps) {
-  useRegisterFamilyFonts(family);
-  const fonts = useMemo(() => uniqueFacesById(family.fonts ?? []), [family.fonts]);
-  const [storedState, setStoredState] = useState(() => createPlaygroundState(fonts, family.name));
-  const state = useMemo(
-    () => reconcilePlaygroundState(storedState, fonts, family.name),
-    [family.name, fonts, storedState]
-  );
-  const [copyLabel, setCopyLabel] = useState('Copy CSS');
-  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const selectedFace = fonts.find((font) => font.id === state.selectedFaceId) ?? fonts[0];
-  const faceState = selectedFace
-    ? state.faces[selectedFace.id] ?? resetFaceState(selectedFace, family.name)
-    : undefined;
-  const axes = selectedFace?.isVariable ? selectedFace.variableAxes ?? [] : [];
-  const variableFamily = useVariableFontFace(selectedFace, family.name, axes.length > 0);
-  const fixedRegistration = useMemo(() => selectedFace && !selectedFace.isVariable
-    ? buildPlaygroundFaceRegistration(family.name, selectedFace) : null,
-  [family.name, selectedFace]);
-
-  useEffect(() => () => {
-    if (copyTimer.current) clearTimeout(copyTimer.current);
-  }, []);
-  useEffect(() => {
-    if (!fixedRegistration) return;
-    const style = document.createElement('style');
-    style.id = fixedRegistration.styleId; style.textContent = fixedRegistration.rule;
-    document.head.appendChild(style);
-    return () => style.remove();
-  }, [fixedRegistration]);
-
+  const pg = useTypePlayground(family);
+  const { selectedFace, faceState, axes, fonts } = pg;
   if (!selectedFace || !faceState) return null;
-  const patchFace = (patch: Partial<FacePlaygroundState>) => setStoredState((current) => {
-    const reconciled = reconcilePlaygroundState(current, fonts, family.name);
-    const currentFace = reconciled.faces[selectedFace.id] ?? faceState;
-    return { ...reconciled, faces: {
-      ...reconciled.faces, [selectedFace.id]: { ...currentFace, ...patch },
-    } };
-  });
-  const copyCss = async () => {
-    const css = serializePlaygroundCss({ familyName: family.name, face: selectedFace, state: faceState });
-    const copied = await copyTextWithFallback(css);
-    if (copied) setCopyLabel('Copied');
-    else setCopyLabel('Copy failed');
-    if (copyTimer.current) clearTimeout(copyTimer.current);
-    copyTimer.current = setTimeout(() => setCopyLabel('Copy CSS'), 1_600);
-  };
+
   const variations = buildVariationSettings(axes, faceState.axisValues);
+  const cssFamily = axes.length
+    ? `'${pg.variableFamily}'`
+    : pg.fixedRegistration
+      ? `'${pg.fixedRegistration.cssFamily}'`
+      : family.name;
+
+  const copyCss = async () => {
+    const css = serializePlaygroundCss({
+      familyName: family.name,
+      face: selectedFace,
+      state: faceState,
+    });
+    pg.flashCopyLabel(await copyTextWithFallback(css));
+  };
+
+  // Toolbar (style + actions) → specimen → sliders.
   return (
-    <div ref={testerRef}>
+    <div ref={testerRef} className="mt-8">
+      <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+        <TypePlaygroundStyleSelect
+          fonts={fonts}
+          value={selectedFace.id}
+          onChange={pg.selectFace}
+        />
+        <div className="ml-auto">
+          <TypePlaygroundActions
+            copyLabel={pg.copyLabel}
+            onReset={() => pg.patchFace(resetFaceState(selectedFace, family.name))}
+            onCopy={() => void copyCss()}
+          />
+        </div>
+      </div>
+      <TypePlaygroundEditor
+        value={faceState.text}
+        onChange={(text) => pg.patchFace({ text })}
+        fontFamily={cssFamily}
+        fontWeight={
+          axes.length
+            ? Math.round(faceState.axisValues.wght ?? selectedFace.weight)
+            : selectedFace.weight
+        }
+        fontStyle={axes.length ? 'normal' : isItalicFace(selectedFace) ? 'italic' : 'normal'}
+        fontSize={faceState.fontSize}
+        letterSpacing={letterSpacingCss(faceState.letterSpacingValue, faceState.letterSpacingMode)}
+        lineHeight={lineHeightCss(faceState.lineHeightValue, faceState.lineHeightMode)}
+        fontVariationSettings={variations}
+        familyId={family.id}
+      />
       <section className="mt-6">
-        <h2 className="uppercase font-black text-2xl sm:text-3xl rule-b pb-4">Type Playground</h2>
-        <div className="mt-6 rule p-4 sm:p-6 rounded-[var(--radius)]">
-          <TypePlaygroundControls fonts={fonts} selectedFace={selectedFace} state={faceState}
-            axes={axes} copyLabel={copyLabel} onSelectFace={(selectedFaceId) => setStoredState((current) => ({
-              ...reconcilePlaygroundState(current, fonts, family.name), selectedFaceId,
-            }))}
-            onPatch={patchFace} onAxisChange={(tag, value) => patchFace({ axisValues: { ...faceState.axisValues, [tag]: value } })}
-            onReset={() => patchFace(resetFaceState(selectedFace, family.name))} onCopy={() => void copyCss()}>
-            <TypePlaygroundEditor value={faceState.text} onChange={(text) => patchFace({ text })}
-              fontFamily={axes.length ? `'${variableFamily}'` : fixedRegistration ? `'${fixedRegistration.cssFamily}'` : family.name}
-              fontWeight={axes.length ? Math.round(faceState.axisValues.wght ?? selectedFace.weight) : selectedFace.weight}
-              fontStyle={axes.length ? 'normal' : isItalicFace(selectedFace) ? 'italic' : 'normal'}
-              fontSize={faceState.fontSize} letterSpacing={letterSpacingCss(faceState.letterSpacingValue, faceState.letterSpacingMode)}
-              lineHeight={lineHeightCss(faceState.lineHeightValue, faceState.lineHeightMode)} fontVariationSettings={variations} />
-          </TypePlaygroundControls>
+        <div className="rounded-[var(--radius)] rule p-4 sm:p-6">
+          <TypePlaygroundControls
+            state={faceState}
+            axes={axes}
+            onPatch={pg.patchFace}
+            onAxisChange={(tag, value) =>
+              pg.patchFace({ axisValues: { ...faceState.axisValues, [tag]: value } })
+            }
+          />
         </div>
       </section>
     </div>
