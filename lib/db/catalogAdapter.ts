@@ -60,7 +60,10 @@ export function mapCatalogDoc(data: CatalogRecord, id: string): FontFamily {
   const enrichment = mapEnrichment(enrichmentRecord);
   const category = text(data, 'category') ?? '';
   const slug = text(data, 'slug') ?? id;
-  const moods = textArray(enrichmentRecord.moods);
+  const moods = enrichment.moods ?? [];
+  const useCases = enrichment.useCases ?? [];
+  const pairingHints = enrichment.pairingHints ?? [];
+  const voice = enrichment.voice;
   return {
     id: slug,
     name: text(data, 'name') ?? id,
@@ -68,13 +71,15 @@ export function mapCatalogDoc(data: CatalogRecord, id: string): FontFamily {
     ownerId: text(data, 'ownerId'),
     foundry: text(data, 'foundry'),
     description: enrichment.summary ?? '',
-    tags: moods?.slice(0, 6) ?? [],
+    tags: [...moods, ...useCases].slice(0, 10),
     classification: CATEGORY_TO_CLASS[category] || 'Sans Serif',
     metadata: {
-      foundry: text(data, 'foundry'),
+      foundry: text(data, 'foundry') ?? text(data, 'designer'),
       subClassification: enrichment.classification,
-      moods,
-      useCases: textArray(enrichmentRecord.useCases),
+      moods: moods.length ? moods : undefined,
+      useCases: useCases.length ? useCases : undefined,
+      similarFamilies: pairingHints.length ? pairingHints : undefined,
+      technicalCharacteristics: voice ? [voice] : undefined,
       enrichment,
     },
     fonts,
