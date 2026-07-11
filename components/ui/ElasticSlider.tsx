@@ -1,6 +1,9 @@
 'use client';
 
-import { useCallback, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
+import {
+  useCallback, useRef, useState,
+  type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode,
+} from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import ElasticSliderValue from './ElasticSliderValue';
 import { keyboardSliderValue, pointerValue, snapSliderValue, valueToPercentage } from './elasticSliderMath';
@@ -14,10 +17,12 @@ export interface ElasticSliderProps {
   min: number; max: number; step: number; value: number;
   onChange: (value: number) => void;
   unit?: string; ariaLabel?: string; ariaValueText?: string;
+  /** Rendered immediately left of the numeric value field (e.g. em/px toggles). */
+  valuePrefix?: ReactNode;
 }
 
 export default function ElasticSlider({
-  id, label, min, max, step, value, onChange, unit, ariaLabel, ariaValueText,
+  id, label, min, max, step, value, onChange, unit, ariaLabel, ariaValueText, valuePrefix,
 }: ElasticSliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
@@ -54,9 +59,15 @@ export default function ElasticSlider({
     <div className="elastic-slider" data-active={active ? 'true' : 'false'} style={style}>
       <div className="elastic-slider__head">
         <label htmlFor={id} className="elastic-slider__label">{label}</label>
-        <motion.div animate={{ y: active ? -1 : 0 }} transition={transition}>
-          <ElasticSliderValue inputId={id} label={label} value={normalizedValue} min={min} max={max} step={step} unit={unit} onChange={onChange} />
-        </motion.div>
+        <div className="elastic-slider__value-cluster">
+          {valuePrefix}
+          <motion.div animate={{ y: active ? -1 : 0 }} transition={transition}>
+            <ElasticSliderValue
+              inputId={id} label={label} value={normalizedValue}
+              min={min} max={max} step={step} unit={unit} onChange={onChange}
+            />
+          </motion.div>
+        </div>
       </div>
       <div
         ref={trackRef}

@@ -40,7 +40,7 @@ export interface ButtonStyleOptions {
 
 const sizeClasses: Record<ButtonSize, string> = {
   authSubmit: 'inline-flex w-full h-11 items-center justify-center gap-2 uppercase font-bold rule rounded-[var(--radius)] text-sm',
-  avatar: 'flex items-center justify-center w-8 h-8 rounded-full rule overflow-hidden theme-focus-ring transition',
+  avatar: 'flex items-center justify-center w-5 h-5 rounded-full rule overflow-hidden theme-focus-ring transition',
   clearIcon: 'rule rounded-[var(--radius)] h-7 w-7 inline-flex items-center justify-center hover:ink-bg',
   compact: 'uppercase font-bold rule px-3 py-2 rounded-[var(--radius)] text-sm',
   copy: 'shrink-0 uppercase text-xs font-bold rule px-2 py-1.5 rounded-[var(--radius)] w-16 text-center',
@@ -63,7 +63,7 @@ const sizeClasses: Record<ButtonSize, string> = {
   text: 'uppercase font-bold text-sm px-2 py-1',
   textIcon: 'inline-flex items-center gap-2 uppercase font-bold text-sm px-2 py-1',
   themeSelect:
-    'inline-flex h-8 min-w-24 items-center justify-between gap-0 uppercase text-sm font-bold rule px-3 rounded-[var(--radius)] bg-[var(--paper)] text-[var(--ink)] leading-none',
+    'inline-flex h-8 min-w-24 items-center justify-between gap-0 uppercase text-sm font-bold px-3 rounded-[var(--radius)] bg-[var(--paper)] text-[var(--ink)] leading-none outline-none focus:outline-none focus-visible:outline-none',
   uploadSubmit: 'w-full px-6 py-3 rounded-md font-semibold',
   warningAction: 'mt-2 uppercase text-xs font-bold px-3 py-1 rounded-[var(--radius)]',
 };

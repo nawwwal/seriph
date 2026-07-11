@@ -1,17 +1,17 @@
 import type { Font, VariableAxis } from '@/models/font.models';
 
-export const DEFAULT_FONT_SIZE = 48;
+export const DEFAULT_FONT_SIZE = 80;
 export const DEFAULT_LETTER_SPACING_MODE = 'em' as const;
 export const DEFAULT_LETTER_SPACING_VALUE = 0;
-export const DEFAULT_LINE_HEIGHT_MODE = 'auto' as const;
-export const DEFAULT_LINE_HEIGHT_VALUE = 120;
+export const DEFAULT_LINE_HEIGHT_MODE = '%' as const;
+export const DEFAULT_LINE_HEIGHT_VALUE = 100;
 
 export interface FacePlaygroundState {
   text: string;
   fontSize: number;
   letterSpacingMode: 'px' | 'em';
   letterSpacingValue: number;
-  lineHeightMode: 'auto' | '%' | 'px';
+  lineHeightMode: '%' | 'px';
   lineHeightValue: number;
   axisValues: Record<string, number>;
 }
@@ -83,6 +83,13 @@ export function createPlaygroundState(fonts: Font[], familyName: string): TypePl
   return { selectedFaceId: selectDefaultFace(uniqueFaces)?.id ?? '', faces };
 }
 
+/** Coerce legacy `auto` session state to 100%. */
+function normalizeFaceState(face: FacePlaygroundState): FacePlaygroundState {
+  const mode = face.lineHeightMode as string;
+  if (mode === 'px' || mode === '%') return { ...face, lineHeightMode: mode };
+  return { ...face, lineHeightMode: DEFAULT_LINE_HEIGHT_MODE, lineHeightValue: DEFAULT_LINE_HEIGHT_VALUE };
+}
+
 export function reconcilePlaygroundState(
   previous: TypePlaygroundState,
   fonts: Font[],
@@ -92,10 +99,10 @@ export function reconcilePlaygroundState(
   for (const face of uniqueFacesById(fonts)) {
     const prior = previous.faces[face.id];
     if (!prior) continue;
-    next.faces[face.id] = {
+    next.faces[face.id] = normalizeFaceState({
       ...prior,
       axisValues: { ...initialAxisValues(face.variableAxes), ...prior.axisValues },
-    };
+    });
   }
   if (next.faces[previous.selectedFaceId]) next.selectedFaceId = previous.selectedFaceId;
   return next;
