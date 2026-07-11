@@ -17,7 +17,6 @@ vi.mock('@/lib/hooks/useShelfScrollRestoration', () => ({ useShelfScrollRestorat
 vi.mock('@/lib/hooks/useShelfMutations', () => ({
   useShelfMutations: () => ({ selectionState: { mode: 'idle' }, selectedFamilyIds: [], selectionCanMerge: vi.fn(), isMutating: false, mutationError: null, pendingDeleteIds: null, mergeUndo: null }),
 }));
-vi.mock('@/components/home/HomeShellActions', () => ({ default: () => createElement('div', { 'data-slot': 'header' }) }));
 vi.mock('@/components/home/AlphabetRail', () => ({ default: () => createElement('div', { 'data-slot': 'alphabet' }) }));
 vi.mock('@/components/home/ShelfStats', () => ({ default: () => createElement('div', { 'data-slot': 'status' }) }));
 vi.mock('@/components/home/HomePageShelfContent', () => ({ default: () => createElement('div', { 'data-slot': 'catalog' }) }));
@@ -32,7 +31,7 @@ describe('signed-in home shell composition', () => {
     const markup = renderToStaticMarkup(createElement(HomePageContent, { user }));
 
     expect(markup).toContain('data-home-shell');
-    for (const slot of ['header', 'alphabet', 'catalog', 'status']) {
+    for (const slot of ['alphabet', 'catalog', 'status']) {
       expect(markup).toContain(`data-slot="${slot}"`);
     }
   });
@@ -61,13 +60,18 @@ describe('signed-in home shell composition', () => {
     expect(rail).toContain('aria-pressed');
   });
 
-  it('keeps signed-in navigation and catalog actions in the shell header', () => {
-    const actions = read('components/home/HomeShellActions.tsx');
+  it('keeps the header logo-only and moves account controls to status', () => {
+    const home = read('components/home/HomePageContent.tsx');
+    const shell = read('components/home/HomeShell.tsx');
+    const status = read('components/home/ShelfStats.tsx');
 
-    for (const contract of [
-      'NavSearch', 'ProfileMenu', 'ThemeSwitcher', 'useUploads',
-      'href="/import"', 'onAddFonts', 'onRegenerateCovers',
-    ]) expect(actions).toContain(contract);
+    expect(shell).not.toContain('headerActions');
+    expect(home).not.toContain('HomeShellActions');
+    expect(home).not.toContain('shelfMode');
+    expect(home).not.toContain('coverSeed');
+    expect(status).toContain('ThemeSwitcher');
+    expect(status).toContain('ProfileMenu');
+    expect(status).not.toContain('Shelf mode');
   });
 
   it('replaces hero chrome while retaining shelf behavior composition', () => {

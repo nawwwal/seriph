@@ -3,14 +3,12 @@ import Link from 'next/link';
 import SeriphLogo from '@/components/brand/SeriphLogo';
 
 interface HomeShellProps {
-  headerActions: ReactNode;
   alphabetRail: ReactNode;
   catalogCanvas: ReactNode;
   statusStrip: ReactNode;
 }
 
 export default function HomeShell({
-  headerActions,
   alphabetRail,
   catalogCanvas,
   statusStrip,
@@ -25,7 +23,6 @@ export default function HomeShell({
           <Link href="/" scroll={false} aria-label="Seriph shelf" className="shrink-0 theme-focus-ring">
             <SeriphLogo className="w-28 md:w-36" label="Seriph" />
           </Link>
-          <div className="min-w-0 flex-1">{headerActions}</div>
         </header>
         <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[368px_minmax(0,1fr)] md:grid-rows-1">
           <aside data-alphabet-rail className="border-b border-[var(--ink)] md:border-b-0 md:border-r">
