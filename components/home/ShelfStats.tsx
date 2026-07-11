@@ -1,14 +1,15 @@
+'use client';
+
 import type { ShelfStatsSummary } from '@/models/shelf.models';
-import { Button } from '@/components/ui/Button';
+import ThemeSwitcher from '@/components/theme/ThemeSwitcher';
+import ProfileMenu from '@/components/layout/ProfileMenu';
 
 interface ShelfStatsProps {
   stats: ShelfStatsSummary | null;
   pendingCount: number;
-  shelfMode: 'spines' | 'covers';
-  setShelfMode: (mode: 'spines' | 'covers') => void;
 }
 
-export default function ShelfStats({ stats, pendingCount, shelfMode, setShelfMode }: ShelfStatsProps) {
+export default function ShelfStats({ stats, pendingCount }: ShelfStatsProps) {
   const familyCount = stats ? String(stats.familyCount) : '-';
   const styleCount = stats ? String(stats.styleCount) : '-';
   const recentFamily = stats?.recentFamilyName ?? '-';
@@ -29,9 +30,9 @@ export default function ShelfStats({ stats, pendingCount, shelfMode, setShelfMod
           </div>
         ))}
       </dl>
-      <div role="group" aria-label="Shelf mode" className="ml-auto flex shrink-0 items-center gap-1">
-        <Button aria-pressed={shelfMode === 'spines'} onClick={() => setShelfMode('spines')} size="filterTiny" tone={shelfMode === 'spines' ? 'active' : 'default'}>Spines</Button>
-        <Button aria-pressed={shelfMode === 'covers'} onClick={() => setShelfMode('covers')} size="filterTiny" tone={shelfMode === 'covers' ? 'active' : 'default'}>Covers</Button>
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        <ProfileMenu />
+        <ThemeSwitcher />
       </div>
     </section>
   );

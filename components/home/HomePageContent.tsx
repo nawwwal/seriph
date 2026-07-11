@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AlphabetRail from '@/components/home/AlphabetRail';
 import HomeShell from '@/components/home/HomeShell';
-import HomeShellActions from '@/components/home/HomeShellActions';
 import ShelfStats from '@/components/home/ShelfStats';
 import ShelfSelectionBar from '@/components/home/ShelfSelectionBar';
 import DeleteFamiliesDialog from '@/components/home/DeleteFamiliesDialog';
@@ -22,11 +21,9 @@ import type { User } from 'firebase/auth';
 
 export default function HomePageContent({ user }: { user: User }) {
   const router = useRouter();
-  const { ingests: pendingIngests, onCompleted } = useUploads();
+  const { activeCount, ingests: pendingIngests, onCompleted, open: openUploadCenter } = useUploads();
   const shelf = useInfiniteFamilies();
   const shelfScrollRef = useRef<HTMLDivElement>(null);
-  const [shelfMode, setShelfMode] = useState<'spines' | 'covers'>('covers');
-  const [coverSeed, setCoverSeed] = useState(0);
   const [selectedInitial, setSelectedInitial] = useState<AlphabetInitial>('ALL');
   const refreshShelf = useCallback(async () => {
     clearFamilyDetailNegativeCacheForUser(user.uid);
@@ -43,6 +40,7 @@ export default function HomePageContent({ user }: { user: User }) {
     router.push('/import');
   }, [router, user.uid]);
   const handleAddFonts = () => router.push('/import');
+  const uploadCount = Math.max(activeCount, pendingIngests.length);
   const showShelfSkeleton = shelf.isInitialLoading && shelf.families.length === 0;
   const isEmpty = !showShelfSkeleton && shelf.families.length === 0 && pendingIngests.length === 0;
   const visibleFamilies = useMemo(
@@ -63,9 +61,8 @@ export default function HomePageContent({ user }: { user: User }) {
   return (
     <>
       <HomeShell
-        headerActions={<HomeShellActions isEmpty={isEmpty} onAddFonts={handleAddFonts} onRegenerateCovers={() => setCoverSeed((seed) => seed + 1)} />}
-        alphabetRail={<AlphabetRail selected={selectedInitial} onSelect={setSelectedInitial} />}
-        statusStrip={<ShelfStats stats={shelf.stats} pendingCount={pendingIngests.length} shelfMode={shelfMode} setShelfMode={setShelfMode} />}
+        alphabetRail={<AlphabetRail selected={selectedInitial} onSelect={setSelectedInitial} onImport={handleAddFonts} uploadCount={uploadCount} onOpenUploads={openUploadCenter} />}
+        statusStrip={<ShelfStats stats={shelf.stats} pendingCount={uploadCount} />}
         catalogCanvas={(
           <div ref={shelfScrollRef} data-shelf-scroll-root="true" onPointerDownCapture={saveShelfScroll} onClickCapture={saveShelfScroll} onKeyDownCapture={saveShelfScroll} className="h-full overflow-auto p-4 sm:p-6">
             {mutations.selectionState.mode === 'selecting' && (
@@ -78,7 +75,7 @@ export default function HomePageContent({ user }: { user: User }) {
                 <Button onClick={shelf.reload} className="mt-4 px-6" size="mdText">Try Again</Button>
               </div>
             ) : (
-              <HomePageShelfContent shelf={shelf} families={visibleFamilies} mutations={mutations} isEmpty={isEmpty} showShelfSkeleton={showShelfSkeleton} pendingIngests={pendingIngests} shelfMode={shelfMode} coverSeed={coverSeed} onAddFonts={handleAddFonts} onFilesSelected={handleFilesSelected} />
+              <HomePageShelfContent shelf={shelf} families={visibleFamilies} mutations={mutations} isEmpty={isEmpty} showShelfSkeleton={showShelfSkeleton} pendingIngests={pendingIngests} onAddFonts={handleAddFonts} onFilesSelected={handleFilesSelected} />
             )}
           </div>
         )}
