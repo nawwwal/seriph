@@ -3,14 +3,28 @@
 import { useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import AppShell from '@/components/layout/AppShell';
 import { buttonClassName } from '@/components/ui/buttonStyles';
 import { storePendingFonts } from '@/utils/pendingFonts';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useFamilyDetail } from '@/lib/hooks/useFamilyDetail';
 import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
-import CenteredShell from '@/components/layout/CenteredShell';
 import FontDetailLoader from '@/components/ui/FontDetailLoader';
 import FamilyDetailContent from '@/components/font/FamilyDetailContent';
+import FamilyHeaderActions from '@/components/font/FamilyHeaderActions';
+import FamilyStatusStats from '@/components/font/FamilyStatusStats';
+
+function ShellMessage({ children }: { children: React.ReactNode }) {
+  return (
+    <AppShell density="compact">
+      <div className="flex h-full min-h-0 items-center justify-center overflow-auto p-8">
+        <div className="max-w-lg rounded-[var(--radius)] rule p-10 text-center">
+          {children}
+        </div>
+      </div>
+    </AppShell>
+  );
+}
 
 export default function FamilyDetailPage() {
   const { familyId } = useParams<{ familyId: string }>();
@@ -20,7 +34,8 @@ export default function FamilyDetailPage() {
   useRegisterFamilyFonts(family || undefined);
 
   const testerRef = useRef<HTMLDivElement | null>(null);
-  const scrollToTester = () => testerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const scrollToTester = () =>
+    testerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const handleAddStyleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -29,35 +44,50 @@ export default function FamilyDetailPage() {
     router.push('/import');
   };
 
-  if (isLoading) return <FontDetailLoader />;
+  if (isLoading) {
+    return (
+      <AppShell density="compact">
+        <FontDetailLoader />
+      </AppShell>
+    );
+  }
   if (!user && !authLoading) {
     return (
-      <CenteredShell>
-        <div className="text-center p-10 rule rounded-[var(--radius)] max-w-lg">
-          <p className="text-xl mb-4">Sign in to view this family.</p>
-          <Link href="/" className={buttonClassName({ size: 'mdInline' })}>← Back home</Link>
-        </div>
-      </CenteredShell>
+      <ShellMessage>
+        <p className="mb-4 text-xl">Sign in to view this family.</p>
+        <Link href="/" scroll={false} className={buttonClassName({ size: 'mdInline' })}>
+          ← Back home
+        </Link>
+      </ShellMessage>
     );
   }
   if (kind === 'not-found' || kind === 'load-error' || !family) {
     return (
-      <CenteredShell>
-        <div className="text-center p-10 rule rounded-[var(--radius)] max-w-lg">
-          <p className="text-xl mb-4">{error || 'Font family not found.'}</p>
-          <Link href="/" className={buttonClassName({ size: 'mdInline' })}>← Back to Shelf</Link>
-        </div>
-      </CenteredShell>
+      <ShellMessage>
+        <p className="mb-4 text-xl">{error || 'Font family not found.'}</p>
+        <Link href="/" scroll={false} className={buttonClassName({ size: 'mdInline' })}>
+          ← Back to Shelf
+        </Link>
+      </ShellMessage>
     );
   }
 
   return (
-    <FamilyDetailContent
-      family={family}
-      isPreview={isPreview}
-      testerRef={testerRef}
-      onAddStyleFiles={handleAddStyleFiles}
-      onTestInText={scrollToTester}
-    />
+    <AppShell
+      density="compact"
+      headerActions={
+        <FamilyHeaderActions
+          onAddStyleFiles={handleAddStyleFiles}
+          onTestInText={scrollToTester}
+        />
+      }
+      statusStrip={<FamilyStatusStats family={family} />}
+    >
+      <FamilyDetailContent
+        family={family}
+        isPreview={isPreview}
+        testerRef={testerRef}
+      />
+    </AppShell>
   );
 }

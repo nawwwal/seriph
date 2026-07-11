@@ -34,14 +34,14 @@ export default function ProfileMenu() {
           <img
             src={avatarUrl}
             alt={user.displayName || 'User'}
-            width={32}
-            height={32}
+            width={20}
+            height={20}
             referrerPolicy="no-referrer"
             onError={() => setFailedAvatarUrl(avatarUrl)}
-            className="w-8 h-8 object-cover"
+            className="h-5 w-5 object-cover"
           />
         ) : (
-          <span className="w-full h-full flex items-center justify-center text-xs font-bold uppercase">
+          <span className="flex h-full w-full items-center justify-center text-[10px] font-bold uppercase">
             {(user.displayName || 'U').charAt(0).toUpperCase()}
           </span>
         )}

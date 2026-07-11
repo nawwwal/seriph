@@ -32,13 +32,7 @@ export function renderShelfFamilyGroups({
   onOpenContextMenu,
 }: ShelfFamilyGroupProps) {
   return groups.map((group) => (
-    <section key={group.key} aria-labelledby={`shelf-group-${group.key}`}>
-      <div className="mb-3 flex items-center gap-3">
-        <h2 id={`shelf-group-${group.key}`} className="text-sm sm:text-base uppercase font-black leading-none">
-          {group.label}
-        </h2>
-        <div className="h-px flex-1 bg-[var(--ink)] opacity-20" aria-hidden="true" />
-      </div>
+    <section key={group.key} aria-label={group.label} className="mb-6 last:mb-0">
       <div className={SHELF_GRID_CLASS}>
         <ShelfFamilyGrid
           families={group.families}
