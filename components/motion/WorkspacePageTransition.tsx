@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { LayoutGroup, useReducedMotion } from 'framer-motion';
 import { usePathname } from 'next/navigation';
 import {
@@ -20,6 +20,11 @@ type Props = {
   params?: ShellMotionParams;
 };
 
+type PathNav = {
+  path: string;
+  nav: WorkspaceNav;
+};
+
 /**
  * Single route tree only — never stack two pages.
  * Dual pages caused catalogue bleed through card gaps.
@@ -28,15 +33,20 @@ type Props = {
 export default function WorkspacePageTransition({ children, params }: Props) {
   const pathname = usePathname() || '/';
   const reduce = useReducedMotion();
-  const prevPath = useRef(pathname);
-  const navRef = useRef<WorkspaceNav>('cross');
+  const [pathNav, setPathNav] = useState<PathNav>({
+    path: pathname,
+    nav: 'cross',
+  });
 
-  if (prevPath.current !== pathname) {
-    navRef.current = workspaceNavDirection(prevPath.current, pathname);
-    prevPath.current = pathname;
+  // Adjust state when the route changes (React-approved render-time setState).
+  if (pathname !== pathNav.path) {
+    setPathNav({
+      path: pathname,
+      nav: workspaceNavDirection(pathNav.path, pathname),
+    });
   }
 
-  const nav = navRef.current;
+  const nav = pathNav.path === pathname ? pathNav.nav : 'cross';
   const value = params ?? SHELL_MOTION_DEFAULTS;
 
   return (

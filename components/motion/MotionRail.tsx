@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { peekShellSnap } from '@/lib/motion/shellContinuity';
 import { useShellMotionParams } from '@/components/motion/ShellMotionParamsContext';
@@ -26,18 +26,15 @@ export function MotionRail({
   const from = useMemo(() => peekShellSnap(), []);
   const rem = params.shell.railWidthRem;
 
-  const [paintOpen, setPaintOpen] = useState(() => {
-    if (open && from && !from.railOpen) return false;
-    if (!open && from && from.railOpen) return true;
-    return open;
-  });
-
-  useEffect(() => {
-    setPaintOpen(open);
-  }, [open]);
+  // First paint after reverse: force closed, then open on next commit via open prop.
+  const paintOpen = open;
+  const startClosed = Boolean(open && from && !from.railOpen);
+  const startOpen = Boolean(!open && from && from.railOpen);
 
   const transition = reduce ? { duration: 0 } : move;
+  // When expanding from detail, animate from 0; when collapsing, from rem.
   const width = paintOpen ? `${rem}rem` : 0;
+  const initialWidth = startClosed ? 0 : startOpen ? `${rem}rem` : false;
 
   return (
     <motion.aside
@@ -49,7 +46,7 @@ export function MotionRail({
           ? 'min-w-0 shrink-0 overflow-hidden border-b border-[var(--ink)] bg-[var(--paper)] md:border-b-0 md:border-r'
           : 'pointer-events-none min-w-0 shrink-0 overflow-hidden border-0 p-0'
       }
-      initial={false}
+      initial={initialWidth === false ? false : { width: initialWidth, opacity: startClosed ? 0 : 1 }}
       animate={{ width, opacity: paintOpen ? 1 : 0 }}
       transition={transition}
       style={{ flexBasis: width }}

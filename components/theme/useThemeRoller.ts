@@ -22,13 +22,16 @@ export function useThemeRoller(
   const [position, setPosition] = useState(() =>
     themeIndex(themeMetaList, committed),
   );
-  positionRef.current = position;
   const selected = wrapIndex(snapPosition(position), n);
 
   const setPos = useCallback((next: number) => {
     positionRef.current = next;
     setPosition(next);
   }, []);
+
+  useEffect(() => {
+    positionRef.current = position;
+  }, [position]);
 
   const stopSettle = useCallback(() => {
     settleAnim.current?.stop();
