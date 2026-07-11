@@ -38,4 +38,26 @@ describe('unified type playground composition', () => {
     expect(controls).toContain('Copy CSS');
     expect(playground).toContain("setCopyLabel('Copied')");
   });
+
+  it('replaces both legacy detail testers with one correctly ordered playground', () => {
+    const detail = read('components/font/FamilyDetailContent.tsx');
+    const specimen = detail.indexOf('<Specimen');
+    const playground = detail.indexOf('<TypePlayground');
+    const usePanel = detail.indexOf('<UseFontPanel');
+
+    expect(detail.match(/<TypePlayground/g)).toHaveLength(1);
+    expect(specimen).toBeLessThan(playground);
+    expect(playground).toBeLessThan(usePanel);
+    expect(detail).not.toContain('TypeTester');
+    expect(detail).not.toContain('VariableFontPlayground');
+  });
+
+  it('retains insights, preview skeletons, detail sections, and tester targeting', () => {
+    const detail = read('components/font/FamilyDetailContent.tsx');
+
+    for (const contract of ['FamilyHeader', 'FamilyInsights', 'SkeletonTester', 'SkeletonStyles',
+      'SkeletonFooter', 'FamilyStyles', 'CharacterSetSection', 'FamilyFooter', 'testerRef={testerRef}']) {
+      expect(detail).toContain(contract);
+    }
+  });
 });

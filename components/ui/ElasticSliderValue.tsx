@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { snapSliderValue } from './elasticSliderMath';
 
 interface ElasticSliderValueProps {
@@ -27,18 +27,17 @@ export default function ElasticSliderValue({
   unit,
   onChange,
 }: ElasticSliderValueProps) {
-  const [draft, setDraft] = useState(() => formatValue(value, step));
-
-  useEffect(() => setDraft(formatValue(value, step)), [step, value]);
+  const [draft, setDraft] = useState<string | null>(null);
+  const displayedValue = draft ?? formatValue(value, step);
 
   const commit = () => {
-    const parsed = Number(draft.trim());
+    const parsed = Number(displayedValue.trim());
     if (!Number.isFinite(parsed)) {
-      setDraft(formatValue(value, step));
+      setDraft(null);
       return;
     }
     const next = snapSliderValue(parsed, min, max, step);
-    setDraft(formatValue(next, step));
+    setDraft(null);
     onChange(next);
   };
 
@@ -47,13 +46,13 @@ export default function ElasticSliderValue({
       <input
         id={`${inputId}-value`}
         className="elastic-slider__value-input"
-        value={draft}
+        value={displayedValue}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
           if (event.key === 'Enter') event.currentTarget.blur();
           if (event.key === 'Escape') {
-            setDraft(formatValue(value, step));
+            setDraft(null);
             event.currentTarget.blur();
           }
         }}
