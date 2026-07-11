@@ -45,6 +45,12 @@ export function buildFace(params: {
     original: { storagePath: params.origStoragePath, url: cdnUrl(params.origStoragePath) },
     contentHash: params.contentHash,
     meta: {
+      familyName: parsed.familyName,
+      subfamilyName: parsed.subfamilyName,
+      preferredFamily: parsed.preferredFamily,
+      preferredSubfamily: parsed.preferredSubfamily,
+      wwsFamilyName: parsed.wwsFamilyName,
+      wwsSubfamilyName: parsed.wwsSubfamilyName,
       characterSetCoverage: parsed.characterSetCoverage,
       openTypeFeatures: parsed.openTypeFeatures,
       glyphCount: parsed.glyphCount,
