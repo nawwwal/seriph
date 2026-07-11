@@ -15,78 +15,71 @@ Somewhere on your drive there is a folder named `fonts-final-v3`
 Inside: years of purchases, freebies, foundries, late-night downloads.  
 Outside: silence. You cannot *see* them. So you open Google Fonts again.
 
-**Seriph** is what happens when that attic becomes a library you can browse  
-with your eyes, search by mood, and use in one click.
+**Seriph** turns that pile into a library you can browse, search, and use.
 
-> Visual-first. Instantly usable. Enrichment later.  
-> The type is the product.
+Live: [seriph.naw.al](https://seriph.naw.al) · Font CDN: `https://seriph.web.app`
 
 ---
 
-## What it feels like
+## What you can do
 
-| You do | Seriph does |
+| You | It |
 | --- | --- |
-| Drop a zip of `.otf` / `.ttf` / `.woff2` | Parses, groups families, serves specimens **before** AI finishes thinking |
-| Scroll a shelf of covers | A–Z rail, voice filters, infinite grid |
-| Open a family | Play with axes, test copy, copy CSS / download |
-| Ask for *warm editorial* | Hybrid search: name, semantics, and vision |
-
-Live: [seriph.naw.al](https://seriph.naw.al) · Font CDN: `https://seriph.web.app`
+| Upload `.otf`, `.ttf`, `.woff2`, or a zip | Families group automatically; specimens show up right away |
+| Browse the shelf | Covers, A–Z filter, mood/voice chips |
+| Open a family | Test text, weights, variable axes, download or copy CSS |
+| Search | By name, or by how a face *feels* |
 
 ---
 
 ## Stack
 
 ```
-  browser ──► Next.js (App Router) ──► Firebase Auth / Firestore / Storage
-                    │
-                    ▼
-           Cloud Functions (nodejs22)
-           parse · canonicalize · woff2 · Vertex enrich · vectors
-                    │
-                    ▼
-           Hosting routes: /s  /d  /css2
+  browser ──► Next.js ──► Firebase Auth / Firestore / Storage
+                 │
+                 ▼
+          Cloud Functions
+          parse · group · convert · analyse · search index
+                 │
+                 ▼
+          Hosting: /s  /d  /css2
 ```
 
-- **Web:** React 19, TypeScript, Tailwind 4, Framer Motion, Vercel  
-- **Data:** Auth, Firestore (vector search), Storage  
-- **AI:** Gemini / Vertex for multimodal enrichment and embeddings  
+Next.js (App Router), React 19, TypeScript, Tailwind 4, Framer Motion, Vercel.  
+Firebase Auth, Firestore, Storage. Gemini / Vertex for analysis. Node 22.
 
 ---
 
-## Boot it
+## Run locally
 
 ```bash
 # Node 22 (see .nvmrc)
 npm install
-cp .env.example .env.local   # then fill the blanks
+cp .env.example .env.local
 npm run dev                  # http://localhost:3000
 ```
 
-### Environment
-
-| Kind | Examples |
+| Env | What |
 | --- | --- |
-| Client Firebase | `NEXT_PUBLIC_FIREBASE_*` |
-| Admin / bucket | `FIREBASE_ADMIN_*`, `FIREBASE_STORAGE_BUCKET` |
-| Optional | `UPLOAD_SECRET_TOKEN` (dev), Vertex project/location for functions |
+| `NEXT_PUBLIC_FIREBASE_*` | Client Firebase config |
+| `FIREBASE_ADMIN_*`, `FIREBASE_STORAGE_BUCKET` | Server admin access |
+| `UPLOAD_SECRET_TOKEN` | Optional local upload bypass |
+| Vertex project / location | Used by Cloud Functions |
 
-Do not commit secrets. Production values live on Vercel, Firebase, and GitHub Actions.
+Keep secrets out of git.
 
 ### Functions
 
 ```bash
 cd functions && npm install && npm run build
-# optional:
-firebase emulators:start --only functions,firestore,storage
+firebase emulators:start --only functions,firestore,storage   # optional
 ```
 
-Deploy and CDN setup: [DEPLOYMENT.md](./DEPLOYMENT.md).
+Deploy notes: [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ---
 
-## Quality
+## Checks
 
 ```bash
 npm run lint
@@ -95,27 +88,23 @@ npm test
 npm run build
 ```
 
-Source files stay under **100 non-empty lines** each (`npm run lint:lines`).
-
 ---
 
-## Layout
+## Repo
 
-| Path | Role |
+| Path | What |
 | --- | --- |
 | `app/` | Routes and API |
 | `components/` | UI |
-| `lib/` | Auth, hooks, cache, search, server |
-| `functions/` | Ingestion, enrichment, CDN handlers |
-| `models/` | Shared TypeScript contracts |
+| `lib/` | Client and server helpers |
+| `functions/` | Upload pipeline and CDN handlers |
+| `models/` | Shared types |
 
 ---
 
 ## Contributing
 
-- Open a PR with green CI.  
-- Document new env vars in `.env.example`.  
-- Keep `functions/package.json` in sync when Functions change.
+PR with green CI. New env vars go in `.env.example`. Functions changes keep `functions/package.json` honest.
 
 ---
 
