@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = process.cwd();
 const sourceRoots = ['app', 'components', 'styles', 'lib'];
 const sourceExtensions = new Set(['.css', '.ts', '.tsx']);
-const themeDefinitionPattern = /^styles\/themes-(?:core|bright|warm|places)\.css$/;
+const themeDefinitionPattern =
+  /^(?:styles\/themes-(?:core|bright|warm|places|archive-[ab])\.css|styles\/theme-token-properties\.css)$/;
 
 const rawColorPattern = /(?:#[0-9a-fA-F]{3,8}|%23[0-9a-fA-F]{3,8}|(?:rgba?|hsla?)\([^)]*\))/g;
 const tailwindPalettePattern =

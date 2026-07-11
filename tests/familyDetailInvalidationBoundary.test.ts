@@ -6,7 +6,7 @@ const readSource = (file: string) => fs.readFileSync(path.join(process.cwd(), fi
 
 describe('family detail negative cache invalidation boundaries', () => {
   it('invalidates account negatives when shelf mutations or uploads refresh the library', () => {
-    const source = readSource('components/home/HomePageContent.tsx');
+    const source = readSource('components/home/useHomeShelfView.ts');
 
     expect(source).toContain('clearFamilyDetailNegativeCacheForUser');
     expect(source).toContain('clearFamilyDetailNegativeCacheForUser(user.uid)');
