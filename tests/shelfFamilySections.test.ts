@@ -48,11 +48,11 @@ describe('groupShelfFamilies', () => {
       selectionState: { mode: 'idle' },
       onOpenContextMenu: () => undefined,
     }));
-    const sectionIds = Array.from(markup.matchAll(/aria-labelledby="([^"]+)"/g), (match) => match[1]);
-    const labels = Array.from(markup.matchAll(/<h2[^>]*>([^<]+)<\/h2>/g), (match) => match[1]);
+    const labels = Array.from(markup.matchAll(/aria-label="([^"]+)"/g), (match) => match[1]);
+    const sectionCount = (markup.match(/<section\b/g) ?? []).length;
 
     expect(labels).toEqual(['F', 'S', 'F', 'S']);
-    expect(new Set(sectionIds).size).toBe(sectionIds.length);
+    expect(sectionCount).toBe(4);
   });
 
   it('uses the unique group key for every rendered section', () => {

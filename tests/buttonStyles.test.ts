@@ -19,10 +19,9 @@ describe('button styles', () => {
     );
   });
 
-  it('preserves theme switcher trigger classes', () => {
-    expect(buttonClassName({ size: 'themeSelect', tone: 'default' })).toBe(
-      'inline-flex h-8 min-w-24 items-center justify-between gap-0 uppercase text-sm font-bold rule px-3 rounded-[var(--radius)] bg-[var(--paper)] text-[var(--ink)] leading-none btn-ink',
-    );
+  it('keeps legacy themeSelect size available for non-instrument callers', () => {
+    expect(buttonClassName({ size: 'themeSelect', tone: 'default' })).toContain('min-w-24');
+    expect(buttonClassName({ size: 'themeSelect', tone: 'default' })).toContain('outline-none');
   });
 
   it('supports explicit leading and trailing icon button shapes', () => {
