@@ -31,20 +31,25 @@ export function SkeletonStyles() {
 
 export function SkeletonTester() {
   return (
-    <section className="mt-10">
-      <div className="h-8 w-40 bg-[var(--muted)] rounded-[var(--radius)] pulse rule-b pb-4"></div>
+    <section className="mt-6">
+      <div className="h-8 w-48 bg-[var(--muted)] rounded-[var(--radius)] pulse rule-b pb-4"></div>
       <div className="mt-6 rule p-6 rounded-[var(--radius)]">
         <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
-          <div className="flex gap-3 flex-wrap">
-            <div className="h-10 w-32 rule rounded-[var(--radius)] bg-[var(--muted)] pulse"></div>
-            <div className="h-10 w-24 rule rounded-[var(--radius)] bg-[var(--muted)] pulse"></div>
-          </div>
+          <div className="h-10 w-36 rule rounded-[var(--radius)] bg-[var(--muted)] pulse"></div>
           <div className="flex gap-2">
             <div className="h-7 w-16 rule rounded-[var(--radius)] bg-[var(--muted)] pulse"></div>
             <div className="h-7 w-16 rule rounded-[var(--radius)] bg-[var(--muted)] pulse"></div>
           </div>
         </div>
-        <div className="h-24 bg-[var(--muted)] rounded-[var(--radius)] pulse"></div>
+        <div className="h-36 bg-[var(--muted)] rounded-[var(--radius)] pulse"></div>
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="space-y-2">
+              <div className="h-4 w-24 bg-[var(--muted)] rounded-[var(--radius)] pulse"></div>
+              <div className="h-3 w-full bg-[var(--muted)] rounded-[var(--radius)] pulse"></div>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

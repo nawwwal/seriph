@@ -9,8 +9,8 @@ export default function FontDetailLoader() {
     <div className="flex-1 w-full h-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto">
       <SkeletonHeader />
       <SkeletonSpecimen />
-      <SkeletonStyles />
       <SkeletonTester />
+      <SkeletonStyles />
       <SkeletonFooter />
     </div>
   );
