@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect } from 'react';
 import { FontFamily } from '@/models/font.models';
 import type { ShelfFamily } from '@/models/shelf.models';
-import { deriveCoverDna, renderCoverSvgParts } from '@/lib/covers/coverDna';
 
-export function getSampleChars(_classification: string): string {
+export function getSampleChars(_classification?: string): string {
   return 'ABC';
 }
 
@@ -71,18 +70,7 @@ export function useRegisterShelfFace(family: FontFamily | ShelfFamily, enabled: 
   }, [enabled, family]);
 }
 
-export function GeneratedCoverArt({ family, coverSeed }: { family: FontFamily | ShelfFamily; coverSeed: number }) {
-  const shelfFamily = useMemo(() => toShelfFamily(family), [family]);
-  const dna = useMemo(() => deriveCoverDna(shelfFamily, coverSeed), [coverSeed, shelfFamily]);
-  const parts = useMemo(() => renderCoverSvgParts(dna), [dna]);
-  return (
-    <svg
-      className="absolute inset-0 h-full w-full text-[var(--ink)]"
-      viewBox="0 0 240 100"
-      preserveAspectRatio="none"
-      aria-hidden="true"
-      style={{ opacity: 0.95 }}
-      dangerouslySetInnerHTML={{ __html: parts.join('') }}
-    />
-  );
+/** Cover art slot — left empty for handcrafted patterns later. */
+export function GeneratedCoverArt(_props: { family: FontFamily | ShelfFamily; coverSeed: number }) {
+  return null;
 }
