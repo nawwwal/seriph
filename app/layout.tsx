@@ -9,6 +9,7 @@ import AppFrame from "@/components/layout/AppFrame";
 import { AuthProvider } from "@/lib/contexts/AuthContext";
 import { UploadProvider } from "@/lib/contexts/UploadContext";
 import UploadCenterOverlay from "@/components/upload/UploadCenterOverlay";
+import FirebasePerformance from "@/components/monitoring/FirebasePerformance";
 
 const leagueSpartan = League_Spartan({
   // Variable wght axis — theme roller interpolates weight continuously.
@@ -57,6 +58,7 @@ export default function RootLayout({
         className={`${leagueSpartan.variable} antialiased bg-[var(--paper)] text-[var(--ink)]`}
         style={{ fontFamily: 'var(--font-league-spartan), system-ui, -apple-system, sans-serif' }}
       >
+        <FirebasePerformance />
         <ThemeProvider>
           <AuthProvider>
             <UploadProvider>
