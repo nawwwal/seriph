@@ -5,6 +5,7 @@ import { fail, ok, unauthorized } from '@/lib/server/apiResponse';
 import { createImportBatch, listImportBatches, parseBatchListQuery } from '@/lib/server/imports/batchStore';
 
 export const runtime = 'nodejs';
+export const createBatchResponse = (result: { kind: 'created' | 'existing'; batchId: string }) => ok({ batchId: result.batchId }, { status: result.kind === 'created' ? 201 : 200 });
 export const parseCreateBatchBody = (value: unknown) => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const data = value as Record<string, unknown>; const keys = Object.keys(data);
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
     const result = await createImportBatch(getAdminDb(), { ownerId, idempotencyKey, ...data });
     if (result.kind === 'conflict') return fail('conflict', 'Idempotency-Key was used with a different command', 409);
     if (result.kind === 'invalid') return fail('bad_request', `Invalid ${result.code}`, 400);
-    return ok({ batchId: result.batchId }, { status: 201 });
+    return createBatchResponse(result);
   } catch (error) { console.error('POST /api/v1/import-batches failed', error); return fail('internal_error', 'Failed to create import batch', 500); }
 }
 

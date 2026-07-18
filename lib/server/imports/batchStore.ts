@@ -5,7 +5,7 @@ const OUTCOMES = ['active', 'succeeded', 'partial', 'needs_review', 'failed', 'c
 type Outcome = typeof OUTCOMES[number];
 type Data = Record<string, unknown>;
 export interface CreateImportBatchCommand { ownerId: string; idempotencyKey: string; label: string; expectedSourceCount: number; }
-export type CreateImportBatchResult = { kind: 'created'; batchId: string } | { kind: 'invalid'; code: 'source_count' | 'label' } | { kind: 'conflict' };
+export type CreateImportBatchResult = { kind: 'created' | 'existing'; batchId: string } | { kind: 'invalid'; code: 'source_count' | 'label' } | { kind: 'conflict' };
 export interface BatchListQuery { limit: number; outcome: Outcome | null; cursor: string | null; }
 
 const user = (db: Firestore, ownerId: string) => db.collection('users').doc(ownerId);
@@ -26,7 +26,7 @@ export async function createImportBatch(db: Firestore, command: CreateImportBatc
     if (existing.exists) {
       const data = existing.data() as Data;
       if (data.label !== command.label || data.expectedSourceCount !== command.expectedSourceCount) return { kind: 'conflict' };
-      return { kind: 'created', batchId: String(data.batchId) };
+      return { kind: 'existing', batchId: String(data.batchId) };
     }
     const batchId = randomUUID(); const now = FieldValue.serverTimestamp(); const ref = batches(db, command.ownerId).doc(batchId);
     tx.set(ref, { batchId, ownerId: command.ownerId, label: command.label, expectedSourceCount: command.expectedSourceCount, schemaVersion: 1, sealed: false, planVersion: 0, outcome: 'active', counters: counters(), createdAt: now, updatedAt: now, phases: { upload: { state: 'registered', attempts: 0, updatedAt: now }, planning: { state: 'building', attempts: 0, updatedAt: now }, enrichment: { state: 'blocked', attempts: 0, updatedAt: now } } });

@@ -7,7 +7,7 @@ import {
   parseBatchListQuery,
   presentBatchDetail,
 } from '@/lib/server/imports/batchStore';
-import { parseCreateBatchBody } from '@/app/api/v1/import-batches/route';
+import { createBatchResponse, parseCreateBatchBody } from '@/app/api/v1/import-batches/route';
 
 type Data = Record<string, unknown>;
 class Ref {
@@ -34,7 +34,11 @@ describe('import batch API helpers', () => {
     const db = new Db();
     const first = await createImportBatch(firestore(db), command);
     const second = await createImportBatch(firestore(db), command);
-    expect(second).toEqual(first);
+    if (first.kind !== 'created' || second.kind !== 'existing') throw new Error('unexpected create result');
+    expect(first).toMatchObject({ kind: 'created' });
+    expect(second).toEqual({ kind: 'existing', batchId: first.batchId });
+    expect(createBatchResponse(first).status).toBe(201);
+    expect(createBatchResponse(second).status).toBe(200);
   });
 
   it('rejects a changed command body for an existing idempotency key', async () => {
