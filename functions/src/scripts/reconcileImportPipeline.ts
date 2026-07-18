@@ -51,7 +51,7 @@ export async function applyRecoveryAction(action: RecoveryAction, snapshot: Reco
     if (!expected?.firestorePath) throw new Error("replan_required:missing_authoritative_path");
     const identity = isIngest ? ingestPath(expected.firestorePath) : familyPath(expected.firestorePath);
     const expectedId = isIngest ? (expected as IngestRecoverySnapshot).ingestId : (expected as FamilyRecoverySnapshot).id;
-    if (!identity || identity.id !== expectedId || (isIngest ? identity.ownerId !== action.ownerId : identity.id !== action.familyId)) throw new Error("replan_required:path_identity");
+    if (!identity || identity.id !== expectedId || (isIngest ? identity.ownerId !== action.ownerId : identity.id !== action.familyId || !identity.ownerId)) throw new Error("replan_required:path_identity");
     const ref = db.doc(expected.firestorePath); const audit = db.collection("pipelineRecoveryAudits").doc(auditId(action));
     const current = await tx.get(ref); const priorAudit = await tx.get(audit);
     if (priorAudit.exists) return;
@@ -60,10 +60,15 @@ export async function applyRecoveryAction(action: RecoveryAction, snapshot: Reco
       const ingest = expected as IngestRecoverySnapshot;
       const related = ingest.familyId ? familyOf(snapshot, ingest.familyId) : undefined;
       const relatedIdentity = related?.firestorePath ? familyPath(related.firestorePath) : null;
-      if (!related || !relatedIdentity || relatedIdentity.id !== ingest.familyId || relatedIdentity.ownerId !== action.ownerId) throw new Error("replan_required:family_identity");
+      const relatedOwner = ingest.familyId ? ownerFromFamilyId(ingest.familyId) : undefined;
+      if (ingest.familyId && relatedOwner !== action.ownerId) throw new Error("replan_required:family_identity");
+      if (!related && action.state !== "failed") throw new Error("replan_required:family_identity");
       if (!ingestStateMatches(current.data(), ingest)) throw new Error("replan_required:ingest_state");
-      const currentFamily = await tx.get(db.doc(related.firestorePath!));
-      if (!currentFamily.exists || currentFamily.ref.path !== related.firestorePath || !familyStateMatches(currentFamily.data(), related)) throw new Error("replan_required:family_state");
+      if (related) {
+        if (!relatedIdentity || relatedIdentity.id !== ingest.familyId || relatedIdentity.ownerId !== action.ownerId) throw new Error("replan_required:family_identity");
+        const currentFamily = await tx.get(db.doc(related.firestorePath!));
+        if (!currentFamily.exists || currentFamily.ref.path !== related.firestorePath || !familyStateMatches(currentFamily.data(), related)) throw new Error("replan_required:family_state");
+      }
     }
     if (!isIngest && !familyStateMatches(current.data(), expected as FamilyRecoverySnapshot)) throw new Error("replan_required:family_state");
     if (action.kind === "restore_alias") {
