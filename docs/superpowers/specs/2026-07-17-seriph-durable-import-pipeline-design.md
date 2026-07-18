@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-17
 
-**Status:** Draft for user review; architecture approved
+**Status:** Approved for implementation planning
 **Chosen approach:** Durable Batch Workflow
 
 ## Summary
@@ -40,6 +40,71 @@ This replaces the current file-first model, where archive containers, extracted 
 - Supporting arbitrary archive formats in the first release. ZIP is supported; other archives enter review.
 - Replacing the existing Seriph visual language.
 - Replacing Firebase, Firestore, Cloud Storage, or the existing CDN contract.
+
+## Implementation assumptions
+
+- The rollout is additive until the new path passes a production canary; existing catalogue readers and old ingest history remain readable during migration.
+- Clean family plans apply automatically after validation. Human review is reserved for ambiguous identity, unsafe archives, conflicting non-identical assets, and explicitly quarantined items.
+- Cloud Functions, Cloud Tasks, and the oversized-archive Cloud Run service run in `asia-southeast1`; Vertex batch analysis may continue using its provider-supported global location.
+- The current Firebase project `seriph`, private default Storage bucket, public `seriph-fonts` bucket, Firestore database, and Vercel application remain the deployment targets.
+- The current Seriph visual language remains fixed. Upload Center may change information architecture, but not introduce a parallel component or color system.
+
+## Tech stack and commands
+
+The implementation stays on Next.js 16, React 19, TypeScript 6, Firebase Web/Admin SDKs, Firestore, Cloud Storage, Cloud Functions gen2 on Node 22, Cloud Tasks, one Node 22 Cloud Run archive service, Vertex batch analysis, `fontkit`, `opentype.js`, `unzipper`, `wawoff2`, Vitest, and Firebase emulators.
+
+Run these commands from the repository root unless a command says otherwise:
+
+```bash
+npm run typecheck
+npm run lint:lines
+npm run lint:web
+npm test
+npm run build
+npm run build --prefix functions
+npm run lint:functions
+npm test --prefix functions
+firebase emulators:exec --only firestore,storage,functions "npm test && npm test --prefix functions"
+git diff --check
+```
+
+Production setup and deploy commands are scripted and dry-run/inspect-first. The implementation plan must name the exact script and canary commands; agents must not improvise destructive production mutations from this document.
+
+## Project structure and code style
+
+- `functions/src/imports/` owns batch state, discovery, planning, task dispatch, catalogue application, mutation audit, and batch reconciliation.
+- `functions/src/enrichment/` owns versioned per-family jobs and provider batch reconciliation. Provider-specific Vertex adapters stay below this boundary.
+- `functions/src/triggers/` contains thin Cloud Function entrypoints only.
+- `functions/src/scripts/` contains dry-run-first recovery and migration commands.
+- `functions/tests/imports/` and `functions/tests/enrichment/` mirror those backend domains.
+- `app/api/v1/import-batches/` exposes the owner-scoped HTTP fallback and command API.
+- `lib/server/imports/` owns API validation, idempotency, authorization-adjacent ownership checks, and Firestore mutations used by Next.js routes.
+- `models/import-batch.models.ts`, `lib/imports/`, `lib/hooks/`, `lib/contexts/`, and `components/upload/` own the browser contract, listeners, client progress overlay, and Upload Center hierarchy.
+- `infra/import-pipeline/` owns idempotent GCP setup, queue configuration, Storage lifecycle policy, and archive-worker deployment inputs.
+- `docs/openapi/seriph-api.yaml` remains the external API contract. `tasks/plan.md` points to the canonical implementation plan and `tasks/todo.md` tracks its reviewable tasks.
+
+All source files must remain at or below 100 non-empty lines. Route and trigger files authenticate/validate then delegate. Domain functions use explicit discriminated results instead of throwing for expected workflow outcomes. For example:
+
+```ts
+export type ApplyFamilyResult =
+  | { kind: "applied"; familyId: string; familyVersion: number; mutationId: string }
+  | { kind: "already_applied"; familyId: string; familyVersion: number }
+  | { kind: "replan_required"; expectedVersion: number; actualVersion: number }
+  | { kind: "review"; reasonCode: string }
+  | { kind: "failed"; retryable: boolean; errorCode: string };
+```
+
+Persistence modules own transactions and timestamps; pure planners do not write. Public API DTOs, Firestore persistence records, and UI view models remain separate so storage details do not leak into components.
+
+## Implementation boundaries
+
+- **Always:** use TDD for behavior changes; preserve owner scoping; validate untrusted JSON, archive paths, and font contents; use deterministic idempotency keys; run dry-run reconciliation before production mutation; keep deterministic families usable without AI; update OpenAPI and security rules with contract changes; preserve unrelated dirty-worktree changes.
+- **Ask first:** changing canonical family IDs, deleting historical inventory, making source/design files public, increasing archive limits beyond the approved defaults, changing vector dimensions/models outside Remote Config, or advancing production rollout beyond the canary and staged percentages in the approved plan.
+- **Never:** commit secrets or service-account keys; accept client-authored authoritative workflow state; deduplicate non-identical bytes; let an archive entry escape its staging prefix; apply stale AI output; delete prior valid enrichment before a replacement commits; perform destructive production repair without an explicit dry run and recorded counts.
+
+## Open questions
+
+No product or architecture question blocks planning. Build-time discoveries that would change the approved identity, storage, visibility, security, or rollout contracts must update this specification before implementation continues.
 
 ## Current-state findings
 
