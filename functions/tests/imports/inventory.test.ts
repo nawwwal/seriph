@@ -58,6 +58,25 @@ async function* chunks(...values: Uint8Array[]) {
   for (const value of values) yield value;
 }
 
+function representativeEot(): Buffer {
+  const eot = Buffer.alloc(100);
+  eot.writeUInt32LE(100, 0);
+  eot.writeUInt32LE(4, 4);
+  eot.writeUInt32LE(0x00010000, 8);
+  eot.writeUInt16LE(0, 32);
+  eot.writeUInt16LE(0x504c, 34);
+  eot.writeUInt16LE(0, 80);
+  eot.writeUInt16LE(0, 82);
+  eot.writeUInt16LE(0, 84);
+  eot.writeUInt16LE(0, 86);
+  eot.writeUInt16LE(0, 88);
+  eot.writeUInt16LE(0, 90);
+  eot.writeUInt16LE(0, 92);
+  eot.writeUInt16LE(0, 94);
+  eot.write("font", 96, "ascii");
+  return eot;
+}
+
 describe("inventory content discovery", () => {
   it.each([
     [Buffer.from([0, 1, 0, 0]), "TTF", "font"],
@@ -67,6 +86,14 @@ describe("inventory content discovery", () => {
     [Buffer.from("Bud1"), "UNKNOWN", "junk"],
   ] as const)("detects bytes before extension", (bytes, format, role) => {
     expect(classifyInventoryItem({ bytes, name: "misleading.bin" })).toMatchObject({ format, role });
+  });
+
+  it("detects a structurally valid EOT header rather than a fixed prefix", () => {
+    expect(classifyInventoryItem({ bytes: representativeEot(), name: "misleading.bin" })).toMatchObject({
+      format: "EOT", detectedFormat: "EOT", role: "font", action: "parse",
+    });
+    expect(classifyInventoryItem({ bytes: Buffer.from([0, 0, 1, 0, 0, 0, 0, 0]), name: "misleading.bin" }).format)
+      .toBe("UNKNOWN");
   });
 
   it("keeps unknown content reviewable and preserves the declared extension", async () => {
@@ -85,6 +112,22 @@ describe("inventory content discovery", () => {
     expect(classifyInventoryItem({ bytes: Buffer.from("opaque"), name: "mystery.bin" })).toMatchObject({
       format: "UNKNOWN", role: "unresolved", action: "review", reasonCode: "unsupported_content",
     });
+  });
+
+  it("retains documentation only when unknown content is positively safe text", async () => {
+    const text = await buildInventoryItem({
+      ...provenance,
+      bytes: chunks(Buffer.from("# README\nThis is documentation.\n")),
+      name: "README.md",
+    });
+    const binary = await buildInventoryItem({
+      ...provenance,
+      bytes: chunks(Buffer.from([0x00, 0x01, 0x02, 0x03, 0xff])),
+      name: "README.md",
+    });
+
+    expect(text).toMatchObject({ role: "documentation", action: "retain_private", reasonCode: "documentation" });
+    expect(binary).toMatchObject({ role: "unresolved", action: "review", reasonCode: "unsupported_content" });
   });
 
   it("uses exact disposable names without discarding similarly named files", () => {
@@ -121,6 +164,30 @@ describe("inventory content discovery", () => {
       sourceId: provenance.sourceId,
       originalPath: provenance.originalPath,
       contentHash: item.sha256,
+    });
+    expect((db.docs.get("users/ada/importBatches/batch-1")!.counters as Data).discoveredItems).toBe(1);
+    expect(db.writes.filter(([path]) => path.includes("/items/")).length).toBe(1);
+  });
+
+  it("persists the canonical disposable reason and all classification provenance once", async () => {
+    const db = new FakeDb();
+    await createBatch(db, batch);
+    const item = await buildInventoryItem({
+      ...provenance,
+      filename: ".DS_Store",
+      extension: "",
+      bytes: chunks(Buffer.from("Bud1")),
+      name: ".DS_Store",
+    });
+
+    await expect(createItemOnce(db, item)).resolves.toEqual({ kind: "created", itemId: item.itemId });
+    await expect(createItemOnce(db, item)).resolves.toEqual({ kind: "exists", itemId: item.itemId });
+
+    const persisted = db.docs.get(importItemRef(db, batch.ownerId, batch.batchId, item.itemId).path)!;
+    expect(persisted).toMatchObject({
+      role: "junk", action: "discard", reason: "disposable_name", reasonCode: "disposable_name",
+      detectedFormat: "UNKNOWN", sourceId: provenance.sourceId, originalPath: provenance.originalPath,
+      filename: ".DS_Store", extension: "", declaredMimeType: provenance.declaredMimeType,
     });
     expect((db.docs.get("users/ada/importBatches/batch-1")!.counters as Data).discoveredItems).toBe(1);
     expect(db.writes.filter(([path]) => path.includes("/items/")).length).toBe(1);

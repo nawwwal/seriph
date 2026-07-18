@@ -12,13 +12,23 @@ export interface ClassifiedInventory {
 }
 
 const disposableNames = new Set([".ds_store", "thumbs.db", "desktop.ini"]);
-const documentationExtensions = new Set([".md", ".markdown", ".txt", ".pdf", ".doc", ".docx", ".rtf"]);
+const documentationExtensions = new Set([".md", ".markdown", ".txt", ".text", ".rst"]);
 const webExtensions = new Set([".css", ".scss", ".sass", ".html", ".htm", ".js", ".json", ".xml"]);
 
 const extensionOf = (name: string): string => {
   const base = name.split(/[\\/]/).pop() ?? name;
   const dot = base.lastIndexOf(".");
   return dot < 0 ? "" : base.slice(dot).toLowerCase();
+};
+
+const safeText = (bytes: Uint8Array): boolean => {
+  if (bytes.length === 0) return false;
+  const text = Buffer.from(bytes).toString("utf8");
+  if (text.includes("\uFFFD") || text.includes("\u0000")) return false;
+  return [...text].every((character) => {
+    const code = character.codePointAt(0)!;
+    return code === 9 || code === 10 || code === 13 || (code >= 32 && code !== 127);
+  });
 };
 
 export function classifyRole(input: { bytes: Uint8Array; name: string; }): ClassifiedInventory {
@@ -38,7 +48,7 @@ export function classifyRole(input: { bytes: Uint8Array; name: string; }): Class
     return { format, detectedFormat: format, role: "source", action: "retain_private", reasonCode: "source_asset" };
   }
   const extension = extensionOf(input.name);
-  if (documentationExtensions.has(extension)) {
+  if (documentationExtensions.has(extension) && safeText(input.bytes)) {
     return {
       format, detectedFormat: format, role: "documentation", action: "retain_private", reasonCode: "documentation",
     };

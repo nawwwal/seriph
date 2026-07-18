@@ -15,12 +15,13 @@ export type CreateItemResult = { kind: "created" | "exists" | "batch_missing"; i
 
 const persistedAction = (action: InventoryItem["action"]): ImportItemAction =>
   action === "parse" ? "apply" : action === "expand" || action === "retain_private" ? "keep_private" : action;
-const persistedReason = (reasonCode: string): ImportItemReason => {
-  const allowed: ImportItemReason[] = [
+const persistedReason = (reasonCode: string): ImportItemReason | "disposable_name" => {
+  const allowed: Array<ImportItemReason | "disposable_name"> = [
     "detected_font", "source_asset", "documentation", "web_asset", "archive_container",
-    "unsupported_content", "ambiguous_identity", "unsafe_archive", "duplicate_content",
+    "unsupported_content", "ambiguous_identity", "unsafe_archive", "duplicate_content", "disposable_name",
   ];
-  return (allowed as string[]).includes(reasonCode) ? reasonCode as ImportItemReason : "unsupported_content";
+  return allowed.includes(reasonCode as ImportItemReason | "disposable_name") ?
+    reasonCode as ImportItemReason | "disposable_name" : "unsupported_content";
 };
 
 export async function createItemOnce(db: Firestore, item: InventoryItem): Promise<CreateItemResult> {
