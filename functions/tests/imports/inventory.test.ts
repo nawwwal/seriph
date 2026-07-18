@@ -3,6 +3,7 @@ import { createBatch } from "../../src/imports/store/batchStore";
 import { createItemOnce, importItemRef } from "../../src/imports/store/itemStore";
 import { buildInventoryItem } from "../../src/imports/discovery/inventory";
 import { classifyInventoryItem } from "../../src/imports/discovery/classifyRole";
+import type { ImportItemReason } from "../../src/imports/contracts/item";
 
 type Data = Record<string, unknown>;
 
@@ -128,6 +129,39 @@ describe("inventory content discovery", () => {
 
     expect(text).toMatchObject({ role: "documentation", action: "retain_private", reasonCode: "documentation" });
     expect(binary).toMatchObject({ role: "unresolved", action: "review", reasonCode: "unsupported_content" });
+  });
+
+  it("rejects a documentation prefix followed by a binary tail", async () => {
+    const longTextPrefix = Buffer.from("# README\nThis remains safe text.\n".repeat(200));
+    expect(longTextPrefix.byteLength).toBeGreaterThan(4096);
+    const item = await buildInventoryItem({
+      ...provenance,
+      bytes: chunks(longTextPrefix, Buffer.from([0x00, 0xff])),
+      name: "README.md",
+    });
+
+    expect(item).toMatchObject({ role: "unresolved", action: "review", reasonCode: "unsupported_content" });
+  });
+
+  it("requires byte-recognized web content instead of trusting a web extension", async () => {
+    const binary = await buildInventoryItem({
+      ...provenance,
+      bytes: chunks(Buffer.from([0x00, 0x01, 0xff])),
+      name: "style.css",
+    });
+    const css = await buildInventoryItem({
+      ...provenance,
+      bytes: chunks(Buffer.from("body { color: red; }")),
+      name: "style.css",
+    });
+
+    expect(binary).toMatchObject({ role: "unresolved", action: "review", reasonCode: "unsupported_content" });
+    expect(css).toMatchObject({ role: "web", action: "retain_private", reasonCode: "web_asset" });
+  });
+
+  it("includes disposable_name in the ImportItemReason type contract", () => {
+    const reason: ImportItemReason = "disposable_name";
+    expect(reason).toBe("disposable_name");
   });
 
   it("uses exact disposable names without discarding similarly named files", () => {

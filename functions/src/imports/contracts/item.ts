@@ -14,7 +14,7 @@ export type ImportItemAction =
 export type ImportItemReason =
   | "detected_font" | "source_asset" | "documentation" | "web_asset"
   | "archive_container" | "unsupported_content" | "ambiguous_identity"
-  | "unsafe_archive" | "duplicate_content";
+  | "unsafe_archive" | "duplicate_content" | "disposable_name";
 
 export interface ImportArchiveLineageEntry {
   archiveItemId: string;
