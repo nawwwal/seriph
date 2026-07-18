@@ -12,9 +12,14 @@ describe("archive worker packaging", () => {
     const script = resolve(__dirname, "../../../infra/import-pipeline/setup.sh"); const output = execFileSync("bash", [script, "--project", "seriph", "--dry-run"], { encoding: "utf8" });
     for (const value of ["cloudtasks.googleapis.com", "seriph-import", "seriph-archive-worker", "archive-worker-service-account", "--service-account archive-worker-service-account@seriph.iam.gserviceaccount.com", "--set-env-vars IMPORT_TASKS_SERVICE_ACCOUNT=import-task-service-account@seriph.iam.gserviceaccount.com", "--no-allow-unauthenticated", "--memory=1Gi", "--cpu=2", "--concurrency=1", "--timeout=900"]) expect(output).toContain(value);
   });
-  it("grants the runtime account only its Firestore, Storage, and task roles", () => {
-    const script = resolve(__dirname, "../../../infra/import-pipeline/setup.sh"); const output = execFileSync("bash", [script, "--project", "seriph", "--dry-run"], { encoding: "utf8" });
-    for (const role of ["roles/datastore.user", "roles/storage.objectAdmin", "roles/cloudtasks.enqueuer"]) expect(output).toContain(`serviceAccount:archive-worker-service-account@seriph.iam.gserviceaccount.com --role ${role}`);
-    expect(output).not.toContain("roles/editor"); expect(output).not.toContain("roles/owner");
+  it("scopes runtime Storage and task roles to the configured bucket and queue", () => {
+    const script = resolve(__dirname, "../../../infra/import-pipeline/setup.sh"); const output = execFileSync("bash", [script, "--project", "seriph", "--bucket", "seriph-imports", "--dry-run"], { encoding: "utf8" });
+    const worker = "serviceAccount:archive-worker-service-account@seriph.iam.gserviceaccount.com";
+    expect(output).toContain(`gcloud projects add-iam-policy-binding seriph --member ${worker} --role roles/datastore.user`);
+    expect(output).toContain(`gcloud storage buckets add-iam-policy-binding gs://seriph-imports --member ${worker} --role roles/storage.objectUser --project seriph`);
+    expect(output).toContain(`gcloud tasks queues add-iam-policy-binding seriph-import --location asia-southeast1 --member ${worker} --role roles/cloudtasks.enqueuer --project seriph`);
+    expect(output).toContain("FIREBASE_STORAGE_BUCKET=seriph-imports");
+    expect(output).not.toContain("roles/storage.objectAdmin"); expect(output).not.toContain("roles/editor"); expect(output).not.toContain("roles/owner");
+    expect(output).not.toContain("projects add-iam-policy-binding seriph --member serviceAccount:archive-worker-service-account@seriph.iam.gserviceaccount.com --role roles/cloudtasks.enqueuer");
   });
 });
