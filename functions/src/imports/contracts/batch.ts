@@ -29,6 +29,8 @@ export interface ImportPhase<TState extends string> {
 
 export interface ImportSource {
   sourceId: string;
+  ownerId: string;
+  batchId: string;
   originalPath: string;
   filename: string;
   declaredSize: number;

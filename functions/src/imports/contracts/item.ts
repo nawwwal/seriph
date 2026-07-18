@@ -29,6 +29,8 @@ export interface ImportItemDestination {
 
 export interface ImportItem {
   itemId: string;
+  ownerId: string;
+  batchId: string;
   sourceId: string;
   originalPath: string;
   archiveLineage: ImportArchiveLineageEntry[];

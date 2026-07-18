@@ -19,10 +19,18 @@ describe("deriveBatchOutcome", () => {
     [{ nonterminal: 1 }, "active"],
     [{ canceled: 1, appliedFamilies: 1 }, "canceled"],
     [{ review: 1, appliedFamilies: 1 }, "needs_review"],
-    [{ failures: 1, appliedFamilies: 1 }, "partial"],
     [{ failures: 1, appliedFamilies: 0 }, "failed"],
     [{ duplicates: 3 }, "succeeded"],
   ] as const)("derives %s as %s", (input, expected) => {
+    expect(deriveBatchOutcome(fullSummary(input))).toBe(expected);
+  });
+
+  it.each([
+    ["active overrides canceled", { nonterminal: 1, canceled: 1 }, "active"],
+    ["canceled overrides review", { canceled: 1, review: 1 }, "canceled"],
+    ["review overrides partial", { review: 1, failures: 1, appliedFamilies: 1 }, "needs_review"],
+    ["partial overrides failed", { failures: 1, appliedFamilies: 1 }, "partial"],
+  ] as const)("%s", (_case, input, expected) => {
     expect(deriveBatchOutcome(fullSummary(input))).toBe(expected);
   });
 });
