@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Firestore } from 'firebase-admin/firestore';
 import { failImportSource, registerImportSources, sealImportBatch } from '@/lib/server/imports/sourceCommands';
+import { failureResponse } from '@/app/api/v1/import-batches/[batchId]/sources/[sourceId]/failure/route';
 
 type Data = Record<string, unknown>;
 class Ref { constructor(readonly path: string, private db: Db) {} collection(name: string) { return { doc: (id: string) => new Ref(`${this.path}/${name}/${id}`, this.db) }; } async get() { return { exists: this.db.docs.has(this.path), data: () => this.db.docs.get(this.path) }; } }
@@ -45,6 +46,17 @@ describe('import source commands', () => {
     expect(result.map((item) => item.errorCode)).toEqual([undefined, 'duplicate_source_id', 'invalid_source_id']); expect(db.docs.get('users/ada/importBatches/b1')!.counters).toMatchObject({ sources: 1 });
   });
 
+  it('fingerprints rejection inventory so changed invalid entries do not replay stale records', async () => {
+    const db = new Db(); const input = batch(db, 0); const first = await registerImportSources(firestore(db), input, [{ ...source, sourceId: 'bad/a' }]);
+    const repeat = await registerImportSources(firestore(db), input, [{ ...source, sourceId: 'bad/a' }]); const changed = await registerImportSources(firestore(db), input, [{ ...source, sourceId: 'other/a' }]);
+    expect(repeat).toEqual(first); expect(sources(changed)[0]).toMatchObject({ sourceId: 'other/a', errorCode: 'invalid_source_id' }); expect([...db.docs.keys()].filter((key) => key.includes('/sourceRejections/'))).toHaveLength(2);
+  });
+
+  it('rejects registrations before writes once a batch is sealed', async () => {
+    const db = new Db(); const input = batch(db, 1); db.docs.get('users/ada/importBatches/b1')!.sealed = true;
+    await expect(registerImportSources(firestore(db), input, [source])).resolves.toEqual({ kind: 'batch_sealed' }); expect(db.docs).toHaveLength(1);
+  });
+
   it('seals only after the source count matches and remains idempotent', async () => {
     const db = new Db(); const input = batch(db); await registerImportSources(firestore(db), input, [source]);
     await expect(sealImportBatch(firestore(db), input)).resolves.toEqual({ kind: 'count_mismatch', expected: 2, registered: 1 });
@@ -59,5 +71,9 @@ describe('import source commands', () => {
     expect(db.docs.get('users/ada/importBatches/b1/sources/' + source.sourceId)).toMatchObject({ state: 'failed', clientFailureDetail: 'network reset' });
     expect(db.docs.get('users/ada/importBatches/b1')).toMatchObject({ reconciliation: { state: 'scheduled' } });
     await expect(failImportSource(firestore(db), input, source.sourceId, 'other', 'x')).resolves.toEqual({ kind: 'invalid_failure' });
+  });
+
+  it('maps an invalid failure source ID to a bad-request response', () => {
+    expect(failureResponse({ kind: 'invalid_source_id' }).status).toBe(400);
   });
 });

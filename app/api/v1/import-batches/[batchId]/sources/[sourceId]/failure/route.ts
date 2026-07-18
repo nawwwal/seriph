@@ -6,9 +6,10 @@ import { failImportSource } from '@/lib/server/imports/sourceCommands';
 
 export const runtime = 'nodejs';
 const body = (value: unknown) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every((key) => key === 'state' || key === 'detail') && typeof (value as { state?: unknown }).state === 'string' && typeof (value as { detail?: unknown }).detail === 'string' ? value as { state: string; detail: string } : null;
+export const failureResponse = (result: { kind: string }) => result.kind === 'invalid_failure' || result.kind === 'invalid_source_id' ? fail('bad_request', result.kind === 'invalid_source_id' ? 'Invalid source ID' : 'Invalid failure state', 400) : result.kind === 'not_found' ? fail('not_found', 'Import source not found', 404) : ok(result);
 export async function POST(request: NextRequest, context: { params: Promise<{ batchId: string; sourceId: string }> }) {
   const ownerId = await getUidFromRequest(request); if (!ownerId) return unauthorized();
   const input = body(await request.json().catch(() => null)); if (!input) return fail('bad_request', 'state and detail are required', 400);
-  try { const { batchId, sourceId } = await context.params; const result = await failImportSource(getAdminDb(), { ownerId, id: batchId }, sourceId, input.state, input.detail); return result.kind === 'invalid_failure' ? fail('bad_request', 'Invalid failure state', 400) : result.kind === 'not_found' ? fail('not_found', 'Import source not found', 404) : ok(result); }
+  try { const { batchId, sourceId } = await context.params; return failureResponse(await failImportSource(getAdminDb(), { ownerId, id: batchId }, sourceId, input.state, input.detail)); }
   catch (error) { console.error('POST import source failure failed', error); return fail('internal_error', 'Failed to record import source failure', 500); }
 }
