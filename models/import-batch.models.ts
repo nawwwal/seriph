@@ -11,12 +11,14 @@ export interface RegisteredSource extends SourceRegistrationInput { accepted: bo
 export interface UploadFailure { state: 'upload_failed'; detail: string; }
 export interface DurableUploadSource { sourceId: string; file: File; relativePath: string; }
 export interface RecoverySource { sourceId: string; originalName: string; relativePath: string; size: number; }
-export interface RecoverySession { batchId: string; sourceIds: string[]; sources: RecoverySource[]; }
+export interface RecoverySession { batchId: string; idempotencyKey: string; sourceIds: string[]; sources: RecoverySource[]; }
 export interface DurableUploadDeps {
   create(input: CreateBatchInput): Promise<CreatedBatch>;
   register(batchId: string, sources: SourceRegistrationInput[]): Promise<RegisteredSource[]>;
   seal(batchId: string): Promise<void>;
+  resume(session: RecoverySession, sources: SourceRegistrationInput[]): Promise<RegisteredSource[]>;
   upload(source: RegisteredSource, file: File, onProgress: (percent: number) => void): Promise<void>;
   fail(batchId: string, sourceId: string, error: UploadFailure): Promise<void>;
+  progress?(sourceId: string, percent: number): void;
   persist?(session: RecoverySession): void;
 }

@@ -3,7 +3,7 @@
 import { useCallback, useEffect } from 'react';
 import Dropzone from '@/components/ui/Dropzone';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { useDurableBatchUpload } from '@/lib/hooks/useDurableBatchUpload';
+import { uploadWithFallback, useDurableBatchUpload } from '@/lib/hooks/useDurableBatchUpload';
 import { useResumableBatchUpload } from '@/lib/hooks/useResumableBatchUpload';
 import { consumePendingFonts } from '@/utils/pendingFonts';
 import { filesFromInput, type WalkedFile } from '@/utils/walkDirectoryEntries';
@@ -13,7 +13,7 @@ export default function ImportWorkspace() {
   const legacy = useResumableBatchUpload();
   const durable = useDurableBatchUpload();
   const upload = useCallback(async (walked: WalkedFile[]) => {
-    if (!await durable.upload(walked)) await legacy.upload(walked);
+    await uploadWithFallback(walked, durable.upload, legacy.upload);
   }, [durable, legacy]);
   const handleWalked = useCallback(
     (walked: WalkedFile[]) => {
@@ -30,11 +30,11 @@ export default function ImportWorkspace() {
   }, [user, upload]);
 
   return (
-    <Dropzone
-      onFilesWalked={handleWalked}
-      allowFolders
-      accept=".ttf,.otf,.woff,.woff2,.zip"
-      disabled={durable.isUploading || legacy.isUploading}
-    />
+    <>
+      <Dropzone onFilesWalked={handleWalked} allowFolders accept=".ttf,.otf,.woff,.woff2,.zip" disabled={durable.isUploading || legacy.isUploading} />
+      {Object.entries(durable.progressBySource).length > 0 && <div className="mt-3 space-y-1 text-xs" role="status" aria-live="polite">
+        {Object.entries(durable.progressBySource).map(([sourceId, percent]) => <p key={sourceId}>{sourceId}: {percent}%</p>)}
+      </div>}
+    </>
   );
 }
