@@ -19,15 +19,14 @@ export function queuePath(): string {
   return `projects/${projectId()}/locations/${location()}/queues/${queue}`;
 }
 
-export function workerUrl(): string {
-  const value = requiredEnv("IMPORT_WORKER_URL", "IMPORT_PRIVATE_WORKER_URL", "CLOUD_TASKS_WORKER_URL");
+function privateWorkerUrl(value: string, allowlistKey: string): string {
   let url: URL;
   try { url = new URL(value); } catch { throw new Error("Invalid private worker URL"); }
   const host = url.hostname.toLowerCase();
   const region = location();
   const runHost = new RegExp(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?-${region}\\.a\\.run\\.app$`).test(host);
   const functionHost = host === `${region}-${projectId()}.cloudfunctions.net`;
-  const allowlist = requiredEnv("IMPORT_WORKER_ALLOWED_HOSTS").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
+  const allowlist = requiredEnv(allowlistKey).split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
   const authority = value.split("://")[1]?.split("/")[0] ?? "";
   if (url.protocol !== "https:" || url.username || url.password || url.port || url.search || url.hash
     || authority.includes(":") || (!runHost && !functionHost) || !allowlist.includes(host)) {
@@ -35,6 +34,9 @@ export function workerUrl(): string {
   }
   return value;
 }
+
+export function workerUrl(): string { return privateWorkerUrl(requiredEnv("IMPORT_WORKER_URL", "IMPORT_PRIVATE_WORKER_URL", "CLOUD_TASKS_WORKER_URL"), "IMPORT_WORKER_ALLOWED_HOSTS"); }
+export function archiveWorkerUrl(): string { return privateWorkerUrl(requiredEnv("IMPORT_ARCHIVE_WORKER_URL"), "IMPORT_ARCHIVE_WORKER_ALLOWED_HOSTS"); }
 
 export function workerServiceAccount(): string {
   const project = projectId();

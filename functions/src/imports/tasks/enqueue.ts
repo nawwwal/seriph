@@ -2,6 +2,8 @@ import { createHash } from "crypto";
 import { CloudTasksClient } from "@google-cloud/tasks";
 import type { protos } from "@google-cloud/tasks";
 import { queuePath, workerServiceAccount, workerUrl } from "./workerConfig";
+import { archiveWorkerUrl } from "./workerConfig";
+import { getImportConfig } from "../config/importConfig";
 
 export interface ImportTaskPayload {
   kind: "discover_source" | "discover_item" | "finalize_plan" | "apply_family" | "reconcile_batch";
@@ -10,6 +12,7 @@ export interface ImportTaskPayload {
   resourceId: string;
   planVersion?: number;
   archiveBudgetKey?: string;
+  sourceSize?: number;
 }
 const KINDS = new Set<ImportTaskPayload["kind"]>(["discover_source", "discover_item", "finalize_plan", "apply_family", "reconcile_batch"]);
 type Task = protos.google.cloud.tasks.v2.ITask;
@@ -25,7 +28,7 @@ function requiredString(value: unknown, field: string): string {
 export function canonicalizeImportTaskPayload(input: unknown): ImportTaskPayload {
   if (!input || typeof input !== "object" || Array.isArray(input)) return rejectPayload("object required");
   const source = input as Record<PropertyKey, unknown>;
-  const allowed = new Set(["kind", "ownerId", "batchId", "resourceId", "planVersion", "archiveBudgetKey"]);
+  const allowed = new Set(["kind", "ownerId", "batchId", "resourceId", "planVersion", "archiveBudgetKey", "sourceSize"]);
   if (Reflect.ownKeys(source).some((key) => typeof key !== "string" || !allowed.has(key))) return rejectPayload("unknown field");
   for (const field of ["kind", "ownerId", "batchId", "resourceId"]) {
     if (!Object.prototype.hasOwnProperty.call(source, field)) return rejectPayload(`${field} must be an own property`);
@@ -41,6 +44,10 @@ export function canonicalizeImportTaskPayload(input: unknown): ImportTaskPayload
     payload.planVersion = source.planVersion as number;
   }
   if (Object.prototype.hasOwnProperty.call(source, "archiveBudgetKey")) payload.archiveBudgetKey = requiredString(source.archiveBudgetKey, "archiveBudgetKey");
+  if (Object.prototype.hasOwnProperty.call(source, "sourceSize")) {
+    if (!Number.isSafeInteger(source.sourceSize) || (source.sourceSize as number) < 0) return rejectPayload("sourceSize must be a non-negative safe integer");
+    payload.sourceSize = source.sourceSize as number;
+  }
   return payload;
 }
 function serializedPayload(input: unknown): { payload: ImportTaskPayload; serialized: string } {
@@ -59,7 +66,7 @@ function taskResourceName(payload: ImportTaskPayload, serialized: string): strin
 }
 export function buildHttpTask(input: unknown, name?: string): Task {
   const { payload, serialized } = serializedPayload(input);
-  const url = workerUrl();
+  const url = payload.kind === "discover_source" && payload.sourceSize !== undefined && payload.sourceSize > getImportConfig().inlineZipBytes ? archiveWorkerUrl() : workerUrl();
   const expectedName = taskResourceName(payload, serialized);
   if (name !== undefined && name !== expectedName) throw new Error("Task name does not match canonical payload identity");
   return { name: expectedName, httpRequest: { httpMethod: "POST", url, headers: { "Content-Type": "application/json" },

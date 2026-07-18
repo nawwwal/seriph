@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { handleArchive, productionArchiveWorkerDependencies, type ArchiveWorkerDependencies, type ArchiveWorkerRequest } from "./handleArchive";
 
 const MAX_REQUEST_BYTES = 64 * 1024;
+export class ArchiveRequestTooLargeError extends Error { readonly status = 413; }
 
 async function toArchiveRequest(req: IncomingMessage): Promise<ArchiveWorkerRequest> {
   const chunks: Buffer[] = [];
@@ -9,7 +10,7 @@ async function toArchiveRequest(req: IncomingMessage): Promise<ArchiveWorkerRequ
   for await (const chunk of req) {
     const bytes = Buffer.from(chunk as Uint8Array);
     size += bytes.byteLength;
-    if (size > MAX_REQUEST_BYTES) throw new Error("archive task request is too large");
+    if (size > MAX_REQUEST_BYTES) throw new ArchiveRequestTooLargeError("archive task request is too large");
     chunks.push(bytes);
   }
   const text = Buffer.concat(chunks).toString("utf8");
@@ -31,7 +32,8 @@ export function createArchiveWorkerServer(deps: ArchiveWorkerDependencies = prod
       const result = await handleArchive(await toArchiveRequest(req), deps);
       send(res, result.status, result.body ?? {});
     } catch (error) {
-      send(res, 503, { code: error instanceof Error ? error.message : "archive_worker_failure", retryable: true });
+      const status = error instanceof ArchiveRequestTooLargeError ? error.status : 503;
+      send(res, status, { code: error instanceof Error ? error.message : "archive_worker_failure", ...(status === 503 ? { retryable: true } : {}) });
     }
   });
 }

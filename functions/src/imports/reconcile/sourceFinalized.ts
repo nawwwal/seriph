@@ -5,7 +5,7 @@ import { deliverPendingDispatch, pendingDispatch, type PendingImportDispatch } f
 
 export interface FinalizedObject { name: string; generation: string; size: number; }
 export interface RegisteredIntakePath { ownerId: string; batchId: string; sourceId: string; filename: string; storagePath: string; }
-export interface RegisteredSource extends Omit<RegisteredIntakePath, "filename"> { state: string; }
+export interface RegisteredSource extends Omit<RegisteredIntakePath, "filename"> { state: string; declaredSize?: number; declaredMimeType?: string; }
 export type ConfirmResult = { kind: "ignored" } | { kind: "rejected"; code: "path_mismatch" } |
   { kind: "uploaded" | "already_confirmed"; generation: string };
 export interface SourceLifecycleStore {
@@ -32,8 +32,10 @@ export interface FirestoreSourceLifecycleDeps { db: Firestore; enqueue?: (task: 
 type TransactionResult = { result: ConfirmResult; pending: PendingImportDispatch | null };
 
 function sourceDispatch(source: RegisteredSource, generation: string): PendingImportDispatch {
-  return { token: `source:${source.sourceId}:${generation}`, task: {
+  const task = { kind: "discover_source" as const, ownerId: source.ownerId, batchId: source.batchId, resourceId: source.sourceId };
+  return { token: `source:${source.sourceId}:${generation}`, task: source.declaredSize === undefined ? task : {
     kind: "discover_source", ownerId: source.ownerId, batchId: source.batchId, resourceId: source.sourceId,
+    sourceSize: source.declaredSize,
   } };
 }
 
