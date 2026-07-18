@@ -7,7 +7,7 @@ import { writePlannedAssets, type PlannedAssetClaim, type WritePlannedAssetsDepe
 import { commitFamilyMutation, type MutationCommitResult } from "../store/mutationStore";
 import { importBatchRef } from "../store/paths";
 import { assetClaimRef } from "../store/assetClaimStore";
-import { catalogFamilyDocId } from "../../storage/catalogIdentity";
+import { recordFamilyPlanReview } from "./planApplicationState";
 
 export type ApplyFamilyResult =
   | { kind: "applied"; familyId: string; familyVersion: number; mutationId: string }
@@ -21,29 +21,35 @@ export interface ApplyFamilyPlanDependencies extends WritePlannedAssetsDependenc
   commitFamilyMutation?: typeof commitFamilyMutation;
 }
 export interface EnrichmentJobRequest { jobId: string; ownerId: string; batchId: string; familyId: string; familyVersion: number; planVersion: number; }
-export interface ApplyFamilyTaskDependencies { db: Firestore; bucket: Pick<Bucket, "file">; }
+export interface ApplyFamilyTaskDependencies {
+  db: Firestore; sourceBucket: Pick<Bucket, "file">; enqueueEnrichment: (request: EnrichmentJobRequest) => Promise<unknown>;
+}
 const mutationIdFor = (input: ApplyFamilyPlanInput): string => input.mutationId ?? `${input.plan.ownerId}:${input.plan.batchId}:${input.plan.planVersion}:${input.familyId}`;
 const errorCode = (error: unknown): string => error instanceof Error ? error.message.replace(/\s+/g, "_").toLowerCase() : "apply_failed";
 const resultFor = (familyId: string, result: MutationCommitResult): ApplyFamilyResult => result.kind === "committed"
   ? { kind: "applied", familyId, familyVersion: result.familyVersion, mutationId: result.mutationId }
   : result.kind === "already_applied" ? { kind: "already_applied", familyId, familyVersion: result.familyVersion } : result;
+async function review(input: ApplyFamilyPlanInput, deps: ApplyFamilyPlanDependencies, reasonCode: string): Promise<ApplyFamilyResult> {
+  try { await recordFamilyPlanReview({ db: deps.db, ownerId: input.plan.ownerId, batchId: input.plan.batchId, planVersion: input.plan.planVersion, familyId: input.familyId, reasonCode }); }
+  catch (error) { return { kind: "failed", retryable: true, errorCode: errorCode(error) }; }
+  return { kind: "review", reasonCode };
+}
 
 export async function applyFamilyPlan(input: ApplyFamilyPlanInput, deps: ApplyFamilyPlanDependencies): Promise<ApplyFamilyResult> {
   let plan: ImportPlan;
-  try { plan = validatePlan(input.plan); } catch { return { kind: "review", reasonCode: "invalid_plan" }; }
+  try { plan = validatePlan(input.plan); } catch { return review(input, deps, "invalid_plan"); }
   const family = plan.families.find((entry) => entry.familyId === input.familyId);
-  if (!family) return { kind: "review", reasonCode: "family_missing" };
-  if (!family.clean) return { kind: "review", reasonCode: "family_requires_review" };
+  if (!family) return review(input, deps, "family_missing");
+  if (!family.clean) return review(input, deps, "family_requires_review");
   const expectedVersion = input.expectedVersion ?? input.expectedFamilyVersion;
-  if (!Number.isSafeInteger(expectedVersion) || (expectedVersion as number) < 0) return { kind: "review", reasonCode: "expected_version_missing" };
+  if (!Number.isSafeInteger(expectedVersion) || (expectedVersion as number) < 0) return review(input, deps, "expected_version_missing");
   const assets = family.faces.flatMap((face) => face.assets);
   const mutationId = mutationIdFor(input);
   try {
-    const written = await writePlannedAssets({ ownerId: plan.ownerId, familyId: input.familyId, assets, claims: input.claims }, deps);
-    const job: EnrichmentJobRequest = { jobId: `${mutationId}:enrichment`, ownerId: plan.ownerId, batchId: plan.batchId, familyId: input.familyId, familyVersion: (expectedVersion as number) + 1, planVersion: plan.planVersion };
-    const commit = await (deps.commitFamilyMutation ?? commitFamilyMutation)({ db: deps.db, plan, familyId: input.familyId, expectedVersion: expectedVersion as number, mutationId, assets: written, claims: written.map((asset) => asset.source), now: (deps.now ?? (() => new Date()))(), enrichmentJobId: job.jobId });
+    const written = await writePlannedAssets({ ownerId: plan.ownerId, familyId: input.familyId, familySlug: family.familySlug, assets, claims: input.claims }, deps);
+    const commit = await (deps.commitFamilyMutation ?? commitFamilyMutation)({ db: deps.db, plan, familyId: input.familyId, expectedVersion: expectedVersion as number, mutationId, assets: written, claims: written.map((asset) => asset.source), now: (deps.now ?? (() => new Date()))() });
     const result = resultFor(input.familyId, commit);
-    if (result.kind === "applied" && deps.enqueueEnrichment) await deps.enqueueEnrichment(job);
+    if ((result.kind === "applied" || result.kind === "already_applied") && deps.enqueueEnrichment) await deps.enqueueEnrichment({ jobId: `${mutationId}:enrichment`, ownerId: plan.ownerId, batchId: plan.batchId, familyId: input.familyId, familyVersion: result.familyVersion, planVersion: plan.planVersion });
     return result;
   } catch (error) { return { kind: "failed", retryable: true, errorCode: errorCode(error) }; }
 }
@@ -55,14 +61,15 @@ export async function applyFamilyTask(payload: ImportTaskPayload, deps: ApplyFam
   if (!planSnap.exists) return { kind: "failed", retryable: true, errorCode: "plan_missing" };
   const plan = planSnap.data() as ImportPlan;
   const family = plan.families.find((entry) => entry.familyId === payload.resourceId);
-  if (!family) return { kind: "review", reasonCode: "family_missing" };
-  const familyRef = deps.db.collection("fontfamilies").doc(catalogFamilyDocId(payload.ownerId, family.familySlug));
-  const [familySnap, taskSnap] = await Promise.all([familyRef.get(), batch.collection("plans").doc(String(payload.planVersion)).collection("applyTasks").doc(payload.resourceId).get()]);
+  if (!family) return review({ plan, familyId: payload.resourceId, claims: [] }, { db: deps.db }, "family_missing");
+  const taskSnap = await batch.collection("plans").doc(String(payload.planVersion)).collection("applyTasks").doc(payload.resourceId).get();
+  const expectedFamilyVersions = (planSnap.data() as { expectedFamilyVersions?: Record<string, unknown> }).expectedFamilyVersions;
+  const planned = expectedFamilyVersions?.[payload.resourceId]; const taskExpected = taskSnap.data()?.expectedFamilyVersion;
+  if (!Number.isSafeInteger(planned) || (planned as number) < 0 || taskExpected !== planned) return review({ plan, familyId: payload.resourceId, claims: [] }, { db: deps.db }, "expected_version_missing");
   const claims = await Promise.all(family.faces.flatMap((face) => face.assets).map(async (asset) => {
     const [claimSnap, itemSnap] = await Promise.all([assetClaimRef(deps.db, payload.ownerId, asset.sha256).get(), batch.collection("items").doc(asset.itemId).get()]);
     return { ...(claimSnap.data() as PlannedAssetClaim), sourcePath: itemSnap.data()?.stagingPath };
   }));
-  const expectedVersion = Number(taskSnap.data()?.expectedFamilyVersion ?? familySnap.data()?.version ?? 0);
-  return applyFamilyPlan({ plan, familyId: payload.resourceId, expectedVersion, claims }, { db: deps.db, bucket: deps.bucket,
-    read: async (claim) => { if (!claim.sourcePath) throw new Error("staging path missing"); return (await deps.bucket.file(claim.sourcePath).download())[0]; } });
+  return applyFamilyPlan({ plan, familyId: payload.resourceId, expectedVersion: planned as number, claims }, { db: deps.db, enqueueEnrichment: deps.enqueueEnrichment,
+    read: async (claim) => { if (!claim.sourcePath) throw new Error("staging path missing"); return (await deps.sourceBucket.file(claim.sourcePath).download())[0]; } });
 }

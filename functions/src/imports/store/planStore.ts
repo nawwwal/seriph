@@ -3,6 +3,8 @@ import { enqueueImportTask, importTaskName, type ImportTaskPayload } from "../ta
 import { importBatchRef } from "./paths";
 import { validatePlan } from "../planning/validatePlan";
 import type { ImportPlan } from "../planning/buildPlan";
+import { catalogFamilyDocId } from "../../storage/catalogIdentity";
+import { FAMILIES_COLLECTION } from "../../storage/familyStore";
 
 export interface PlanStoreDependencies {
   enqueue?: (payload: ImportTaskPayload) => Promise<unknown>;
@@ -20,6 +22,12 @@ const errorText = (error: unknown): string => error instanceof Error ? error.mes
 const payloadFor = (plan: ImportPlan, familyId: string): ImportTaskPayload => ({
   kind: "apply_family", ownerId: plan.ownerId, batchId: plan.batchId, resourceId: familyId, planVersion: plan.planVersion,
 });
+const familyVersion = (value: unknown): number => {
+  const version = typeof value === "object" && value ? (value as { version?: unknown }).version : undefined;
+  if (version === undefined) return 0;
+  if (!Number.isSafeInteger(version) || (version as number) < 0) throw new Error("invalid catalogue family version");
+  return version as number;
+};
 
 export async function enqueuePendingPlanTasks(
   db: Firestore, plan: ImportPlan, dependencies: PlanStoreDependencies = {},
@@ -57,11 +65,15 @@ export async function saveValidatedPlan(
     const next = planVersion + 1;
     const plan = validatePlan({ ...validated, planVersion: next, contentHash: undefined });
     const existing = await tx.get(planRef(db, plan.ownerId, plan.batchId, next));
+    const expectedFamilyVersions = Object.fromEntries(await Promise.all(plan.families.filter((family) => family.clean).map(async (family) => {
+      const snapshot = await tx.get(db.collection(FAMILIES_COLLECTION).doc(catalogFamilyDocId(plan.ownerId, family.familySlug)));
+      return [family.familyId, familyVersion(snapshot.exists ? snapshot.data() : undefined)];
+    })));
     if (existing.exists) return { kind: "exists", planVersion: next, plan } as const;
-    tx.set(planRef(db, plan.ownerId, plan.batchId, next), plan);
+    tx.set(planRef(db, plan.ownerId, plan.batchId, next), { ...plan, expectedFamilyVersions });
     for (const family of plan.families.filter((entry) => entry.clean)) {
       const payload: ImportTaskPayload = { kind: "apply_family", ownerId: plan.ownerId, batchId: plan.batchId, resourceId: family.familyId, planVersion: next };
-      const at = new Date(); tx.set(taskRef(db, plan.ownerId, plan.batchId, next, family.familyId), { payload, taskName: importTaskName(payload), status: "pending", attempts: 0, transitions: [{ status: "pending", at }], planContentHash: plan.contentHash, createdAt: at, updatedAt: at });
+      const at = new Date(); tx.set(taskRef(db, plan.ownerId, plan.batchId, next, family.familyId), { payload, taskName: importTaskName(payload), status: "pending", expectedFamilyVersion: expectedFamilyVersions[family.familyId], attempts: 0, transitions: [{ status: "pending", at }], planContentHash: plan.contentHash, createdAt: at, updatedAt: at });
     }
     tx.update(batchRef, { planVersion: next, phases: { ...(batchSnap.data() as any).phases, planning: { state: "validated", attempts: 0 } } });
     return { kind: "created", planVersion: next, plan } as const;
