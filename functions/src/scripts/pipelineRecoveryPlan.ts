@@ -70,6 +70,7 @@ export function planPipelineRecovery(snapshot: RecoverySnapshot): RecoveryAction
   const actions: RecoveryAction[] = [];
   const families = new Map(snapshot.families.map((family) => [family.id, family]));
   for (const family of snapshot.families) {
+    if (!family.ownerId) continue;
     const target = aliasTarget(family);
     if (family.hidden && target && family.status !== "merged") {
       actions.push({ kind: "restore_alias", familyId: family.id, targetId: target });
