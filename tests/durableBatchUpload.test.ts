@@ -2,8 +2,10 @@ import fs from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }));
-vi.mock('@/lib/contexts/UploadContext', () => ({ useUploads: () => ({ open: vi.fn(), setUploadProgress: vi.fn() }) }));
-import { prepareDurableSources, readDurableEnabled, runDurableUpload, uploadWithFallback } from '@/lib/hooks/useDurableBatchUpload';
+vi.mock('@/lib/contexts/UploadContext', () => ({ useUploads: () => ({ open: vi.fn(), setSourceProgress: vi.fn() }) }));
+import { prepareDurableSources, runDurableUpload } from '@/lib/hooks/useDurableBatchUpload';
+import { readDurableEnabled } from '@/lib/hooks/durableRemoteConfig';
+import { uploadWithFallback } from '@/lib/hooks/durableFallback';
 import type { DurableUploadDeps, DurableUploadSource, RecoverySession } from '@/models/import-batch.models';
 
 const files = (count = 2): DurableUploadSource[] => Array.from({ length: count }, (_, i) => ({ sourceId: `s${i + 1}`, file: { name: `${i + 1}.otf`, size: i + 1, type: 'font/otf' } as File, relativePath: `${i + 1}.otf` }));

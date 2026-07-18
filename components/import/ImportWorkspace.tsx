@@ -3,7 +3,8 @@
 import { useCallback, useEffect } from 'react';
 import Dropzone from '@/components/ui/Dropzone';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { uploadWithFallback, useDurableBatchUpload } from '@/lib/hooks/useDurableBatchUpload';
+import { useDurableBatchUpload } from '@/lib/hooks/useDurableBatchUpload';
+import { uploadWithFallback } from '@/lib/hooks/durableFallback';
 import { useResumableBatchUpload } from '@/lib/hooks/useResumableBatchUpload';
 import { consumePendingFonts } from '@/utils/pendingFonts';
 import { filesFromInput, type WalkedFile } from '@/utils/walkDirectoryEntries';

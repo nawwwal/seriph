@@ -2,12 +2,13 @@ import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { ImportBatchSummary } from '@/lib/imports/mapImportBatch';
+import type { IngestRecord } from '@/models/ingest.models';
 import { matchesUploadFilter } from '@/components/upload/uploadCenterFilters';
 
 const uploadState = vi.hoisted(() => ({
   batches: [] as ImportBatchSummary[],
   close: vi.fn(),
-  ingests: [],
+  ingests: [] as IngestRecord[],
   isOpen: true,
   uploadProgress: {},
   sourceProgress: {} as Record<string, number>,
@@ -81,4 +82,5 @@ describe('batch-first Upload Center', () => {
     expect(matchesUploadFilter({ ...batchFixture, outcome: 'partial' }, 'failed')).toBe(true);
     expect(matchesUploadFilter({ ...batchFixture, outcome: 'canceled' }, 'failed')).toBe(false);
   });
+
 });

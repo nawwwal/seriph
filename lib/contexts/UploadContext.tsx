@@ -21,7 +21,7 @@ export interface UploadContextValue {
   uploadProgress: Record<string, number>; // client-driven resumable progress by ingestId
   setUploadProgress: (ingestId: string, percent: number) => void;
   sourceProgress: Record<string, number>;
-  setSourceProgress: (sourceId: string, percent: number) => void;
+  setSourceProgress: (sourceId: string, percent: number | null) => void;
   loadChildren: (batchId: string) => Promise<ImportBatchChildren>;
   onCompleted: (cb: () => void) => () => void; // fires (debounced) on completion
 }
@@ -32,6 +32,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [uploadProgress, setProgress] = useState<Record<string, number>>({});
+  const [sourceProgress, setSourceProgressState] = useState<Record<string, number>>({});
   const completedCbs = useRef(new Set<() => void>());
   const canReadIngests = !isLoading && Boolean(user?.uid);
   const notifyCompleted = useCallback(() => {
@@ -44,6 +45,12 @@ export function UploadProvider({ children }: { children: ReactNode }) {
 
   const setUploadProgress = useCallback((ingestId: string, percent: number) => {
     setProgress((prev) => ({ ...prev, [ingestId]: percent }));
+  }, []);
+  const setSourceProgress = useCallback((sourceId: string, percent: number | null) => {
+    setSourceProgressState((prev) => {
+      if (percent === null) { if (!(sourceId in prev)) return prev; const next = { ...prev }; delete next[sourceId]; return next; }
+      return { ...prev, [sourceId]: Math.max(0, Math.min(100, percent)) };
+    });
   }, []);
 
   const onCompleted = useCallback((cb: () => void) => {
@@ -79,12 +86,12 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       close: () => setIsOpen(false),
       uploadProgress,
       setUploadProgress,
-      sourceProgress: uploadProgress,
-      setSourceProgress: setUploadProgress,
+      sourceProgress,
+      setSourceProgress,
       loadChildren: childStatus.loadChildren,
       onCompleted,
     }),
-    [visibleIngests, canReadIngests, feed.batches, feed.transport, activeCount, isOpen, uploadProgress, setUploadProgress, childStatus.loadChildren, onCompleted]
+    [visibleIngests, canReadIngests, feed.batches, feed.transport, activeCount, isOpen, uploadProgress, sourceProgress, setUploadProgress, setSourceProgress, childStatus.loadChildren, onCompleted]
   );
 
   return <UploadContext.Provider value={value}>{children}</UploadContext.Provider>;

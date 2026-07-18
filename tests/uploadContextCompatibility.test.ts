@@ -15,6 +15,7 @@ describe('UploadContext durable compatibility', () => {
   it('retains legacy fields but ignores legacy disappearance for durable callbacks', () => {
     renderToStaticMarkup(createElement(UploadProvider, null, createElement(Consumer)));
     expect(state.value).toMatchObject({ batches: [], transport: 'realtime', sourceProgress: {}, uploadProgress: {} });
+    expect(state.value.setSourceProgress).not.toBe(state.value.setUploadProgress);
     state.legacyCompletion?.(); expect(state.callback).not.toHaveBeenCalled();
     state.feedCompletion?.({ kind: 'families_applied', batchId: 'b1', delta: 1 }); expect(state.callback).toHaveBeenCalledTimes(1);
   });

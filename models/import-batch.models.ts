@@ -24,6 +24,7 @@ export interface DurableUploadDeps {
   upload(source: RegisteredSource, file: File, onProgress: (percent: number) => void): Promise<void>;
   fail(batchId: string, sourceId: string, error: UploadFailure): Promise<void>;
   progress?(sourceId: string, percent: number): void;
+  clearProgress?(sourceId: string): void;
   persist?(session: RecoverySession): void;
   clearPersisted?(): void;
 }

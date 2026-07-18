@@ -7,7 +7,7 @@ import { getCombinedStatus } from '@/lib/contexts/ImportContext';
 import UploadCenterRow from './UploadCenterRow';
 import { Button } from '@/components/ui/Button';
 import UploadBatchRow from './UploadBatchRow';
-import { matchesUploadFilter, type UploadCenterFilter } from './uploadCenterFilters';
+import { matchesUploadFilter, toggleUploadFilter, type UploadCenterFilter } from './uploadCenterFilters';
 
 export default function UploadCenterModal() {
   const { batches, ingests, isOpen, close, uploadProgress, sourceProgress, loadChildren } = useUploads();
@@ -69,7 +69,7 @@ export default function UploadCenterModal() {
           {filters.map((f) => (
             <Button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => setFilter((current) => toggleUploadFilter(current, f))}
               size="sm"
               tone={filter === f ? 'active' : 'default'}
               aria-pressed={filter === f}
