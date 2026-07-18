@@ -51,6 +51,35 @@ describe('catalog family adapter', () => {
     });
   });
 
+  it('whitelists public asset fields and strips storage and source provenance', () => {
+    const family = adaptFamilyDoc({
+      name: 'Atlas', slug: 'atlas', category: 'SANS_SERIF', faces: [{
+        id: 'regular', styleName: 'Regular', weight: 400, weightName: 'Regular', italic: false,
+        isVariable: false, format: 'WOFF2', filename: 'Atlas.woff2', fileSize: 42,
+        woff2: { storagePath: 's/private', url: 'https://cdn.test/s/Atlas.woff2' },
+        original: { storagePath: 'd/private', url: 'https://cdn.test/d/Atlas.otf' },
+        assets: [{ id: 'woff2', contentHash: 'hash', containerFormat: 'WOFF2', technology: 'WOFF2',
+          parsedVersion: '1.2', originalName: 'Atlas.otf',
+          original: { storagePath: 'd/private', url: 'https://cdn.test/d/Atlas.otf' },
+          served: { storagePath: 's/private', url: 'https://cdn.test/s/Atlas.woff2' },
+          source: { batchId: 'secret-batch', sourceId: 'secret-source', itemId: 'secret-item', originalPath: 'secret/path' } }],
+      }], enrichment: {},
+    }, 'atlas');
+
+    const asset = (family.fonts[0]?.metadata.assets as Array<Record<string, unknown>>)[0];
+    expect(Object.keys(asset).sort()).toEqual([
+      'containerFormat', 'contentHash', 'id', 'original', 'originalName', 'parsedVersion', 'served', 'technology',
+    ]);
+    expect(asset).toMatchObject({
+      id: 'woff2', contentHash: 'hash', containerFormat: 'WOFF2', technology: 'WOFF2',
+      parsedVersion: '1.2', originalName: 'Atlas.otf',
+      original: { url: 'https://cdn.test/d/Atlas.otf' }, served: { url: 'https://cdn.test/s/Atlas.woff2' },
+    });
+    expect(asset).not.toHaveProperty('source');
+    expect(asset).not.toHaveProperty('original.storagePath');
+    expect(asset).not.toHaveProperty('served.storagePath');
+  });
+
   it('maps every user-facing enrichment field from a catalog family', () => {
     const family = catalogFamily({
       classification: 'geometric sans',

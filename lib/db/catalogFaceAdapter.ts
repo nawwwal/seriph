@@ -8,23 +8,22 @@ function faceUrl(face: Record<string, unknown>, key: string): string | undefined
   return typeof asset?.url === 'string' ? asset.url : undefined;
 }
 
-function served(value: unknown): { storagePath: string; url: string } | undefined {
+function publicAssetUrl(value: unknown): { url: string } | undefined {
   const asset = asRecord(value);
-  if (!asset || typeof asset.storagePath !== 'string' || typeof asset.url !== 'string') return undefined;
-  return { storagePath: asset.storagePath, url: asset.url };
+  return asset && typeof asset.url === 'string' ? { url: asset.url } : undefined;
 }
 
 function faceAssets(value: unknown): Record<string, unknown>[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const assets = value.map((entry) => {
     const item = asRecord(entry);
-    const original = served(item?.original);
+    const original = publicAssetUrl(item?.original);
     const id = item ? text(item, 'id') : undefined;
     if (!item || !id || !original) return null;
     return {
       id, contentHash: text(item, 'contentHash'), containerFormat: fontFormat(item.containerFormat),
       technology: text(item, 'technology'), parsedVersion: text(item, 'parsedVersion'),
-      originalName: text(item, 'originalName'), original, served: served(item.served), source: item.source,
+      originalName: text(item, 'originalName'), original, served: publicAssetUrl(item.served),
     };
   }).filter((item) => item !== null) as Record<string, unknown>[];
   return assets.length ? assets : undefined;
