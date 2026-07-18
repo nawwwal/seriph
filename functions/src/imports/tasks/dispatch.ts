@@ -28,6 +28,11 @@ export interface DispatchDependencies {
 
 export const importTaskStages: ImportStageRegistry = {};
 
+/** Register a durable stage once; archive children use the existing discover_item lane. */
+export function registerImportStage(kind: ImportTaskPayload["kind"], handler: ImportStageHandler): void {
+  importTaskStages[kind] = handler;
+}
+
 export function importTaskLeaseId(cloudTaskName: string): string {
   return createHash("sha256").update(cloudTaskName).digest("hex");
 }
