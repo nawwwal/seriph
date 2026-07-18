@@ -32,6 +32,11 @@ export default function ImportWorkspace() {
 
   return (
     <>
+      {durable.recovery && !durable.isUploading && (
+        <p id="import-recovery-hint" className="mb-4 text-sm" role="status" aria-live="polite">
+          This import is waiting for files. Reselect the original files or folder to resume it; matching name, path, and size keep the saved source IDs.
+        </p>
+      )}
       <Dropzone onFilesWalked={handleWalked} allowFolders accept=".ttf,.otf,.woff,.woff2,.zip" disabled={durable.isUploading || legacy.isUploading} />
       {Object.entries(durable.progressBySource).length > 0 && <div className="mt-3 space-y-1 text-xs" role="status" aria-live="polite">
         {Object.entries(durable.progressBySource).map(([sourceId, percent]) => <p key={sourceId}>{sourceId}: {percent}%</p>)}
