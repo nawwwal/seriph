@@ -28,6 +28,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Durable import records: owners can observe the batch tree; clients never write it.
+    match /users/{userId}/importBatches/{batchId} {
+      allow read: if isAuthenticated() && userId == request.auth.uid;
+      allow write: if false;
+
+      match /{childCollection}/{childId} {
+        allow read: if isAuthenticated() && userId == request.auth.uid;
+        allow write: if false;
+      }
+    }
+
     // Per-user ingest records
     match /users/{userId}/ingests/{ingestId} {
       allow read: if isAuthenticated() && userId == request.auth.uid;
