@@ -1,3 +1,6 @@
+import type { FontTechnology } from "../imports/planning/technology";
+import type { FontFormat } from "../storage/transcode";
+
 export interface CanonicalAxis {
   tag: string;
   min: number;
@@ -9,6 +12,18 @@ export interface CanonicalAxis {
 export interface ServedAsset {
   storagePath: string;
   url: string;
+}
+
+export interface FontAsset {
+  id: string;
+  contentHash: string;
+  containerFormat: FontFormat;
+  technology: FontTechnology;
+  parsedVersion?: string;
+  original: ServedAsset;
+  served?: ServedAsset;
+  originalName: string;
+  source: { batchId: string; sourceId: string; itemId: string; originalPath: string };
 }
 
 export interface FontFaceMeta {
@@ -44,5 +59,8 @@ export interface FontFace {
   woff2: ServedAsset;
   original: ServedAsset;
   contentHash?: string;
+  technology?: FontTechnology;
+  assets?: FontAsset[];
+  preferredAssetId?: string;
   meta?: FontFaceMeta;
 }

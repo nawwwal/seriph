@@ -20,6 +20,37 @@ describe('catalog alias helpers', () => {
 });
 
 describe('catalog family adapter', () => {
+  it('projects logical face variants while preserving the legacy face fields', () => {
+    const family = adaptFamilyDoc({
+      name: 'Atlas', slug: 'atlas', category: 'SANS_SERIF', faces: [{
+        id: 'regular', styleName: 'Regular', weight: 400, weightName: 'Regular', italic: false,
+        isVariable: false, format: 'WOFF2', filename: 'Atlas.woff2', fileSize: 42,
+        preferredAssetId: 'woff2',
+        woff2: { storagePath: 's/atlas/1/Atlas.woff2', url: 'https://cdn.test/s/Atlas.woff2' },
+        original: { storagePath: 'd/atlas/1/Atlas.otf', url: 'https://cdn.test/d/Atlas.otf' },
+        contentHash: 'woff2-hash',
+        assets: [
+          { id: 'otf', contentHash: 'otf-hash', containerFormat: 'OTF', technology: 'OTF', originalName: 'Atlas.otf',
+            original: { storagePath: 'd/atlas/1/Atlas.otf', url: 'https://cdn.test/d/Atlas.otf' },
+            source: { batchId: 'batch-1', sourceId: 'source-1', itemId: 'otf', originalPath: 'Atlas.otf' } },
+          { id: 'woff2', contentHash: 'woff2-hash', containerFormat: 'WOFF2', technology: 'WOFF2', originalName: 'Atlas.woff2',
+            original: { storagePath: 'd/atlas/1/Atlas.otf', url: 'https://cdn.test/d/Atlas.otf' },
+            served: { storagePath: 's/atlas/1/Atlas.woff2', url: 'https://cdn.test/s/Atlas.woff2' },
+            source: { batchId: 'batch-1', sourceId: 'source-1', itemId: 'woff2', originalPath: 'Atlas.woff2' } },
+        ],
+      }], enrichment: {},
+    }, 'atlas');
+
+    expect(family.fonts[0]).toMatchObject({ id: 'regular', format: 'WOFF2', filename: 'Atlas.woff2' });
+    expect(family.fonts[0]?.metadata).toMatchObject({
+      cdnUrl: 'https://cdn.test/s/Atlas.woff2', downloadUrl: 'https://cdn.test/d/Atlas.otf',
+      preferredAssetId: 'woff2', assets: expect.arrayContaining([
+        expect.objectContaining({ id: 'otf', containerFormat: 'OTF' }),
+        expect.objectContaining({ id: 'woff2', containerFormat: 'WOFF2', served: expect.any(Object) }),
+      ]),
+    });
+  });
+
   it('maps every user-facing enrichment field from a catalog family', () => {
     const family = catalogFamily({
       classification: 'geometric sans',

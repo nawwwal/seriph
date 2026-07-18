@@ -8,6 +8,28 @@ function faceUrl(face: Record<string, unknown>, key: string): string | undefined
   return typeof asset?.url === 'string' ? asset.url : undefined;
 }
 
+function served(value: unknown): { storagePath: string; url: string } | undefined {
+  const asset = asRecord(value);
+  if (!asset || typeof asset.storagePath !== 'string' || typeof asset.url !== 'string') return undefined;
+  return { storagePath: asset.storagePath, url: asset.url };
+}
+
+function faceAssets(value: unknown): Record<string, unknown>[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const assets = value.map((entry) => {
+    const item = asRecord(entry);
+    const original = served(item?.original);
+    const id = item ? text(item, 'id') : undefined;
+    if (!item || !id || !original) return null;
+    return {
+      id, contentHash: text(item, 'contentHash'), containerFormat: fontFormat(item.containerFormat),
+      technology: text(item, 'technology'), parsedVersion: text(item, 'parsedVersion'),
+      originalName: text(item, 'originalName'), original, served: served(item.served), source: item.source,
+    };
+  }).filter((item) => item !== null) as Record<string, unknown>[];
+  return assets.length ? assets : undefined;
+}
+
 function fontFormat(value: unknown): FontFormat {
   const format = typeof value === 'string' ? value.toUpperCase() : 'OTF';
   return FORMATS.has(format as FontFormat) ? format as FontFormat : 'OTF';
@@ -31,6 +53,7 @@ function mapFace(value: unknown, index: number): Font | null {
   if (!face) return null;
   const id = text(face, 'id') ?? `face-${index + 1}`;
   const meta = asRecord(face.meta) ?? {};
+  const assets = faceAssets(face.assets);
   const weightName = text(face, 'weightName') ?? 'Regular';
   return {
     id,
@@ -55,6 +78,7 @@ function mapFace(value: unknown, index: number): Font | null {
       languageSupport: textArray(meta.languageSupport),
       version: text(meta, 'version'),
       license: text(meta, 'license'),
+      ...(assets ? { assets, preferredAssetId: text(face, 'preferredAssetId') } : {}),
     },
   };
 }
