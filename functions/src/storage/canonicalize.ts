@@ -6,3 +6,8 @@ export { canonicalFilename, orderAxisTags } from "./canonicalFilename";
 export { resolveCanonicalFontIdentity } from "./canonicalIdentity";
 export type { CanonicalFontIdentity, CanonicalFontIdentityInput } from "./canonicalIdentity";
 export { canonicalFaceId, parseStyle, staticStyleSuffix } from "./canonicalStyle";
+export { resolvePlannedFontIdentity } from "../imports/planning/identity";
+export type { PlannedFontIdentity, PlannedFontInput } from "../imports/planning/identity";
+export { axisSignature, logicalFaceKey, normalizeIdentityKey, resolveLogicalFaceKey } from "../imports/planning/logicalFace";
+export { resolveContainerFormat, resolveFontTechnology, resolveTechnology } from "../imports/planning/technology";
+export type { FontTechnology, VariableAxisLike } from "../imports/planning/technology";
