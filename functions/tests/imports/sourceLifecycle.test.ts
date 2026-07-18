@@ -9,6 +9,7 @@ import {
   type SourceTimeoutStore,
   type TimeoutSource,
 } from "../../src/imports/reconcile/sourceTimeout";
+import { getImportConfig } from "../../src/imports/config/importConfig";
 
 const object: FinalizedObject = { name: "intake/u1/b1/s1/font.otf", generation: "7", size: 12 };
 const source = { ownerId: "u1", batchId: "b1", sourceId: "s1", storagePath: object.name, state: "uploading" as const };
@@ -74,3 +75,33 @@ it.each(["uploaded", "discovering", "discovered", "failed", "canceled", "timed_o
     expect(markTimedOut).not.toHaveBeenCalled();
   },
 );
+
+it("retries a persisted reconciliation dispatch after its first enqueue fails", async () => {
+  let pending = false; let recoverable = false;
+  const batch = { ownerId: "u1", batchId: "b1", pendingDispatch: {
+    token: "reconcile:b1", task: { kind: "reconcile_batch" as const, ownerId: "u1", batchId: "b1", resourceId: "b1" },
+  } };
+  const store = {
+    listStale: async () => pending ? [] : [stale],
+    listPendingBatches: async () => recoverable ? [batch] : [],
+    markTimedOut: async () => { pending = true; return true; },
+    enqueueReconcile: async () => { recoverable = true; throw new Error("queue unavailable"); },
+    dispatchReconcile: async () => { pending = false; return "created"; },
+  } as SourceTimeoutStore & { listPendingBatches: () => Promise<Array<typeof batch>>; dispatchReconcile: () => Promise<string> };
+
+  await expect(expireSources(store, { now: () => 1_440 * 60_000 + 1 })).rejects.toThrow("queue unavailable");
+  await expect(expireSources(store, { now: () => 1_440 * 60_000 + 1 })).resolves.toEqual({ timedOut: 0, batchesQueued: 1 });
+});
+
+it("uses the bounded Remote Config timeout when expiring sources", async () => {
+  let cutoff = 0;
+  const store: SourceTimeoutStore = {
+    listStale: async (value) => { cutoff = value; return []; },
+    markTimedOut: async () => false,
+    enqueueReconcile: async () => "created",
+  };
+
+  await expireSources(store, { now: () => 300_000 }, getImportConfig(() => "2").sourceTimeoutMinutes);
+
+  expect(cutoff).toBe(180_000);
+});

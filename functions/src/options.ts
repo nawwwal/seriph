@@ -55,6 +55,7 @@ export const IMPORT_TASK_WORKER_OPTIONS = {
 export const IMPORT_SOURCE_FINALIZED_OPTIONS = {
   ...INGEST_FUNCTION_OPTIONS,
   maxInstances: 4,
+  retry: true,
 };
 
 export const IMPORT_SOURCE_TIMEOUT_OPTIONS = {

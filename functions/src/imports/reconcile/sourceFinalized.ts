@@ -1,6 +1,7 @@
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { enqueueImportTask, type ImportTaskPayload } from "../tasks/enqueue";
 import { importSourceRef } from "../store/paths";
+import { deliverPendingDispatch, pendingDispatch, type PendingImportDispatch } from "./pendingDispatch";
 
 export interface FinalizedObject { name: string; generation: string; size: number; }
 export interface RegisteredIntakePath { ownerId: string; batchId: string; sourceId: string; filename: string; storagePath: string; }
@@ -28,6 +29,13 @@ export async function confirmFinalizedSource(object: FinalizedObject, store: Sou
 }
 
 export interface FirestoreSourceLifecycleDeps { db: Firestore; enqueue?: (task: ImportTaskPayload) => Promise<unknown>; }
+type TransactionResult = { result: ConfirmResult; pending: PendingImportDispatch | null };
+
+function sourceDispatch(source: RegisteredSource, generation: string): PendingImportDispatch {
+  return { token: `source:${source.sourceId}:${generation}`, task: {
+    kind: "discover_source", ownerId: source.ownerId, batchId: source.batchId, resourceId: source.sourceId,
+  } };
+}
 
 export function firestoreSourceLifecycleStore(deps: FirestoreSourceLifecycleDeps): SourceLifecycleStore {
   const enqueue = deps.enqueue ?? ((task) => enqueueImportTask(task));
@@ -39,19 +47,22 @@ export function firestoreSourceLifecycleStore(deps: FirestoreSourceLifecycleDeps
     },
     async markUploadedAndEnqueue(source, object) {
       const ref = importSourceRef(deps.db, source.ownerId, source.batchId, source.sourceId);
-      const result = await deps.db.runTransaction<ConfirmResult>(async (tx) => {
-        const snap = await tx.get(ref); if (!snap.exists) return { kind: "ignored" as const };
+      const committed = await deps.db.runTransaction<TransactionResult>(async (tx) => {
+        const snap = await tx.get(ref); if (!snap.exists) return { result: { kind: "ignored" as const }, pending: null };
         const current = snap.data() as Record<string, unknown>;
-        if (current.storagePath !== object.name) return { kind: "rejected", code: "path_mismatch" as const };
+        if (current.storagePath !== object.name) return { result: { kind: "rejected", code: "path_mismatch" as const }, pending: null };
+        const existing = pendingDispatch(current.pendingDispatch);
+        if (existing) return { result: { kind: "already_confirmed" as const, generation: String(current.uploadGeneration ?? object.generation) }, pending: existing };
         if (current.uploadGeneration === object.generation || !["registered", "uploading"].includes(String(current.state))) {
-          return { kind: "already_confirmed" as const, generation: String(current.uploadGeneration ?? object.generation) };
+          return { result: { kind: "already_confirmed" as const, generation: String(current.uploadGeneration ?? object.generation) }, pending: null };
         }
+        const pending = sourceDispatch(source, object.generation);
         tx.update(ref, { state: "uploaded", uploadConfirmed: true, uploadGeneration: object.generation,
-          uploadedSize: object.size, updatedAt: FieldValue.serverTimestamp() });
-        return { kind: "uploaded" as const, generation: object.generation };
+          uploadedSize: object.size, pendingDispatch: pending, updatedAt: FieldValue.serverTimestamp() });
+        return { result: { kind: "uploaded" as const, generation: object.generation }, pending };
       });
-      if (result.kind === "uploaded") await enqueue({ kind: "discover_source", ownerId: source.ownerId, batchId: source.batchId, resourceId: source.sourceId });
-      return result;
+      if (committed.pending) await deliverPendingDispatch(deps.db, ref, committed.pending, enqueue);
+      return committed.result;
     },
   };
 }

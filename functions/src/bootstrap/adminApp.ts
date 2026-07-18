@@ -5,6 +5,7 @@ import { logger } from "firebase-functions";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { loadServiceAccountFromEnv } from "./serviceAccount";
+import { resolveStorageBucket } from "./storageBucket";
 
 function credentialPathLooksValid(filePath: string): boolean {
   try {
@@ -33,10 +34,7 @@ function sanitizeCredentialsEnv(): void {
 
 function initializeFirebaseAdminApp(): void {
   const appOptions: admin.AppOptions = {};
-  const storageBucket =
-    process.env.FIREBASE_STORAGE_BUCKET ||
-    process.env.GOOGLE_CLOUD_STORAGE_BUCKET ||
-    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+  const storageBucket = resolveStorageBucket();
   if (storageBucket) appOptions.storageBucket = storageBucket;
 
   const serviceAccount = loadServiceAccountFromEnv();

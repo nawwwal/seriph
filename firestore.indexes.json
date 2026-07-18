@@ -59,6 +59,14 @@
       ]
     },
     {
+      "collectionGroup": "sources",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "state", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "families",
       "queryScope": "COLLECTION",
       "fields": [
