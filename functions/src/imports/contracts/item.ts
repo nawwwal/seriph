@@ -16,6 +16,16 @@ export type ImportItemReason =
   | "archive_container" | "unsupported_content" | "ambiguous_identity"
   | "unsafe_archive" | "duplicate_content" | "disposable_name";
 
+export type ImportArchiveState = "expanding" | "complete" | "review";
+export interface ImportArchiveLifecycle {
+  state: ImportArchiveState;
+  inventoryDurable: boolean;
+  expectedChildren: number;
+  discoveredChildren: number;
+  terminalChildren: number;
+  reviewCount: number;
+}
+
 export interface ImportArchiveLineageEntry {
   archiveItemId: string;
   entryPath: string;
@@ -49,5 +59,7 @@ export interface ImportItem {
   attempts: number;
   createdAt: string;
   updatedAt: string;
+  stagingPath?: string;
+  archive?: ImportArchiveLifecycle;
   error?: ImportError;
 }

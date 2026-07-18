@@ -12,6 +12,7 @@ export interface InventoryProvenance {
   extension: string;
   declaredMimeType: string;
   crc32?: number;
+  stagingPath?: string;
 }
 export interface InventoryInput extends InventoryProvenance {
   bytes: ByteSource;

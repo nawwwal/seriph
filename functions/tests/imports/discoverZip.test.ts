@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import { describe, expect, it } from "vitest";
 import { inspectArchive } from "../../src/imports/discovery/discoverZip";
 import { discoverZip } from "../../src/imports/discovery/discoverZip";
+import { extractEntryBounded } from "../../src/imports/discovery/discoverZip";
 import { assessArchiveEntry } from "../../src/imports/discovery/archivePolicy";
 import { importTaskStages, registerImportStage } from "../../src/imports/tasks/dispatch";
 
@@ -48,6 +49,36 @@ describe("safe ZIP discovery", () => {
     })).toContainEqual(expect.objectContaining({ action: "review", reasonCode: "compression_ratio" }));
   });
 
+  it("rejects Unicode-normalized path collisions", async () => {
+    const result = await inspectArchive(await fixtureZip({ "ｅ.ttf": "font", "e.ttf": "font" }), limits);
+    expect(result).toContainEqual(expect.objectContaining({ action: "review", reasonCode: "path_collision" }));
+  });
+
+  it("bounds streaming extraction before allocating an oversized result", async () => {
+    let chunksRead = 0;
+    const entry = {
+      path: "large.ttf",
+      stream: () => (async function* () {
+        chunksRead += 1; yield Buffer.alloc(8); chunksRead += 1; yield Buffer.alloc(8);
+        chunksRead += 1; yield Buffer.alloc(8);
+      })(),
+    };
+    await expect(extractEntryBounded(entry, 10, 1000, 0)).resolves.toMatchObject({
+      action: "review", reasonCode: "entry_size", entryPath: "large.ttf",
+    });
+    expect(chunksRead).toBeLessThan(3);
+  });
+
+  it("turns corrupt deflate streams into review decisions", async () => {
+    const entry = {
+      path: "corrupt.ttf",
+      stream: () => (async function* () { throw new Error("invalid distance too far back"); })(),
+    };
+    await expect(extractEntryBounded(entry, 100, 0)).resolves.toMatchObject({
+      action: "review", reasonCode: "decompression_failure", entryPath: "corrupt.ttf",
+    });
+  });
+
   it("creates deterministic child inventory, staging paths, and nested tasks", async () => {
     const bytes = await fixtureZip({ "fonts/ok.ttf": Buffer.from([0, 1, 0, 0]), "nested.zip": await fixtureZip({ "inner.otf": "font" }) });
     const first = await discoverZip({ ...provenance, archiveItemId: "item-archive", bytes, limits });
@@ -63,10 +94,12 @@ describe("safe ZIP discovery", () => {
     expect(first.children.every((child) => child.task.kind === "discover_item")).toBe(true);
   });
 
-  it("registers the discover stage used by redelivered child tasks", () => {
+  it("registers production discovery stages while future stages remain unregistered", () => {
+    expect(importTaskStages.discover_source).toBeTypeOf("function");
+    expect(importTaskStages.discover_item).toBeTypeOf("function");
+    expect(importTaskStages.finalize_plan).toBeUndefined();
     const handler = async () => ({ status: 204 as const });
     registerImportStage("discover_item", handler);
     expect(importTaskStages.discover_item).toBe(handler);
-    delete importTaskStages.discover_item;
   });
 });

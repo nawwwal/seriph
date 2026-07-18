@@ -1,8 +1,12 @@
 import { createHash } from "crypto";
 import { getFirestore, type DocumentReference } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 import { canonicalizeImportTaskPayload, type ImportTaskPayload } from "./enqueue";
+import { enqueueImportTask } from "./enqueue";
 import { claimTaskLease, type TaskLeaseClaim } from "./lease";
 import { importBatchRef } from "../store/paths";
+import { getImportConfig } from "../config/importConfig";
+import { discoverItemTask, discoverSourceTask, type DiscoveryRuntime } from "../discovery/archiveStages";
 
 export interface TaskHttpRequest {
   body: unknown;
@@ -32,6 +36,25 @@ export const importTaskStages: ImportStageRegistry = {};
 export function registerImportStage(kind: ImportTaskPayload["kind"], handler: ImportStageHandler): void {
   importTaskStages[kind] = handler;
 }
+
+const productionRuntime = (): DiscoveryRuntime => {
+  const config = getImportConfig(); const bucket = getStorage().bucket();
+  return {
+    db: getFirestore(), limits: { maxDepth: config.archiveMaxDepth, maxEntries: config.archiveMaxEntries,
+      maxExpandedBatchBytes: config.archiveMaxExpandedBatchBytes, maxEntryBytes: config.archiveMaxEntryBytes,
+      maxCompressionRatio: config.archiveMaxCompressionRatio, maxPathBytes: config.archiveMaxPathBytes },
+    download: async (path) => (await bucket.file(path).download())[0],
+    stage: async (child) => bucket.file(child.staging.path).save(child.staging.bytes, { resumable: false, metadata: { contentType: child.inventory.mimeType } }),
+    enqueue: enqueueImportTask,
+  };
+};
+
+export function registerDefaultImportStages(runtime: () => DiscoveryRuntime = productionRuntime): void {
+  registerImportStage("discover_source", (payload) => discoverSourceTask(payload, runtime()));
+  registerImportStage("discover_item", (payload) => discoverItemTask(payload, runtime()));
+}
+
+registerDefaultImportStages();
 
 export function importTaskLeaseId(cloudTaskName: string): string {
   return createHash("sha256").update(cloudTaskName).digest("hex");
