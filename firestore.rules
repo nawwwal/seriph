@@ -33,7 +33,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && userId == request.auth.uid;
       allow write: if false;
 
-      match /{childCollection}/{childId} {
+      match /{document=**} {
         allow read: if isAuthenticated() && userId == request.auth.uid;
         allow write: if false;
       }

@@ -34,6 +34,7 @@ describe("durable import batch rules", () => {
     await assertSucceeds(getDoc(doc(ownerDb, "users/u1/importBatches/b1")));
     await assertSucceeds(getDoc(doc(ownerDb, "users/u1/importBatches/b1/sources/s1")));
     await assertSucceeds(getDoc(doc(ownerDb, "users/u1/importBatches/b1/items/i1")));
+    await assertSucceeds(getDoc(doc(ownerDb, "users/u1/importBatches/b1/items/i1/details/d1")));
     await assertSucceeds(getDoc(doc(ownerDb, "users/u1/importBatches/b1/families/f1")));
     await assertSucceeds(getDoc(doc(ownerDb, "users/u1/importBatches/b1/tasks/t1")));
     await assertSucceeds(getDoc(doc(ownerDb, "users/u1/importBatches/b1/mutations/m1")));
