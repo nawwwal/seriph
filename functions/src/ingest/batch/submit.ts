@@ -26,7 +26,7 @@ async function persistRejections(db: FirebaseFirestore.Firestore, rejected: Reje
 
 export async function submitPendingEnrichmentBatch(): Promise<{ selected: number; submitted: number; rejected: number; jobName?: string }> {
   if (!batchEnrichEnabled() || !isVertexEnabled()) {
-    logger.info("[batch] enrichment disabled (kill-switch); skipping submit.");
+    logger.info("[batch] enrichment disabled (kill-switch); skipping submit. selected 0, submitted 0, rejected 0.");
     return { selected: 0, submitted: 0, rejected: 0 };
   }
   const db = getFirestore();
@@ -36,7 +36,7 @@ export async function submitPendingEnrichmentBatch(): Promise<{ selected: number
     .map((d) => ({ ...d.data(), id: d.id }) as FontFamilyDoc)
     .filter((f) => !isEnrichedAtCurrentVersion(f));
   if (!families.length) {
-    logger.info("[batch] no pending families to enrich.");
+    logger.info("[batch] no pending families to enrich. selected 0, submitted 0, rejected 0.");
     return { selected: 0, submitted: 0, rejected: 0 };
   }
   const candidates = await buildSubmissionCandidates(families, renderFamilySpecimen);
