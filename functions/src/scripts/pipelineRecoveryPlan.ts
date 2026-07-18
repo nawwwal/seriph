@@ -40,9 +40,15 @@ export type RecoveryAction =
   | { kind: "requeue_family"; familyId: string; version: number };
 
 const validDocId = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0 && value.length <= 1500 && !value.includes("/") && value !== "." && value !== "..";
+const ownerFromFamilyId = (value: string): string | undefined => { const divider = value.indexOf("__"); return divider > 0 ? value.slice(0, divider) : undefined; };
 const aliasTarget = (family: FamilyRecoverySnapshot): string | undefined =>
-  [family.aliasOfId, family.aliasOf, family.mergedIntoId, family.mergedInto, family.canonicalMerge?.targetSlug]
-    .find(validDocId)?.trim();
+  (() => {
+    const target = [family.aliasOfId, family.aliasOf, family.mergedIntoId, family.mergedInto, family.canonicalMerge?.targetSlug].find(validDocId)?.trim();
+    if (!target || !family.ownerId) return undefined;
+    const targetOwner = ownerFromFamilyId(target);
+    if (targetOwner) return targetOwner === family.ownerId ? target : undefined;
+    return `${family.ownerId}__${target}`;
+  })();
 
 const invalidReasons = (family: FamilyRecoverySnapshot): string[] => [
   !family.ownerId ? "missing_owner" : undefined,

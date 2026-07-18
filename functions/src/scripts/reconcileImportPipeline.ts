@@ -40,7 +40,8 @@ async function readSnapshot(ownerId?: string): Promise<RecoverySnapshot> {
 
 const auditId = (action: RecoveryAction): string => Object.values(action).join("_").replace(/[^A-Za-z0-9_-]/g, "_");
 const familyOf = (snapshot: RecoverySnapshot, id: string) => snapshot.families.find((family) => family.id === id);
-const familyStateMatches = (current: any, expected: FamilyRecoverySnapshot): boolean => ["status", "hidden", "aliasOf", "aliasOfId", "mergedInto", "mergedIntoId", "version"].every((key) => expected[key as keyof FamilyRecoverySnapshot] === undefined || current[key] === expected[key as keyof FamilyRecoverySnapshot]) && (expected.faceCount === undefined || (Array.isArray(current.faces) ? current.faces.length : -1) === expected.faceCount);
+const stateValueMatches = (current: unknown, expected: unknown): boolean => JSON.stringify(current) === JSON.stringify(expected);
+const familyStateMatches = (current: any, expected: FamilyRecoverySnapshot): boolean => ["status", "hidden", "aliasOf", "aliasOfId", "mergedInto", "mergedIntoId", "version", "recoveryRequeued", "enrichmentSubmissionRejection"].every((key) => stateValueMatches(current[key], expected[key as keyof FamilyRecoverySnapshot])) && (expected.faceCount === undefined || (Array.isArray(current.faces) ? current.faces.length : -1) === expected.faceCount);
 const ingestStateMatches = (current: any, expected: IngestRecoverySnapshot): boolean => ["analysisState", "status", "familyId", "processingId", "batchId"].every((key) => expected[key as keyof IngestRecoverySnapshot] === undefined || current[key] === expected[key as keyof IngestRecoverySnapshot]);
 
 export async function applyRecoveryAction(action: RecoveryAction, snapshot: RecoverySnapshot, db: any = getFirestore()): Promise<void> {
@@ -55,7 +56,15 @@ export async function applyRecoveryAction(action: RecoveryAction, snapshot: Reco
     const current = await tx.get(ref); const priorAudit = await tx.get(audit);
     if (priorAudit.exists) return;
     if (!current.exists || current.ref.path !== expected.firestorePath) throw new Error("replan_required:missing_current");
-    if (isIngest && !ingestStateMatches(current.data(), expected as IngestRecoverySnapshot)) throw new Error("replan_required:ingest_state");
+    if (isIngest) {
+      const ingest = expected as IngestRecoverySnapshot;
+      const related = ingest.familyId ? familyOf(snapshot, ingest.familyId) : undefined;
+      const relatedIdentity = related?.firestorePath ? familyPath(related.firestorePath) : null;
+      if (!related || !relatedIdentity || relatedIdentity.id !== ingest.familyId || relatedIdentity.ownerId !== action.ownerId) throw new Error("replan_required:family_identity");
+      if (!ingestStateMatches(current.data(), ingest)) throw new Error("replan_required:ingest_state");
+      const currentFamily = await tx.get(db.doc(related.firestorePath!));
+      if (!currentFamily.exists || currentFamily.ref.path !== related.firestorePath || !familyStateMatches(currentFamily.data(), related)) throw new Error("replan_required:family_state");
+    }
     if (!isIngest && !familyStateMatches(current.data(), expected as FamilyRecoverySnapshot)) throw new Error("replan_required:family_state");
     if (action.kind === "restore_alias") {
       const targetId = canonicalTarget(action.targetId); const sourceOwner = identity.ownerId; const targetOwner = ownerFromFamilyId(targetId);
