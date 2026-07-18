@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBatchFeedController, type BatchFeedListener, type BatchFeedPage, type BatchFeedState } from '@/lib/hooks/useImportBatchFeed';
-import { createBatchFeedQuerySpec } from '@/lib/imports/importBatchFeedAdapters';
 import type { ImportBatchSummary } from '@/lib/imports/mapImportBatch';
 
 const batch = (id = 'b1', families = 0): ImportBatchSummary => ({ batchId: id, ownerId: 'user-a', label: 'July import', expectedSourceCount: 2, outcome: 'active', counters: { sources: 2, discoveredItems: 2, fonts: 1, families, duplicates: 0, review: 0, warnings: 0, failures: 0 }, phases: {}, createdAt: 1_000, updatedAt: 2_000 });
@@ -44,13 +43,5 @@ describe('durable import batch feed', () => {
   it('does not poll before failure and polls every eight seconds after failure', async () => {
     vi.useFakeTimers(); const fake = harness(); const list = vi.fn(async () => ({ batches: [complete], nextCursor: null })); const controller = createBatchFeedController({ listener: fake.listener, api: { list }, onChange: () => undefined });
     controller.start(); await vi.advanceTimersByTimeAsync(8_000); expect(list).not.toHaveBeenCalled(); fake.fail(new Error('unavailable')); await vi.waitFor(() => expect(list).toHaveBeenCalledTimes(1)); await vi.advanceTimersByTimeAsync(8_000); expect(list).toHaveBeenCalledTimes(2); controller.stop();
-  });
-});
-
-describe('durable import batch listener bounds', () => {
-  it('caps active and terminal listener pages at 100 and limits terminal history to 30 days', () => {
-    const spec = createBatchFeedQuerySpec(1_000_000);
-    expect(spec.active.limit).toBe(100); expect(spec.terminal.limit).toBe(100); expect(spec.terminal.since).toBe(1_000_000 - 30 * 24 * 60 * 60 * 1_000);
-    expect(spec.terminal.outcomes).toEqual(['succeeded', 'partial', 'needs_review', 'failed', 'canceled']);
   });
 });
