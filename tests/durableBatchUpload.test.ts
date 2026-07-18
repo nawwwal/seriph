@@ -39,6 +39,36 @@ describe('durable batch upload', () => {
     expect(calls.some((call) => call.startsWith('register:'))).toBe(false); expect(calls).not.toContain('seal:b1');
   });
 
+  it('matches duplicate reselected metadata to distinct persisted source IDs', () => {
+    const duplicateRecovery: RecoverySession = {
+      ...recovery,
+      sources: recovery.sources.map((source) => ({ ...source, originalName: 'same.otf', relativePath: 'same.otf', size: 7 })),
+    };
+    const walked = [1, 2].map(() => ({ file: { name: 'same.otf', size: 7, type: 'font/otf' } as File, relativePath: 'same.otf' }));
+
+    const prepared = prepareDurableSources(walked, duplicateRecovery);
+
+    expect(prepared.map((source) => source.sourceId)).toEqual(['s1', 's2']);
+  });
+
+  it('starts a new batch without clearing recovery when recovered source IDs are not unique', async () => {
+    const invalidRecovery: RecoverySession = {
+      ...recovery,
+      sourceIds: ['s1', 's1'],
+      sources: recovery.sources.map((source) => ({ ...source, sourceId: 's1' })),
+    };
+    const walked = files().map(({ file, relativePath }) => ({ file, relativePath }));
+    const prepared = prepareDurableSources(walked, invalidRecovery);
+    const calls: string[] = [];
+    let cleared = false;
+
+    await runDurableUpload(prepared, { ...deps(calls), upload: async () => { throw new Error('keep recovery'); }, clearPersisted: () => { cleared = true; } }, invalidRecovery, 'u1');
+
+    expect(calls.some((call) => call.startsWith('create:'))).toBe(true);
+    expect(calls).not.toContain('resume:b1:key-1');
+    expect(cleared).toBe(false);
+  });
+
   it('does not reuse another owner recovery and clears successful recovery before an identical later upload', async () => {
     const walked = files().map(({ file, relativePath }) => ({ file, relativePath })); const prepared = prepareDurableSources(walked, recovery);
     const otherOwnerCalls: string[] = [];

@@ -8,7 +8,7 @@ import { app, storage } from '@/lib/firebase/config';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useUploads } from '@/lib/contexts/UploadContext';
 import { importBatchApi } from '@/lib/imports/importBatchApi';
-import type { DurableUploadDeps, DurableUploadFailure, DurableUploadPhase, DurableUploadResult, DurableUploadSource, RecoverySession, RegisteredSource, SourceRegistrationInput } from '@/models/import-batch.models';
+import type { DurableUploadDeps, DurableUploadFailure, DurableUploadPhase, DurableUploadResult, DurableUploadSource, RecoverySession, RecoverySource, RegisteredSource, SourceRegistrationInput } from '@/models/import-batch.models';
 import type { WalkedFile } from '@/utils/walkDirectoryEntries';
 
 const KEY = 'seriph:durable-import:v1'; const CHUNK = 100; const CONCURRENCY = 4;
@@ -18,7 +18,7 @@ const sourceInput = (source: DurableUploadSource): SourceRegistrationInput => ({
 const filename = (name: string) => name.split('/').pop()!.replace(/[^A-Za-z0-9._-]/g, '_').replace(/^\.+$/, '') || 'source';
 
 export async function runDurableUpload(sources: DurableUploadSource[], deps: DurableUploadDeps, recovery?: RecoverySession | null, ownerId?: string): Promise<DurableUploadResult> {
-  const reusableRecovery = recovery && ownerId && recovery.ownerId === ownerId && recovery.sourceIds.length === sources.length && sources.every((source) => recovery.sourceIds.includes(source.sourceId)) ? recovery : null;
+  const reusableRecovery = recovery && ownerId && recovery.ownerId === ownerId && hasExactRecoveryMatch(sources, recovery) ? recovery : null;
   const reusable = Boolean(reusableRecovery);
   let phase: DurableUploadPhase = 'setup';
   let mutationStarted = reusable;
@@ -61,8 +61,21 @@ export async function runDurableUpload(sources: DurableUploadSource[], deps: Dur
 }
 
 const saved = (ownerId?: string): RecoverySession | null => { try { const recovery = JSON.parse(sessionStorage.getItem(KEY) ?? 'null') as RecoverySession | null; return recovery?.ownerId === ownerId ? recovery : null; } catch { return null; } };
-const matches = (file: WalkedFile, source: RecoverySession['sources'][number]) => file.file.name === source.originalName && file.relativePath === source.relativePath && file.file.size === source.size;
-export const prepareDurableSources = (walked: Pick<WalkedFile, 'file' | 'relativePath'>[], recovery: RecoverySession | null) => walked.map((file) => ({ file: file.file, relativePath: file.relativePath, sourceId: recovery?.sources.find((source) => matches(file as WalkedFile, source))?.sourceId ?? uuid() }));
+const unique = (ids: string[]) => new Set(ids).size === ids.length;
+const matches = (file: Pick<WalkedFile, 'file' | 'relativePath'>, source: RecoverySource) => file.file.name === source.originalName && file.relativePath === source.relativePath && file.file.size === source.size;
+const hasExactRecoveryShape = (recovery: RecoverySession, sourceCount: number) => { const persistedIds = recovery.sources.map((source) => source.sourceId); return recovery.sourceIds.length === sourceCount && recovery.sources.length === sourceCount && unique(recovery.sourceIds) && unique(persistedIds) && recovery.sourceIds.every((sourceId) => persistedIds.includes(sourceId)); };
+const hasExactRecoveryMatch = (sources: DurableUploadSource[], recovery: RecoverySession) => { if (!hasExactRecoveryShape(recovery, sources.length) || !unique(sources.map((source) => source.sourceId))) return false; const byId = new Map(recovery.sources.map((source) => [source.sourceId, source])); return sources.every((source) => byId.get(source.sourceId) !== undefined && matches(source, byId.get(source.sourceId)!)); };
+const freshSources = (walked: Pick<WalkedFile, 'file' | 'relativePath'>[]) => walked.map((file) => ({ file: file.file, relativePath: file.relativePath, sourceId: uuid() }));
+export const prepareDurableSources = (walked: Pick<WalkedFile, 'file' | 'relativePath'>[], recovery: RecoverySession | null) => {
+  if (!recovery || !hasExactRecoveryShape(recovery, walked.length)) return freshSources(walked);
+  const remaining = [...recovery.sources];
+  const sourceIds = walked.map((file) => {
+    const index = remaining.findIndex((source) => matches(file, source));
+    if (index < 0) return null;
+    return remaining.splice(index, 1)[0]!.sourceId;
+  });
+  return sourceIds.every((sourceId): sourceId is string => sourceId !== null) && unique(sourceIds) ? walked.map((file, index) => ({ file: file.file, relativePath: file.relativePath, sourceId: sourceIds[index]! })) : freshSources(walked);
+};
 type RemoteConfigDeps = { isSupported: () => Promise<boolean>; get: () => any; signal: (config: any, values: Record<string, string>) => Promise<void>; activate: (config: any) => Promise<unknown>; value: (config: any) => { asBoolean: () => boolean }; };
 const remote: RemoteConfigDeps = { isSupported, get: () => getRemoteConfig(app), signal: setCustomSignals, activate: fetchAndActivate, value: (config) => getValue(config, 'durable_import_enabled') };
 export async function readDurableEnabled(userId: string, deps: RemoteConfigDeps = remote) { try { if (!await deps.isSupported()) return false; const config = deps.get(); await deps.signal(config, { seriph_user_id: userId }); await deps.activate(config); return deps.value(config).asBoolean(); } catch { return false; } }
