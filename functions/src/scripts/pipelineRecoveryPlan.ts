@@ -1,0 +1,78 @@
+export interface FamilyRecoverySnapshot {
+  id: string;
+  ownerId?: string;
+  faces?: unknown[];
+  status?: string;
+  version?: number;
+  hidden?: boolean;
+  aliasOf?: string;
+  aliasOfId?: string;
+  mergedInto?: string;
+  mergedIntoId?: string;
+  canonicalMerge?: { targetSlug?: string };
+  enrichment?: unknown;
+  enrichmentSubmissionRejection?: { code?: string; reasons?: string[] };
+  recoveryRequeued?: boolean;
+}
+
+export interface IngestRecoverySnapshot {
+  ownerId: string;
+  ingestId?: string;
+  processingId?: string;
+  familyId?: string;
+  analysisState?: string;
+}
+
+export interface RecoverySnapshot {
+  families: FamilyRecoverySnapshot[];
+  ingests: IngestRecoverySnapshot[];
+}
+
+export type RecoveryAction =
+  | { kind: "quarantine_family"; familyId: string; reason: string }
+  | { kind: "restore_alias"; familyId: string; targetId: string }
+  | { kind: "resolve_ingest"; ownerId: string; ingestId: string; state: "complete" | "failed" }
+  | { kind: "requeue_family"; familyId: string; version: number };
+
+const aliasTarget = (family: FamilyRecoverySnapshot): string | undefined =>
+  family.aliasOfId ?? family.aliasOf ?? family.mergedIntoId ?? family.mergedInto ?? family.canonicalMerge?.targetSlug;
+
+const invalidReasons = (family: FamilyRecoverySnapshot): string[] => [
+  !family.ownerId ? "missing_owner" : undefined,
+  !Array.isArray(family.faces) || family.faces.length === 0 ? "missing_faces" : undefined,
+].filter((reason): reason is string => Boolean(reason));
+
+const terminalIngestState = (
+  ingest: IngestRecoverySnapshot,
+  families: Map<string, FamilyRecoverySnapshot>,
+): "complete" | "failed" | undefined => {
+  if (!ingest.ingestId && !ingest.processingId) return undefined;
+  if (!["analyzing", "enriching"].includes(ingest.analysisState ?? "")) return undefined;
+  const family = ingest.familyId ? families.get(ingest.familyId) : undefined;
+  if (!family || family.status === "failed" || family.enrichmentSubmissionRejection) return "failed";
+  return ["ready", "enriched"].includes(family.status ?? "") || family.enrichment ? "complete" : undefined;
+};
+
+export function planPipelineRecovery(snapshot: RecoverySnapshot): RecoveryAction[] {
+  const actions: RecoveryAction[] = [];
+  const families = new Map(snapshot.families.map((family) => [family.id, family]));
+  for (const family of snapshot.families) {
+    const target = aliasTarget(family);
+    if (family.hidden && target && family.status !== "merged") {
+      actions.push({ kind: "restore_alias", familyId: family.id, targetId: target });
+      continue;
+    }
+    const reasons = invalidReasons(family);
+    if (reasons.length && family.status === "ready") {
+      actions.push({ kind: "quarantine_family", familyId: family.id, reason: reasons.map((reason) => reason === "missing_faces" ? "faces" : reason).join("_and_") });
+    } else if (family.status === "ready" && !family.recoveryRequeued) {
+      actions.push({ kind: "requeue_family", familyId: family.id, version: family.version ?? 0 });
+    }
+  }
+  for (const ingest of snapshot.ingests) {
+    const state = terminalIngestState(ingest, families);
+    const ingestId = ingest.ingestId ?? ingest.processingId;
+    if (state && ingestId) actions.push({ kind: "resolve_ingest", ownerId: ingest.ownerId, ingestId, state });
+  }
+  return actions;
+}
