@@ -7,6 +7,7 @@ import { claimTaskLease, type TaskLeaseClaim } from "./lease";
 import { importBatchRef } from "../store/paths";
 import { getImportConfig } from "../config/importConfig";
 import { discoverItemTask, discoverSourceTask, type DiscoveryRuntime } from "../discovery/archiveStages";
+import { applyFamilyTask } from "../apply/applyFamilyPlan";
 
 export interface TaskHttpRequest {
   body: unknown;
@@ -52,6 +53,10 @@ const productionRuntime = (): DiscoveryRuntime => {
 export function registerDefaultImportStages(runtime: () => DiscoveryRuntime = productionRuntime): void {
   registerImportStage("discover_source", (payload) => discoverSourceTask(payload, runtime()));
   registerImportStage("discover_item", (payload) => discoverItemTask(payload, runtime()));
+  registerImportStage("apply_family", async (payload) => {
+    const result = await applyFamilyTask(payload, { db: getFirestore(), bucket: getStorage().bucket() });
+    return result.kind === "failed" && result.retryable ? { status: 503, retryable: true } : { status: 204 };
+  });
 }
 
 registerDefaultImportStages();
