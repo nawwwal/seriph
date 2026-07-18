@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { buildImportPlan } from "../../src/imports/planning/buildPlan";
 import { validatePlan } from "../../src/imports/planning/validatePlan";
 import { claimAsset, commitAssetClaim } from "../../src/imports/store/assetClaimStore";
-import { saveValidatedPlan } from "../../src/imports/store/planStore";
+import { enqueuePendingPlanTasks, saveValidatedPlan } from "../../src/imports/store/planStore";
 
 type Data = Record<string, any>;
 class Ref {
@@ -13,7 +13,7 @@ class Ref {
 class Tx {
   constructor(private readonly db: Db) {}
   get = (ref: Ref) => ref.get();
-  set = (ref: Ref, data: Data) => this.db.docs.set(ref.path, structuredClone(data));
+  set = (ref: Ref, data: Data) => this.db.docs.set(ref.path, data);
   update = (ref: Ref, data: Data) => this.db.docs.set(ref.path, { ...this.db.docs.get(ref.path), ...data });
 }
 class Db {
@@ -84,14 +84,20 @@ describe("immutable import plans", () => {
     const db = new Db();
     db.docs.set("users/owner-1/importBatches/batch-1", { planVersion: 1, phases: { planning: { state: "validated" } } });
     const plan = buildImportPlan([item("a", sha("a"), "OTF", "1")]);
-    const enqueue = vi.fn().mockResolvedValue("created");
+    const enqueue = vi.fn().mockRejectedValueOnce(new Error("cloud tasks offline")).mockResolvedValue("created");
     const result = await saveValidatedPlan(db as any, { ...plan, planVersion: 1 }, { enqueue });
     expect(result).toMatchObject({ kind: "created", planVersion: 2 });
-    expect(enqueue).toHaveBeenCalledWith(expect.objectContaining({ kind: "apply_family", planVersion: 2 }));
+    const firstPayload = enqueue.mock.calls[0]?.[0];
+    expect(firstPayload).toEqual(expect.objectContaining({ kind: "apply_family", planVersion: 2 }));
     expect([...db.docs.keys()].some((key) => key.includes("plans/2"))).toBe(true);
+    const outboxPath = [...db.docs.keys()].find((key) => key.includes("applyTasks"))!;
+    expect(db.docs.get(outboxPath)).toMatchObject({ status: "pending", attempts: 1, taskName: expect.any(String) });
+    await expect(enqueuePendingPlanTasks(db as any, result.plan, { enqueue })).resolves.toMatchObject({ pending: 0, enqueued: 1 });
+    expect(db.docs.get(outboxPath)).toMatchObject({ status: "enqueued", attempts: 2, payload: firstPayload });
     expect(Object.isFrozen(result.plan)).toBe(true);
     const changed = buildImportPlan([item("b", sha("b"), "OTF", "2")]);
     expect(await saveValidatedPlan(db as any, { ...changed, planVersion: 1 }, { enqueue })).toMatchObject({ planVersion: 3 });
     expect(validatePlan(result.plan).contentHash).toBe(result.plan.contentHash);
   });
+
 });
