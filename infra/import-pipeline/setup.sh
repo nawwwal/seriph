@@ -8,6 +8,7 @@ QUEUE="seriph-import"
 SERVICE="seriph-archive-worker"
 REPOSITORY="seriph"
 TASK_SERVICE_ACCOUNT_NAME="import-task-service-account"
+WORKER_SERVICE_ACCOUNT_NAME="archive-worker-service-account"
 
 usage() {
   printf 'Usage: %s --project PROJECT [--dry-run]\n' "$0"
@@ -38,6 +39,7 @@ done
 [[ -n "$PROJECT" ]] || { usage >&2; exit 2; }
 
 TASK_SERVICE_ACCOUNT="${TASK_SERVICE_ACCOUNT_NAME}@${PROJECT}.iam.gserviceaccount.com"
+WORKER_SERVICE_ACCOUNT="${WORKER_SERVICE_ACCOUNT_NAME}@${PROJECT}.iam.gserviceaccount.com"
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/${REPOSITORY}/${SERVICE}:latest"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -54,6 +56,7 @@ if ((DRY_RUN == 1)); then
   run gcloud tasks queues create "$QUEUE" --location "$REGION" --max-dispatches-per-second 4 --max-concurrent-dispatches 4 --project "$PROJECT"
   run gcloud artifacts repositories create "$REPOSITORY" --location "$REGION" --repository-format docker --project "$PROJECT"
   run gcloud iam service-accounts create "$TASK_SERVICE_ACCOUNT_NAME" --display-name "Seriph import task service account" --project "$PROJECT"
+  run gcloud iam service-accounts create "$WORKER_SERVICE_ACCOUNT_NAME" --display-name "Seriph archive worker service account" --project "$PROJECT"
 else
   run gcloud services enable cloudtasks.googleapis.com run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com --project "$PROJECT"
   if ! gcloud tasks queues describe "$QUEUE" --location "$REGION" --project "$PROJECT" >/dev/null 2>&1; then
@@ -67,10 +70,13 @@ else
   if ! gcloud iam service-accounts describe "$TASK_SERVICE_ACCOUNT" --project "$PROJECT" >/dev/null 2>&1; then
     run gcloud iam service-accounts create "$TASK_SERVICE_ACCOUNT_NAME" --display-name "Seriph import task service account" --project "$PROJECT"
   fi
+  if ! gcloud iam service-accounts describe "$WORKER_SERVICE_ACCOUNT" --project "$PROJECT" >/dev/null 2>&1; then
+    run gcloud iam service-accounts create "$WORKER_SERVICE_ACCOUNT_NAME" --display-name "Seriph archive worker service account" --project "$PROJECT"
+  fi
 fi
 
 run gcloud builds submit "${ROOT_DIR}/functions" --file Dockerfile.archive-worker --tag "$IMAGE" --project "$PROJECT"
-run gcloud run deploy "$SERVICE" --image "$IMAGE" --region "$REGION" --project "$PROJECT" --service-account "$TASK_SERVICE_ACCOUNT" --memory=1Gi --cpu=2 --concurrency=1 --timeout=900 --no-allow-unauthenticated
+run gcloud run deploy "$SERVICE" --image "$IMAGE" --region "$REGION" --project "$PROJECT" --service-account "$WORKER_SERVICE_ACCOUNT" --memory=1Gi --cpu=2 --concurrency=1 --timeout=900 --no-allow-unauthenticated
 run gcloud run services add-iam-policy-binding "$SERVICE" --region "$REGION" --project "$PROJECT" --member "serviceAccount:${TASK_SERVICE_ACCOUNT}" --role roles/run.invoker
 
 if ((DRY_RUN == 1)); then

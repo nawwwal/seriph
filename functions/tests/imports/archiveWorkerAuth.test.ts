@@ -22,6 +22,6 @@ describe("archive worker request validation", () => {
   it("reads an eligible source through createReadStream only", async () => {
     const deps = testDependencies(); const source = await deps.source.get("owner-1", "batch-1", "source-1");
     await expect(handleArchive({ body: archivePayload, headers: archiveHeaders }, deps)).resolves.toMatchObject({ status: 204 });
-    expect(source?.createReadStream).toHaveBeenCalledOnce(); expect(deps.persistence.persistChild).toHaveBeenCalledOnce();
+    expect(source?.createReadStream).toHaveBeenCalledTimes(2); expect(deps.persistence.persistChild).toHaveBeenCalledOnce();
   });
 });

@@ -2,8 +2,8 @@ import { expect, it, vi } from "vitest";
 import { firestoreSourceLifecycleStore, type FinalizedObject } from "../../src/imports/reconcile/sourceFinalized";
 import { firestoreSourceTimeoutStore, type TimeoutSource } from "../../src/imports/reconcile/sourceTimeout";
 
-const object: FinalizedObject = { name: "intake/u1/b1/s1/font.otf", generation: "7", size: 12 };
-const source = { ownerId: "u1", batchId: "b1", sourceId: "s1", storagePath: object.name, state: "uploading", declaredSize: 150 * 1024 * 1024 + 1 };
+const object: FinalizedObject = { name: "intake/u1/b1/s1/font.otf", generation: "7", size: 150 * 1024 * 1024 + 1 };
+const source = { ownerId: "u1", batchId: "b1", sourceId: "s1", storagePath: object.name, state: "uploading", declaredSize: 12 };
 
 class FakeRef {
   constructor(readonly path: string, private readonly db: FakeDb) {}
@@ -49,7 +49,7 @@ it("keeps a finalized source dispatch pending until a redelivery enqueues it", a
   const store = firestoreSourceLifecycleStore({ db: db as never, enqueue });
 
   await expect(store.markUploadedAndEnqueue(source, object)).rejects.toThrow("queue unavailable");
-  expect(db.docs.get(path)).toMatchObject({ state: "uploaded", pendingDispatch: { task: { kind: "discover_source", resourceId: "s1", sourceSize: source.declaredSize } } });
+  expect(db.docs.get(path)).toMatchObject({ state: "uploaded", pendingDispatch: { task: { kind: "discover_source", resourceId: "s1", sourceSize: object.size } } });
   await expect(store.markUploadedAndEnqueue(source, object)).resolves.toEqual({ kind: "already_confirmed", generation: "7" });
   expect(enqueue).toHaveBeenCalledTimes(2);
   expect(db.history.filter((write) => write.state === "uploaded")).toHaveLength(1);

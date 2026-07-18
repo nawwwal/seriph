@@ -15,7 +15,7 @@ import type { ArchiveLease, ArchivePersistence, ArchiveSourceReader, ArchiveWork
 
 const taskLeaseId = (taskName: string): string => createHash("sha256").update(taskName).digest("hex");
 const sourceInput = (source: RegisteredArchiveSource): SourceInput => ({ ownerId: source.ownerId, batchId: source.batchId, sourceId: source.sourceId, originalPath: source.originalPath, filename: source.filename, declaredSize: source.declaredSize, declaredMimeType: source.declaredMimeType, storagePath: source.storagePath });
-const pendingArchive = (source: RegisteredArchiveSource, itemId: string): InventoryItem => ({ ...sourceInput(source), archiveLineage: [], filename: source.filename, extension: ".zip", stagingPath: source.storagePath, itemId, sha256: "pending", byteSize: source.declaredSize, mimeType: "application/zip", format: "ZIP", detectedFormat: "ZIP", role: "archive", action: "expand", reasonCode: "archive_container" });
+const pendingArchive = (source: RegisteredArchiveSource, itemId: string): InventoryItem => ({ ...sourceInput(source), archiveLineage: [], filename: source.filename, extension: ".zip", stagingPath: source.storagePath, itemId, sha256: "pending", byteSize: source.uploadedSize ?? source.declaredSize, mimeType: "application/zip", format: "ZIP", detectedFormat: "ZIP", role: "archive", action: "expand", reasonCode: "archive_container" });
 
 function leaseDurationMs(): number {
   const raw = process.env.IMPORT_TASK_LEASE_SECONDS ?? "300"; const seconds = Number(raw);

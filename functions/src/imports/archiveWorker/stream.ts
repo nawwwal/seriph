@@ -8,7 +8,7 @@ export interface ObservedArchive {
   complete: Promise<{ sha256: string; byteSize: number; prefix: Buffer }>;
 }
 
-export function observe(source: NodeJS.ReadableStream | AsyncIterable<Uint8Array>): ObservedArchive {
+export function observe(source: NodeJS.ReadableStream | AsyncIterable<Uint8Array>, maxBytes = Number.MAX_SAFE_INTEGER): ObservedArchive {
   const input = "pipe" in source ? source : Readable.from(source); const hash = createHash("sha256");
   const prefix: Buffer[] = []; let byteSize = 0; let resolveComplete!: (value: ObservedArchive["complete"] extends Promise<infer T> ? T : never) => void;
   let rejectComplete!: (error: unknown) => void;
@@ -16,6 +16,7 @@ export function observe(source: NodeJS.ReadableStream | AsyncIterable<Uint8Array
   const output = new Transform({
     transform(chunk: Buffer | string, _encoding, callback) {
       const bytes = Buffer.from(chunk); hash.update(bytes); byteSize += bytes.byteLength;
+      if (byteSize > maxBytes) { (input as NodeJS.ReadableStream & { destroy?: () => void }).destroy?.(); callback(new Error("archive source exceeds maximum size")); return; }
       if (Buffer.concat(prefix).byteLength < 8) prefix.push(bytes.subarray(0, 8 - Buffer.concat(prefix).byteLength));
       callback(null, bytes);
     },
@@ -29,7 +30,22 @@ export function observe(source: NodeJS.ReadableStream | AsyncIterable<Uint8Array
 export const sourceLooksLikeZip = (source: { filename: string; declaredMimeType: string }, prefix: Buffer): boolean =>
   source.declaredMimeType.toLowerCase() === "application/zip" && /\.zip$/i.test(source.filename) && ["504b0304", "504b0506", "504b0708"].some((signature) => prefix.subarray(0, 4).toString("hex") === signature);
 
-export const drain = async (entry: ArchiveStreamEntry): Promise<void> => { for await (const _chunk of entry.stream()) { /* bounded discard */ } };
+export const validateSource = async (source: { filename: string; declaredMimeType: string; createReadStream: () => NodeJS.ReadableStream | AsyncIterable<Uint8Array> }, expectedSize: number, maxBytes: number): Promise<{ sha256: string; byteSize: number; prefix: Buffer } | { code: "source_not_zip" | "source_size_mismatch" }> => {
+  if (!sourceLooksLikeZip(source, Buffer.from("PK\x03\x04", "binary"))) return { code: "source_not_zip" };
+  const observed = observe(source.createReadStream(), maxBytes);
+  for await (const _chunk of observed.stream) { /* validate without buffering */ }
+  const metadata = await observed.complete;
+  if (metadata.byteSize !== expectedSize) return { code: "source_size_mismatch" };
+  if (!sourceLooksLikeZip(source, metadata.prefix)) return { code: "source_not_zip" };
+  return metadata;
+};
+
+export const drain = async (entry: ArchiveStreamEntry, maxBytes: number): Promise<void> => {
+  if (entry.discard) { await entry.discard(); return; }
+  const stream = entry.stream() as AsyncIterable<Uint8Array> & { destroy?: () => void };
+  let total = 0;
+  for await (const chunk of stream) { total += chunk.byteLength; if (total >= maxBytes) { stream.destroy?.(); break; } }
+};
 
 export const defaultParser: ArchiveParser = (source) => {
   const parser = unzipper.Parse({ forceStream: true });
@@ -40,7 +56,7 @@ export const defaultParser: ArchiveParser = (source) => {
       yield { path: raw.path, type: raw.type ?? values.type, flags: Number(values.flags ?? raw.flags ?? 0), compressionMethod: Number(values.compressionMethod ?? raw.compressionMethod ?? 0),
         compressedSize: Number(values.compressedSize ?? raw.compressedSize ?? 0), uncompressedSize: Number(values.uncompressedSize ?? raw.uncompressedSize ?? 0),
         versionMadeBy: values.versionMadeBy ?? raw.versionMadeBy, externalFileAttributes: values.externalFileAttributes ?? raw.externalFileAttributes,
-        stream: () => raw as unknown as AsyncIterable<Uint8Array> };
+        stream: () => raw as unknown as AsyncIterable<Uint8Array>, discard: () => raw.autodrain().promise() };
     }
   })();
 };

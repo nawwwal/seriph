@@ -5,7 +5,7 @@ import { deliverPendingDispatch, pendingDispatch, type PendingImportDispatch } f
 
 export interface FinalizedObject { name: string; generation: string; size: number; }
 export interface RegisteredIntakePath { ownerId: string; batchId: string; sourceId: string; filename: string; storagePath: string; }
-export interface RegisteredSource extends Omit<RegisteredIntakePath, "filename"> { state: string; declaredSize?: number; declaredMimeType?: string; }
+export interface RegisteredSource extends Omit<RegisteredIntakePath, "filename"> { state: string; declaredSize?: number; uploadedSize?: number; declaredMimeType?: string; }
 export type ConfirmResult = { kind: "ignored" } | { kind: "rejected"; code: "path_mismatch" } |
   { kind: "uploaded" | "already_confirmed"; generation: string };
 export interface SourceLifecycleStore {
@@ -31,11 +31,10 @@ export async function confirmFinalizedSource(object: FinalizedObject, store: Sou
 export interface FirestoreSourceLifecycleDeps { db: Firestore; enqueue?: (task: ImportTaskPayload) => Promise<unknown>; }
 type TransactionResult = { result: ConfirmResult; pending: PendingImportDispatch | null };
 
-function sourceDispatch(source: RegisteredSource, generation: string): PendingImportDispatch {
-  const task = { kind: "discover_source" as const, ownerId: source.ownerId, batchId: source.batchId, resourceId: source.sourceId };
-  return { token: `source:${source.sourceId}:${generation}`, task: source.declaredSize === undefined ? task : {
+function sourceDispatch(source: RegisteredSource, generation: string, size: number): PendingImportDispatch {
+  return { token: `source:${source.sourceId}:${generation}`, task: {
     kind: "discover_source", ownerId: source.ownerId, batchId: source.batchId, resourceId: source.sourceId,
-    sourceSize: source.declaredSize,
+    sourceSize: size,
   } };
 }
 
@@ -58,7 +57,7 @@ export function firestoreSourceLifecycleStore(deps: FirestoreSourceLifecycleDeps
         if (current.uploadGeneration === object.generation || !["registered", "uploading"].includes(String(current.state))) {
           return { result: { kind: "already_confirmed" as const, generation: String(current.uploadGeneration ?? object.generation) }, pending: null };
         }
-        const pending = sourceDispatch(source, object.generation);
+        const pending = sourceDispatch(source, object.generation, object.size);
         tx.update(ref, { state: "uploaded", uploadConfirmed: true, uploadGeneration: object.generation,
           uploadedSize: object.size, pendingDispatch: pending, updatedAt: FieldValue.serverTimestamp() });
         return { result: { kind: "uploaded" as const, generation: object.generation }, pending };

@@ -10,7 +10,7 @@ const same = (left: SourceInput, right: Record<string, unknown>) =>
   Object.entries(left).every(([key, value]) => right[key] === value);
 const allowed: Partial<Record<ImportSourceState, ImportSourceState[]>> = {
   registered: ["uploading", "canceled"], uploading: ["uploaded", "failed", "timed_out"],
-  uploaded: ["discovering"], discovering: ["discovered", "failed", "timed_out"],
+  uploaded: ["discovering", "failed"], discovering: ["discovered", "failed", "timed_out"],
 };
 
 export const registerSource = async (db: Firestore, input: SourceInput): Promise<{ kind: "created" | "existing" } | Conflict> =>

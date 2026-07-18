@@ -4,7 +4,7 @@ import { archiveStagingPath } from "../discovery/archivePaths";
 import { extractEntryBounded, type ArchiveChild } from "../discovery/discoverZip";
 import { buildInventoryItem, type InventoryInput } from "../discovery/inventory";
 import { canonicalizeImportTaskPayload, type ImportTaskPayload } from "../tasks/enqueue";
-import { drain, defaultParser, observe, sourceLooksLikeZip } from "./stream";
+import { drain, defaultParser, observe, sourceLooksLikeZip, validateSource } from "./stream";
 import { productionArchiveWorkerDependencies } from "./persistence";
 import type { ArchiveWorkerDependencies, ArchiveWorkerRequest, ArchiveWorkerResult, RegisteredArchiveSource } from "./types";
 export * from "./types";
@@ -31,6 +31,12 @@ function childFor(source: RegisteredArchiveSource, archiveItemId: string, entryP
     task: { kind: "discover_item", ownerId: source.ownerId, batchId: source.batchId, resourceId: "", planVersion: 1, archiveBudgetKey: source.batchId } };
 }
 
+const sourceSize = (source: RegisteredArchiveSource, payload: ImportTaskPayload): number => source.uploadedSize ?? payload.sourceSize ?? source.declaredSize;
+const rejectSource = async (deps: ArchiveWorkerDependencies, source: RegisteredArchiveSource, code: string): Promise<ArchiveWorkerResult> => {
+  await deps.persistence.transitionSource(source, source.state as "uploaded" | "discovering", "failed");
+  return { status: 400, body: { code } };
+};
+
 export async function handleArchive(request: ArchiveWorkerRequest, deps: ArchiveWorkerDependencies = productionArchiveWorkerDependencies()): Promise<ArchiveWorkerResult> {
   const name = taskName(request); const queue = queueName(request); const expectedQueue = deps.queueName ?? "seriph-import";
   if (!name || !queue || queue !== expectedQueue || !validTaskName(name, queue)) return { status: 400, body: { code: "missing_task_metadata" } };
@@ -39,8 +45,11 @@ export async function handleArchive(request: ArchiveWorkerRequest, deps: Archive
   if (payload.kind !== "discover_source") return { status: 400, body: { code: "unsupported_task_kind" } };
   const source = await deps.source.get(payload.ownerId, payload.batchId, payload.resourceId);
   if (!source || !["uploaded", "discovering"].includes(source.state)) return { status: 204 };
-  const minBytes = deps.oversizedMinBytes ?? 150 * 1024 * 1024; const maxBytes = deps.oversizedMaxBytes ?? 512 * 1024 * 1024;
-  if (source.declaredSize <= minBytes || source.declaredSize > maxBytes || !sourceLooksLikeZip({ filename: source.filename, declaredMimeType: source.declaredMimeType }, Buffer.from("PK\x03\x04", "binary"))) return { status: 400, body: { code: "source_not_eligible" } };
+  const minBytes = deps.oversizedMinBytes ?? 150 * 1024 * 1024; const maxBytes = deps.oversizedMaxBytes ?? 512 * 1024 * 1024; const expectedSize = sourceSize(source, payload);
+  if (expectedSize <= minBytes || expectedSize > maxBytes || !sourceLooksLikeZip(source, Buffer.from("PK\x03\x04", "binary"))) return rejectSource(deps, source, "source_not_eligible");
+  let validation: Awaited<ReturnType<typeof validateSource>>;
+  try { validation = await validateSource(source, expectedSize, maxBytes); } catch (error) { return { status: 503, body: { code: error instanceof Error ? error.message : "archive_source_read_failure", retryable: true } }; }
+  if ("code" in validation) return rejectSource(deps, source, validation.code);
   const lease = await deps.lease.claim(payload, name); if (lease.kind !== "claimed") return { status: 204 };
   const itemId = archiveId(source); const reviews: ArchiveDecision[] = []; const seen = new Set<string>(); let expanded = 0; let children = 0; let overLimit = false;
   try {
@@ -50,13 +59,13 @@ export async function handleArchive(request: ArchiveWorkerRequest, deps: Archive
     let entryCount = 0;
     for await (const entry of parser(observed.stream)) {
       entryCount += 1;
-      if (entryCount > deps.limits.maxEntries) { if (!overLimit) reviews.push({ ...review("", "entry_limit"), parentItemId: itemId }); overLimit = true; await drain(entry); continue; }
+      if (entryCount > deps.limits.maxEntries) { if (!overLimit) reviews.push({ ...review("", "entry_limit"), parentItemId: itemId }); overLimit = true; await drain(entry, deps.limits.maxEntryBytes); continue; }
       const decision = assessArchiveEntry({ ...entry, entryPath: entry.path }, deps.limits, expanded);
-      if (entry.type === "Directory" && decision.action === "stage") { await drain(entry); continue; }
-      if (decision.action === "review") { reviews.push({ ...decision, parentItemId: itemId }); await drain(entry); continue; }
-      if (seen.has(decision.normalizedPath!)) { reviews.push({ ...review(entry.path, "path_collision"), parentItemId: itemId }); await drain(entry); continue; }
+      if (entry.type === "Directory" && decision.action === "stage") { await drain(entry, deps.limits.maxEntryBytes); continue; }
+      if (decision.action === "review") { reviews.push({ ...decision, parentItemId: itemId }); await drain(entry, deps.limits.maxEntryBytes); continue; }
+      if (seen.has(decision.normalizedPath!)) { reviews.push({ ...review(entry.path, "path_collision"), parentItemId: itemId }); await drain(entry, deps.limits.maxEntryBytes); continue; }
       const reservation = await deps.persistence.reserve({ ownerId: source.ownerId, batchId: source.batchId, reservationId: `${itemId}:${entry.path}`, bytes: entry.uncompressedSize, maxBytes: deps.limits.maxExpandedBatchBytes });
-      if (reservation.kind === "exceeded") { reviews.push({ ...review(entry.path, "expanded_size"), parentItemId: itemId }); await drain(entry); continue; }
+      if (reservation.kind === "exceeded") { reviews.push({ ...review(entry.path, "expanded_size"), parentItemId: itemId }); await drain(entry, deps.limits.maxEntryBytes); continue; }
       const extracted = await extractEntryBounded(entry, deps.limits.maxEntryBytes, reservation.remainingBytes + reservation.reservationBytes);
       if (!Buffer.isBuffer(extracted)) { reviews.push({ ...extracted, parentItemId: itemId }); continue; }
       const child = childFor(source, itemId, decision.normalizedPath!, extracted); const inventory = await buildInventoryItem(child.input);
@@ -64,7 +73,7 @@ export async function handleArchive(request: ArchiveWorkerRequest, deps: Archive
       await deps.persistence.persistChild(finalChild); seen.add(decision.normalizedPath!); expanded += extracted.byteLength; children += 1; await deps.lease.renew(payload, name, lease.attempt);
     }
     const metadata = await observed.complete;
-    if (metadata.byteSize !== source.declaredSize) { await deps.lease.fail(payload, name, lease.attempt, false); return { status: 400, body: { code: "source_size_mismatch" } }; }
+    if (metadata.byteSize !== expectedSize) { await deps.lease.fail(payload, name, lease.attempt, false); return { status: 400, body: { code: "source_size_mismatch" } }; }
     if (!sourceLooksLikeZip(source, metadata.prefix)) { await deps.lease.fail(payload, name, lease.attempt, false); return { status: 400, body: { code: "source_not_zip" } }; }
     await deps.persistence.updateArchiveMetadata({ ownerId: source.ownerId, batchId: source.batchId, itemId, sha256: metadata.sha256, byteSize: metadata.byteSize });
     await deps.persistence.completeArchive({ ownerId: source.ownerId, batchId: source.batchId, itemId, expectedChildren: children, reviews });
