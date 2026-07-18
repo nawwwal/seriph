@@ -13,7 +13,7 @@ export interface RegisteredArchiveSource extends SourceInput {
   declaredSize: number; createReadStream: () => NodeJS.ReadableStream | AsyncIterable<Uint8Array>;
 }
 export interface ArchiveSourceReader { get: (ownerId: string, batchId: string, sourceId: string) => Promise<RegisteredArchiveSource | undefined>; }
-export interface ArchiveStreamEntry extends Omit<ArchiveEntryMetadata, "entryPath"> { path: string; type?: string; stream: () => AsyncIterable<Uint8Array>; discard?: () => Promise<void>; }
+export interface ArchiveStreamEntry extends Omit<ArchiveEntryMetadata, "entryPath"> { path: string; type?: string; stream: () => AsyncIterable<Uint8Array>; }
 export type ArchiveParser = (source: NodeJS.ReadableStream) => AsyncIterable<ArchiveStreamEntry>;
 export interface ArchiveLease {
   claim: (payload: ImportTaskPayload, taskName: string) => Promise<{ kind: "claimed"; attempt: number } | { kind: "busy" }>;

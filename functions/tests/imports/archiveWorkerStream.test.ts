@@ -2,6 +2,7 @@ import { Readable } from "node:stream";
 import JSZip from "jszip";
 import { describe, expect, it, vi } from "vitest";
 import { handleArchive } from "../../src/imports/archiveWorker/handleArchive";
+import { defaultParser, drain } from "../../src/imports/archiveWorker/stream";
 import { archiveHeaders, archiveLimits, archivePayload, testDependencies, testSource } from "./archiveWorkerSupport";
 
 describe("archive worker streaming policy", () => {
@@ -17,6 +18,21 @@ describe("archive worker streaming policy", () => {
     const deps = testDependencies(testSource(), { parser, limits: { ...archiveLimits, maxEntries: 0, maxEntryBytes: 4 } });
     await expect(handleArchive({ body: archivePayload, headers: archiveHeaders }, deps)).resolves.toMatchObject({ status: 204 });
     expect(consumed).toBeLessThanOrEqual(4);
+  });
+  it("fails an actual source stream over maxBytes before persistence", async () => {
+    const source = testSource({ declaredSize: 10, createReadStream: vi.fn(() => Readable.from([Buffer.from("PK\x03\x04abcdefgh", "binary")])) });
+    const deps = testDependencies(source, { oversizedMinBytes: 0, oversizedMaxBytes: 10 });
+    await expect(handleArchive({ body: archivePayload, headers: archiveHeaders }, deps)).resolves.toMatchObject({ status: 400, body: { code: "source_too_large" } });
+    expect(deps.persistence.transitionSource).toHaveBeenCalledWith(expect.anything(), "uploaded", "failed");
+    expect(deps.lease.claim).not.toHaveBeenCalled();
+    expect(deps.persistence.createArchive).not.toHaveBeenCalled();
+  });
+  it("bounds rejected entries through the production unzipper parser", async () => {
+    const zip = new JSZip(); zip.file("rejected.ttf", Buffer.from([0, 1, 0, 0]), { compression: "STORE" });
+    const bytes = Buffer.from(await zip.generateAsync({ type: "nodebuffer" }));
+    const iterator = defaultParser(Readable.from([bytes]))[Symbol.asyncIterator](); const next = await iterator.next();
+    expect(next.done).toBe(false); expect(next.value).not.toHaveProperty("discard");
+    await expect(drain(next.value!, 4)).resolves.toBe(4);
   });
   it("applies shared path policy reviews and renews the lease", async () => {
     const parser = vi.fn(async function* (stream) { stream.resume(); yield { path: "../escape.ttf", type: "File", flags: 0, compressionMethod: 0, compressedSize: 4, uncompressedSize: 4, stream: () => Readable.from([Buffer.from("bad")]) }; });

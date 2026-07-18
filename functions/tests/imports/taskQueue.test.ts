@@ -24,6 +24,7 @@ function stubTaskEnv(url = "https://import-worker-abc123-asia-southeast1.a.run.a
   vi.stubEnv("IMPORT_TASKS_QUEUE", "durable-imports");
   vi.stubEnv("IMPORT_WORKER_URL", url);
   vi.stubEnv("IMPORT_WORKER_ALLOWED_HOSTS", new URL(url).hostname);
+  vi.stubEnv("IMPORT_TASKS_SERVICE_ACCOUNT", "import-task-service-account@test-project.iam.gserviceaccount.com");
 }
 
 describe("durable import task queue", () => {
@@ -100,6 +101,11 @@ describe("durable import task queue", () => {
     stubTaskEnv();
     delete process.env.IMPORT_WORKER_ALLOWED_HOSTS;
     await expect(enqueueImportTask(payload, { client: { createTask: vi.fn() } })).rejects.toThrow();
+  });
+
+  it("rejects task creation without an explicit service account", async () => {
+    stubTaskEnv(); delete process.env.IMPORT_TASKS_SERVICE_ACCOUNT;
+    await expect(enqueueImportTask(payload, { client: { createTask: vi.fn() } })).rejects.toThrow(/Missing required environment variable/);
   });
 
   it("rejects missing Cloud Tasks metadata and dispatches an allowlisted kind", async () => {

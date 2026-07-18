@@ -40,9 +40,8 @@ export function archiveWorkerUrl(): string { return privateWorkerUrl(requiredEnv
 
 export function workerServiceAccount(): string {
   const project = projectId();
-  const email = process.env.IMPORT_WORKER_SERVICE_ACCOUNT?.trim() || process.env.IMPORT_TASKS_SERVICE_ACCOUNT?.trim()
-    || process.env.CLOUD_TASKS_SERVICE_ACCOUNT?.trim() || `${project}@appspot.gserviceaccount.com`;
-  if (email !== `${project}@appspot.gserviceaccount.com` && !email.endsWith(`@${project}.iam.gserviceaccount.com`)) {
+  const email = requiredEnv("IMPORT_WORKER_SERVICE_ACCOUNT", "IMPORT_TASKS_SERVICE_ACCOUNT", "CLOUD_TASKS_SERVICE_ACCOUNT");
+  if (!email.endsWith(`@${project}.iam.gserviceaccount.com`)) {
     throw new Error("Cloud Tasks service account must belong to the configured project");
   }
   return email;

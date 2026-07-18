@@ -11,6 +11,7 @@ function env() {
   vi.stubEnv("IMPORT_TASKS_QUEUE", "seriph-import");
   vi.stubEnv("IMPORT_WORKER_URL", "https://import-worker-abc123-asia-southeast1.a.run.app/import");
   vi.stubEnv("IMPORT_WORKER_ALLOWED_HOSTS", "import-worker-abc123-asia-southeast1.a.run.app");
+  vi.stubEnv("IMPORT_TASKS_SERVICE_ACCOUNT", "import-task-service-account@test-project.iam.gserviceaccount.com");
   vi.stubEnv("IMPORT_ARCHIVE_WORKER_URL", "https://seriph-archive-worker-abc123-asia-southeast1.a.run.app/import");
   vi.stubEnv("IMPORT_ARCHIVE_WORKER_ALLOWED_HOSTS", "seriph-archive-worker-abc123-asia-southeast1.a.run.app");
 }
