@@ -1,6 +1,8 @@
 export interface FamilyRecoverySnapshot {
   id: string;
+  firestorePath?: string;
   ownerId?: string;
+  faceCount?: number;
   faces?: unknown[];
   status?: string;
   version?: number;
@@ -17,10 +19,13 @@ export interface FamilyRecoverySnapshot {
 
 export interface IngestRecoverySnapshot {
   ownerId: string;
+  firestorePath?: string;
   ingestId?: string;
   processingId?: string;
   familyId?: string;
   analysisState?: string;
+  status?: string;
+  batchId?: string;
 }
 
 export interface RecoverySnapshot {
@@ -34,8 +39,10 @@ export type RecoveryAction =
   | { kind: "resolve_ingest"; ownerId: string; ingestId: string; state: "complete" | "failed" }
   | { kind: "requeue_family"; familyId: string; version: number };
 
+const validDocId = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0 && value.length <= 1500 && !value.includes("/") && value !== "." && value !== "..";
 const aliasTarget = (family: FamilyRecoverySnapshot): string | undefined =>
-  family.aliasOfId ?? family.aliasOf ?? family.mergedIntoId ?? family.mergedInto ?? family.canonicalMerge?.targetSlug;
+  [family.aliasOfId, family.aliasOf, family.mergedIntoId, family.mergedInto, family.canonicalMerge?.targetSlug]
+    .find(validDocId)?.trim();
 
 const invalidReasons = (family: FamilyRecoverySnapshot): string[] => [
   !family.ownerId ? "missing_owner" : undefined,
@@ -63,7 +70,7 @@ export function planPipelineRecovery(snapshot: RecoverySnapshot): RecoveryAction
       continue;
     }
     const reasons = invalidReasons(family);
-    if (reasons.length && family.status === "ready") {
+    if (reasons.length && family.status === "ready" && (!Array.isArray(family.faces) || family.faces.length === 0)) {
       actions.push({ kind: "quarantine_family", familyId: family.id, reason: reasons.map((reason) => reason === "missing_faces" ? "faces" : reason).join("_and_") });
     } else if (family.status === "ready" && !family.recoveryRequeued) {
       actions.push({ kind: "requeue_family", familyId: family.id, version: family.version ?? 0 });

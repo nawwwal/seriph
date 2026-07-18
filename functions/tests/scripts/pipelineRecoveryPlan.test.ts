@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { applyRecoveryAction, parseReconcileArgs, runReconcileImportPipeline, snapshotFamilyDoc, snapshotIngestDoc } from "../../src/scripts/reconcileImportPipeline";
 import { planPipelineRecovery, type RecoverySnapshot } from "../../src/scripts/pipelineRecoveryPlan";
 
 const fixture: RecoverySnapshot = {
@@ -18,4 +19,94 @@ describe("planPipelineRecovery", () => {
       { kind: "resolve_ingest", ownerId: "u1", ingestId: "i1", state: "complete" },
     ]);
   });
+
+  it("does not quarantine a valid ownerless legacy family", () => {
+    expect(planPipelineRecovery({ families: [{ id: "legacy", status: "ready", faces: [{}] }], ingests: [] })).toEqual([{ kind: "requeue_family", familyId: "legacy", version: 0 }]);
+  });
 });
+
+describe("reconcile safety", () => {
+  it("requires scoped apply and rejects unknown arguments", () => {
+    expect(() => parseReconcileArgs(["--apply"])).toThrow("owner");
+    expect(() => parseReconcileArgs(["--wat"])).toThrow("Unknown");
+    expect(parseReconcileArgs(["--apply", "--ownerId=u1"]).allOwners).toBe(false);
+    expect(parseReconcileArgs(["--apply", "--allOwners"]).allOwners).toBe(true);
+  });
+
+  it("does not apply writes during a dry run", async () => {
+    let applied = 0;
+    await runReconcileImportPipeline(["--dryRun"], {
+      readSnapshot: async () => fixture,
+      applyAction: async () => { applied += 1; },
+      log: () => undefined,
+    });
+    expect(applied).toBe(0);
+  });
+
+  it("uses the authoritative family path, validates the target, and audits once", async () => {
+    const db = new FakeDb();
+    db.put("fontfamilies/u1__canonical", { status: "ready", hidden: false, faces: [{}], version: 2 });
+    db.put("fontfamilies/u1__old-alias", { status: "enriching", hidden: true, aliasOfId: "u1__canonical", faces: [{}], version: 4 });
+    const snapshot = { families: [{ id: "u1__old-alias", firestorePath: "fontfamilies/u1__old-alias", ownerId: "u1", status: "enriching", hidden: true, aliasOfId: "u1__canonical", faces: [{}], version: 4 }], ingests: [] } as RecoverySnapshot;
+    const action = { kind: "restore_alias", familyId: "u1__old-alias", targetId: "u1__canonical" } as const;
+    await applyRecoveryAction(action, snapshot, db as never);
+    await applyRecoveryAction(action, snapshot, db as never);
+    expect(db.writes.filter((path) => path === "fontfamilies/u1__old-alias")).toHaveLength(1);
+    expect(db.writes.filter((path) => path === "pipelineRecoveryAudits/restore_alias_u1__old-alias_u1__canonical")).toHaveLength(1);
+  });
+
+  it("rejects a missing or cross-owner alias target and stale family state", async () => {
+    const db = new FakeDb();
+    db.put("fontfamilies/u1__alias", { status: "enriching", hidden: true, aliasOfId: "u2__canonical", version: 1 });
+    const snapshot = { families: [{ id: "u1__alias", firestorePath: "fontfamilies/u1__alias", ownerId: "u1", status: "enriching", hidden: true, aliasOfId: "u2__canonical", faces: [{}], version: 1 }], ingests: [] } as RecoverySnapshot;
+    await expect(applyRecoveryAction({ kind: "restore_alias", familyId: "u1__alias", targetId: "u2__canonical" }, snapshot, db as never)).rejects.toThrow("owner");
+    db.put("fontfamilies/u1__canonical", { status: "ready", hidden: false, faces: [{}], version: 2 });
+    db.put("fontfamilies/u1__alias", { status: "ready", hidden: true, aliasOfId: "u1__canonical", version: 1 });
+    await expect(applyRecoveryAction({ kind: "restore_alias", familyId: "u1__alias", targetId: "u1__canonical" }, snapshot, db as never)).rejects.toThrow("replan");
+  });
+
+  it("rejects a target that is already an alias", async () => {
+    const db = new FakeDb();
+    db.put("fontfamilies/u1__alias", { status: "enriching", hidden: true, aliasOfId: "u1__canonical", faces: [{}], version: 1 });
+    db.put("fontfamilies/u1__canonical", { status: "ready", aliasOf: "u1__other", faces: [{}], version: 2 });
+    const snapshot = { families: [{ id: "u1__alias", firestorePath: "fontfamilies/u1__alias", ownerId: "u1", status: "enriching", hidden: true, aliasOfId: "u1__canonical", faces: [{}], version: 1 }], ingests: [] } as RecoverySnapshot;
+    await expect(applyRecoveryAction({ kind: "restore_alias", familyId: "u1__alias", targetId: "u1__canonical" }, snapshot, db as never)).rejects.toThrow("invalid alias target");
+  });
+
+  it("takes family and ingest identity from Firestore paths", () => {
+    const db = new FakeDb();
+    expect(snapshotFamilyDoc({ ref: new FakeRef("fontfamilies/u1__canonical", db), data: () => ({ id: "wrong", ownerId: "u2", faces: [] }) })).toMatchObject({ id: "u1__canonical", ownerId: "u1" });
+    expect(snapshotIngestDoc({ ref: new FakeRef("users/u1/ingests/i1", db), data: () => ({ ingestId: "wrong", ownerId: "u2" }) })).toMatchObject({ ingestId: "i1", ownerId: "u1" });
+  });
+
+  it("rejects a missing alias target", async () => {
+    const db = new FakeDb(); db.put("fontfamilies/u1__alias", { status: "enriching", hidden: true, aliasOfId: "u1__missing", faces: [{}], version: 1 });
+    const snapshot = { families: [{ id: "u1__alias", firestorePath: "fontfamilies/u1__alias", ownerId: "u1", status: "enriching", hidden: true, aliasOfId: "u1__missing", faces: [{}], version: 1 }], ingests: [] } as RecoverySnapshot;
+    await expect(applyRecoveryAction({ kind: "restore_alias", familyId: "u1__alias", targetId: "u1__missing" }, snapshot, db as never)).rejects.toThrow("invalid alias target");
+  });
+
+  it("guards ingest writes by path and every captured state field", async () => {
+    const db = new FakeDb(); db.put("users/u1/ingests/i1", { analysisState: "enriching", status: "processing", familyId: "u1__canonical", processingId: "p1", batchId: "b1" });
+    const snapshot = { families: [], ingests: [{ ownerId: "u1", ingestId: "i1", firestorePath: "users/u1/ingests/i1", analysisState: "enriching", status: "processing", familyId: "u1__canonical", processingId: "p1", batchId: "b1" }] } as RecoverySnapshot;
+    const action = { kind: "resolve_ingest", ownerId: "u1", ingestId: "i1", state: "complete" } as const;
+    await applyRecoveryAction(action, snapshot, db as never); expect(db.writes).toContain("users/u1/ingests/i1");
+    const stale = new FakeDb(); stale.put("users/u1/ingests/i1", { analysisState: "queued", status: "processing", familyId: "u1__canonical", processingId: "p1", batchId: "b1" });
+    await expect(applyRecoveryAction(action, snapshot, stale as never)).rejects.toThrow("ingest_state");
+  });
+});
+
+class FakeRef {
+  constructor(readonly path: string, private readonly db: FakeDb) {} get id() { return this.path.split("/").pop()!; } collection(name: string) { return { doc: (id: string) => new FakeRef(`${this.path}/${name}/${id}`, this.db) }; } async get() { return { exists: this.db.docs.has(this.path), data: () => this.db.docs.get(this.path), ref: this }; }
+}
+class FakeTx {
+  constructor(private readonly db: FakeDb) {}
+  get = (ref: FakeRef) => ref.get();
+  set = (ref: FakeRef, data: Record<string, unknown>) => { this.db.writes.push(ref.path); this.db.docs.set(ref.path, { ...this.db.docs.get(ref.path), ...data }); };
+}
+class FakeDb {
+  docs = new Map<string, Record<string, unknown>>(); writes: string[] = [];
+  put(path: string, data: Record<string, unknown>) { this.docs.set(path, data); }
+  doc = (path: string) => new FakeRef(path, this);
+  collection = (name: string) => ({ doc: (id: string) => new FakeRef(`${name}/${id}`, this) });
+  runTransaction = async <T>(run: (tx: FakeTx) => Promise<T>) => run(new FakeTx(this));
+}
