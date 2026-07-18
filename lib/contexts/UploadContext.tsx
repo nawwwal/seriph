@@ -40,7 +40,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
   }, [user]);
   const feed = useImportBatchFeed({ user, isAuthLoading: isLoading, onCompletion: notifyCompleted });
   const childStatus = useImportBatchChildren({ user, isAuthLoading: isLoading });
-  const legacyIngests = useActiveUploadPolling({ user, isAuthLoading: isLoading, uploadProgress, onCompleted: notifyCompleted });
+  const legacyIngests = useActiveUploadPolling({ user, isAuthLoading: isLoading, uploadProgress, onCompleted: () => undefined });
 
   const setUploadProgress = useCallback((ingestId: string, percent: number) => {
     setProgress((prev) => ({ ...prev, [ingestId]: percent }));

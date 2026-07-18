@@ -11,23 +11,29 @@ import {
 } from '@/lib/cache/familyDetailClient';
 import { failedFamilyResponse, successfulFamilyResponse } from './fixtures/familyDetail';
 
-const polling = vi.hoisted(() => ({ onCompleted: undefined as (() => void) | undefined }));
+const feed = vi.hoisted(() => ({ onCompletion: undefined as ((event: { kind: 'families_applied'; batchId: string; delta: number }) => void) | undefined }));
 
 vi.mock('@/lib/contexts/AuthContext', () => ({
   useAuth: () => ({ user: { uid: 'user-a' }, isLoading: false }),
 }));
 vi.mock('@/lib/contexts/useActiveUploadPolling', () => ({
-  useActiveUploadPolling: ({ onCompleted }: { onCompleted: () => void }) => {
-    polling.onCompleted = onCompleted;
-    return [];
+  useActiveUploadPolling: () => [],
+}));
+vi.mock('@/lib/hooks/useImportBatchFeed', () => ({
+  useImportBatchFeed: ({ onCompletion }: { onCompletion: typeof feed.onCompletion }) => {
+    feed.onCompletion = onCompletion;
+    return { batches: [], activeCount: 0, transport: 'realtime', loadOlder: vi.fn() };
   },
+}));
+vi.mock('@/lib/hooks/useImportBatchChildren', () => ({
+  useImportBatchChildren: () => ({ children: {}, loadChildren: vi.fn(), collapse: vi.fn() }),
 }));
 
 import { UploadProvider } from '@/lib/contexts/UploadContext';
 
 describe('upload completion detail invalidation', () => {
   beforeEach(async () => {
-    polling.onCompleted = undefined;
+    feed.onCompletion = undefined;
     for (const uid of ['user-a', 'user-b']) {
       clearFamilyCacheForUser(uid);
       clearFamilyDetailNegativeCacheForUser(uid);
@@ -47,8 +53,8 @@ describe('upload completion detail invalidation', () => {
     await prefetchFamilyDetail(input('user-a'));
     await prefetchFamilyDetail(input('user-b'));
     renderToStaticMarkup(createElement(UploadProvider, null, createElement('span')));
-    expect(polling.onCompleted).toBeTypeOf('function');
-    polling.onCompleted?.();
+    expect(feed.onCompletion).toBeTypeOf('function');
+    feed.onCompletion?.({ kind: 'families_applied', batchId: 'b1', delta: 1 });
 
     await expect(loadFamilyDetail(input('user-a'))).resolves.toMatchObject({ kind: 'loaded' });
     await expect(loadFamilyDetail(input('user-b'))).resolves.toEqual({ kind: 'not-found' });

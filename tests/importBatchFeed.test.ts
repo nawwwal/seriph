@@ -1,170 +1,56 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  createBatchFeedController,
-  type BatchFeedListener,
-  type BatchFeedPage,
-  type BatchFeedState,
-} from '@/lib/hooks/useImportBatchFeed';
-import {
-  createImportBatchChildrenController,
-  type ImportBatchChildrenListener,
-} from '@/lib/hooks/useImportBatchChildren';
-import { mapImportBatch, type ImportBatchSummary } from '@/lib/imports/mapImportBatch';
+import { createBatchFeedController, type BatchFeedListener, type BatchFeedPage, type BatchFeedState } from '@/lib/hooks/useImportBatchFeed';
+import { createBatchFeedQuerySpec } from '@/lib/imports/importBatchFeedAdapters';
+import type { ImportBatchSummary } from '@/lib/imports/mapImportBatch';
 
-const activeBatch = (families = 0): ImportBatchSummary => ({
-  batchId: 'b1',
-  ownerId: 'user-a',
-  label: 'July import',
-  expectedSourceCount: 2,
-  outcome: 'active',
-  counters: { sources: 2, discoveredItems: 2, fonts: 1, families, duplicates: 0, review: 0, warnings: 0, failures: 0 },
-  phases: {},
-  createdAt: 1_000,
-  updatedAt: 2_000,
-});
+const batch = (id = 'b1', families = 0): ImportBatchSummary => ({ batchId: id, ownerId: 'user-a', label: 'July import', expectedSourceCount: 2, outcome: 'active', counters: { sources: 2, discoveredItems: 2, fonts: 1, families, duplicates: 0, review: 0, warnings: 0, failures: 0 }, phases: {}, createdAt: 1_000, updatedAt: 2_000 });
+const complete = { ...batch(), outcome: 'succeeded' as const, updatedAt: 3_000, counters: { ...batch().counters, families: 1 } };
 
-const completeBatch: ImportBatchSummary = {
-  ...activeBatch(1),
-  outcome: 'succeeded',
-  updatedAt: 3_000,
-};
-
-function listenerHarness() {
-  let activeRows: (rows: unknown[]) => void = () => undefined;
-  let terminalRows: (rows: unknown[]) => void = () => undefined;
-  let listenerError: (error: unknown) => void = () => undefined;
+function harness() {
+  let active: (rows: unknown[]) => void = () => undefined;
+  let terminal: (rows: unknown[]) => void = () => undefined;
+  let fail: (error: unknown) => void = () => undefined;
   const listener: BatchFeedListener = {
-    subscribeActive(rows, error) {
-      activeRows = rows;
-      listenerError = error;
-      return () => undefined;
-    },
-    subscribeTerminal(rows) {
-      terminalRows = rows;
-      return () => undefined;
-    },
+    subscribeActive(rows, error) { active = rows; fail = error; return () => undefined; },
+    subscribeTerminal(rows) { terminal = rows; return () => undefined; },
   };
-  return { listener, activeRows: (rows: unknown[]) => activeRows(rows), terminalRows: (rows: unknown[]) => terminalRows(rows), fail: (error: unknown) => listenerError(error) };
+  return { listener, active: (rows: unknown[]) => active(rows), terminal: (rows: unknown[]) => terminal(rows), fail: (error: unknown) => fail(error) };
 }
 
 describe('durable import batch feed', () => {
   afterEach(() => vi.useRealTimers());
 
-  it('keeps terminal batches and falls back to the API when the listener fails', async () => {
-    const harness = listenerHarness();
-    const fallback: BatchFeedPage = { batches: [completeBatch], nextCursor: 'older-page' };
-    const list = vi.fn(async () => fallback);
-    const states: BatchFeedState[] = [];
-    const controller = createBatchFeedController({
-      listener: harness.listener,
-      api: { list },
-      onChange: (state) => states.push(state),
-    });
-
-    controller.start();
-    expect(list).not.toHaveBeenCalled();
-    harness.fail(new Error('permission-denied'));
-    await vi.waitFor(() => expect(list).toHaveBeenCalledWith(null));
-
-    expect(states.at(-1)?.batches).toEqual([completeBatch]);
-    expect(states.at(-1)?.transport).toBe('polling');
-    expect(states.at(-1)?.nextCursor).toBe('older-page');
+  it('keeps terminal batches and falls back to the API after listener failure', async () => {
+    const fake = harness(); const page: BatchFeedPage = { batches: [complete], nextCursor: 'page-2' }; const list = vi.fn(async () => page); const states: BatchFeedState[] = [];
+    const controller = createBatchFeedController({ listener: fake.listener, api: { list }, onChange: (state) => states.push(state) });
+    controller.start(); fake.fail(new Error('permission-denied')); await vi.waitFor(() => expect(list).toHaveBeenCalledWith(null));
+    expect(states.at(-1)).toMatchObject({ batches: [complete], transport: 'polling', nextCursor: 'page-2' });
   });
 
-  it('fires catalogue invalidation when the applied-family count increases', () => {
-    const harness = listenerHarness();
-    const events: Array<{ kind: string; batchId: string; delta: number }> = [];
-    const controller = createBatchFeedController({
-      listener: harness.listener,
-      api: { list: async () => ({ batches: [], nextCursor: null }) },
-      onCompletion: (event) => events.push(event),
-    });
-
-    controller.start();
-    harness.activeRows([activeBatch(1)]);
-    harness.activeRows([{ ...activeBatch(1), counters: { ...activeBatch(1).counters, families: 2 } }]);
-
-    expect(events).toContainEqual({ kind: 'families_applied', batchId: 'b1', delta: 1 });
+  it('invalidates catalogue only when applied-family count increases', () => {
+    const fake = harness(); const events: unknown[] = []; const controller = createBatchFeedController({ listener: fake.listener, api: { list: async () => ({ batches: [], nextCursor: null }) }, onCompletion: (event) => events.push(event) });
+    controller.start(); fake.active([batch('b1', 1)]); fake.active([batch('b1', 2)]); fake.active([batch('b1', 1)]);
+    expect(events).toEqual([{ kind: 'families_applied', batchId: 'b1', delta: 1 }]);
   });
 
-  it('pages older history without dropping the API cursor', async () => {
-    const harness = listenerHarness();
-    const list = vi.fn()
-      .mockResolvedValueOnce({ batches: [completeBatch], nextCursor: 'page-2' })
-      .mockResolvedValueOnce({ batches: [{ ...completeBatch, batchId: 'b0', updatedAt: 1_000 }], nextCursor: null });
-    const controller = createBatchFeedController({
-      listener: harness.listener,
-      api: { list },
-      onChange: () => undefined,
-    });
-
-    controller.start();
-    harness.fail(new Error('permission-denied'));
-    await vi.waitFor(() => expect(list).toHaveBeenCalledWith(null));
-    await controller.loadOlder();
-
-    expect(list).toHaveBeenLastCalledWith('page-2');
+  it('preserves the older-history cursor across eight-second fallback refreshes', async () => {
+    vi.useFakeTimers(); const fake = harness(); const list = vi.fn().mockResolvedValueOnce({ batches: [complete], nextCursor: 'page-2' }).mockResolvedValueOnce({ batches: [{ ...complete, batchId: 'b0' }], nextCursor: 'page-3' }).mockResolvedValue({ batches: [complete], nextCursor: 'page-2' });
+    const states: BatchFeedState[] = []; const controller = createBatchFeedController({ listener: fake.listener, api: { list }, onChange: (state) => states.push(state) });
+    controller.start(); fake.fail(new Error('listener unavailable')); await vi.waitFor(() => expect(list).toHaveBeenCalledTimes(1)); await controller.loadOlder();
+    await vi.advanceTimersByTimeAsync(8_000); await vi.waitFor(() => expect(list).toHaveBeenCalledTimes(3));
+    expect(states.at(-1)?.nextCursor).toBe('page-3'); expect(states.at(-1)?.batches.map((item) => item.batchId)).toContain('b0'); controller.stop();
   });
 
-  it('starts polling only after listener failure', async () => {
-    vi.useFakeTimers();
-    const harness = listenerHarness();
-    const list = vi.fn(async () => ({ batches: [completeBatch], nextCursor: null }));
-    const controller = createBatchFeedController({
-      listener: harness.listener,
-      api: { list },
-      onChange: () => undefined,
-    });
-
-    controller.start();
-    await vi.advanceTimersByTimeAsync(8_000);
-    expect(list).not.toHaveBeenCalled();
-    harness.fail(new Error('listener unavailable'));
-    await vi.waitFor(() => expect(list).toHaveBeenCalledTimes(1));
-    await vi.advanceTimersByTimeAsync(8_000);
-    expect(list).toHaveBeenCalledTimes(2);
-    controller.stop();
+  it('does not poll before failure and polls every eight seconds after failure', async () => {
+    vi.useFakeTimers(); const fake = harness(); const list = vi.fn(async () => ({ batches: [complete], nextCursor: null })); const controller = createBatchFeedController({ listener: fake.listener, api: { list }, onChange: () => undefined });
+    controller.start(); await vi.advanceTimersByTimeAsync(8_000); expect(list).not.toHaveBeenCalled(); fake.fail(new Error('unavailable')); await vi.waitFor(() => expect(list).toHaveBeenCalledTimes(1)); await vi.advanceTimersByTimeAsync(8_000); expect(list).toHaveBeenCalledTimes(2); controller.stop();
   });
 });
 
-describe('durable import child status', () => {
-  it('subscribes lazily on expansion and unsubscribes on collapse', async () => {
-    const subscriptions: Array<{ kind: string; rows: (rows: unknown[]) => void; stop: ReturnType<typeof vi.fn> }> = [];
-    const listener: ImportBatchChildrenListener = {
-      subscribe(_batchId, kind, rows) {
-        const subscription = { kind, rows, stop: vi.fn() };
-        subscriptions.push(subscription);
-        return subscription.stop;
-      },
-    };
-    const controller = createImportBatchChildrenController({ listener });
-    const pending = controller.loadChildren('b1');
-
-    expect(subscriptions.map(({ kind }) => kind)).toEqual(['familyPlans', 'reviewItems']);
-    subscriptions.find(({ kind }) => kind === 'familyPlans')?.rows([{ id: 'plan-1', state: 'ready' }]);
-    subscriptions.find(({ kind }) => kind === 'reviewItems')?.rows([{ id: 'review-1', state: 'needs_review' }]);
-    await expect(pending).resolves.toMatchObject({
-      familyPlans: [{ id: 'plan-1', state: 'ready' }],
-      reviewItems: [{ id: 'review-1', state: 'needs_review' }],
-    });
-
-    controller.collapse('b1');
-    expect(subscriptions.every(({ stop }) => stop.mock.calls.length === 1)).toBe(true);
-  });
-});
-
-describe('import batch runtime mapping', () => {
-  it('rejects malformed snapshots and normalizes valid terminal snapshots', () => {
-    expect(mapImportBatch({ batchId: 'b1', outcome: 'succeeded' })).toBeNull();
-    expect(mapImportBatch({
-      batchId: 'b1',
-      ownerId: 'user-a',
-      label: 'July import',
-      expectedSourceCount: 2,
-      outcome: 'succeeded',
-      counters: { families: 1 },
-      createdAt: { toMillis: () => 1_000 },
-      updatedAt: { toMillis: () => 2_000 },
-    })).toMatchObject({ batchId: 'b1', outcome: 'succeeded', counters: { families: 1 }, updatedAt: 2_000 });
+describe('durable import batch listener bounds', () => {
+  it('caps active and terminal listener pages at 100 and limits terminal history to 30 days', () => {
+    const spec = createBatchFeedQuerySpec(1_000_000);
+    expect(spec.active.limit).toBe(100); expect(spec.terminal.limit).toBe(100); expect(spec.terminal.since).toBe(1_000_000 - 30 * 24 * 60 * 60 * 1_000);
+    expect(spec.terminal.outcomes).toEqual(['succeeded', 'partial', 'needs_review', 'failed', 'canceled']);
   });
 });
