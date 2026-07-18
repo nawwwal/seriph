@@ -7,42 +7,50 @@ import { FAMILIES_COLLECTION } from "../../storage/familyStore";
 import { RC_KEYS, RC_DEFAULTS } from "../../config/rcKeys";
 import { getConfigNumber } from "../../config/remoteConfig";
 import type { FontFamilyDoc } from "../../models/catalog.models";
+import { buildSubmissionCandidates, type RejectedFamily } from "../../enrichment/preflight";
+export { buildSubmissionCandidates } from "../../enrichment/preflight";
 import { buildBatchCatalogKey } from "./key";
 import { tagIngestsForBatch } from "./ingestJob";
-import {
-  JOBS_COLLECTION, SAFETY_SETTINGS, batchClient, analysisModelId,
-  batchEnrichEnabled, batchBucket, batchGenerationConfig,
-} from "./client";
+import { JOBS_COLLECTION, SAFETY_SETTINGS, batchClient, analysisModelId, batchEnrichEnabled, batchBucket, batchGenerationConfig } from "./client";
 
-/**
- * Collect families at `ready`, render their specimens, write one JSONL input
- * file, and submit a single Vertex batch prediction job. Marks each family
- * `enriching` and records a tracking doc in `batchJobs`.
- */
-export async function submitPendingEnrichmentBatch(): Promise<{ submitted: number; jobName?: string }> {
+async function persistRejections(db: FirebaseFirestore.Firestore, rejected: RejectedFamily[]): Promise<void> {
+  if (!rejected.length) return;
+  const writer = db.batch();
+  for (const rejection of rejected) writer.set(db.collection(FAMILIES_COLLECTION).doc(rejection.family.id), {
+    status: "failed", enrichmentSubmissionRejection: {
+      code: rejection.code, reasons: rejection.reasons, message: rejection.message, stack: rejection.stack,
+    }, updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  await writer.commit();
+}
+
+export async function submitPendingEnrichmentBatch(): Promise<{ selected: number; submitted: number; rejected: number; jobName?: string }> {
   if (!batchEnrichEnabled() || !isVertexEnabled()) {
     logger.info("[batch] enrichment disabled (kill-switch); skipping submit.");
-    return { submitted: 0 };
+    return { selected: 0, submitted: 0, rejected: 0 };
   }
   const db = getFirestore();
   const max = getConfigNumber(RC_KEYS.enrichBatchMax, Number(RC_DEFAULTS[RC_KEYS.enrichBatchMax]));
   const snap = await db.collection(FAMILIES_COLLECTION).where("status", "==", "ready").limit(max).get();
   const families = snap.docs
     .map((d) => ({ ...d.data(), id: d.id }) as FontFamilyDoc)
-    .filter((f) => f.hidden !== true && !f.mergedInto && !f.aliasOf)
     .filter((f) => !isEnrichedAtCurrentVersion(f));
   if (!families.length) {
     logger.info("[batch] no pending families to enrich.");
-    return { submitted: 0 };
+    return { selected: 0, submitted: 0, rejected: 0 };
   }
-
+  const candidates = await buildSubmissionCandidates(families, renderFamilySpecimen);
+  await persistRejections(db, candidates.rejected);
+  if (!candidates.accepted.length) {
+    logger.info(`[batch] selected ${families.length}, submitted 0, rejected ${candidates.rejected.length}.`);
+    return { selected: families.length, submitted: 0, rejected: candidates.rejected.length };
+  }
   const jobId = `enrich-${Date.now()}`;
   const leaseExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
   const lines: string[] = [];
   const slugs: string[] = [];
   const familyIds: string[] = [];
-  for (const family of families) {
-    const png = await renderFamilySpecimen(family);
+  for (const { family, png } of candidates.accepted) {
     const parts: Array<{ inlineData: { mimeType: string; data: string } } | { text: string }> = [];
     if (png) parts.push({ inlineData: { mimeType: "image/png", data: png.toString("base64") } });
     parts.push({ text: buildPrompt(family, !!png, true, buildBatchCatalogKey(family.id, jobId, family.version ?? 1)) });
@@ -70,7 +78,7 @@ export async function submitPendingEnrichmentBatch(): Promise<{ submitted: numbe
   });
 
   const writer = db.batch();
-  for (const family of families) {
+  for (const { family } of candidates.accepted) {
     writer.set(
       db.collection(FAMILIES_COLLECTION).doc(family.id),
       {
@@ -89,8 +97,9 @@ export async function submitPendingEnrichmentBatch(): Promise<{ submitted: numbe
     createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
   });
   await writer.commit();
-  await tagIngestsForBatch(families, jobId);
+  const submittedFamilies = candidates.accepted.map(({ family }) => family);
+  await tagIngestsForBatch(submittedFamilies, jobId);
 
-  logger.info(`[batch] submitted ${families.length} families as ${job.name} (job ${jobId}).`);
-  return { submitted: families.length, jobName: job.name ?? undefined };
+  logger.info(`[batch] selected ${families.length}, submitted ${submittedFamilies.length}, rejected ${candidates.rejected.length} as ${job.name} (job ${jobId}).`);
+  return { selected: families.length, submitted: submittedFamilies.length, rejected: candidates.rejected.length, jobName: job.name ?? undefined };
 }
