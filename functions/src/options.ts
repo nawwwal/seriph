@@ -51,3 +51,14 @@ export const IMPORT_TASK_WORKER_OPTIONS = {
   maxInstances: 4,
   invoker: "import-task-service-account@seriph.iam.gserviceaccount.com",
 };
+
+export const IMPORT_SOURCE_FINALIZED_OPTIONS = {
+  ...INGEST_FUNCTION_OPTIONS,
+  maxInstances: 4,
+};
+
+export const IMPORT_SOURCE_TIMEOUT_OPTIONS = {
+  region: "asia-southeast1",
+  schedule: "every 15 minutes",
+  maxInstances: 1,
+};

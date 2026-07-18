@@ -1,6 +1,18 @@
+import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
+import { db } from "../bootstrap/adminApp";
+import { getImportConfig } from "../imports/config/importConfig";
+import { getConfigValue } from "../config/remoteConfig";
+import { RC_DEFAULTS, RC_KEYS } from "../config/rcKeys";
+import { confirmFinalizedSource, firestoreSourceLifecycleStore } from "../imports/reconcile/sourceFinalized";
+import { expireSources, firestoreSourceTimeoutStore } from "../imports/reconcile/sourceTimeout";
 import { dispatchImportTask } from "../imports/tasks/dispatch";
-import { IMPORT_TASK_WORKER_OPTIONS } from "../options";
+import { enqueueImportTask } from "../imports/tasks/enqueue";
+import { IMPORT_SOURCE_FINALIZED_OPTIONS, IMPORT_SOURCE_TIMEOUT_OPTIONS, IMPORT_TASK_WORKER_OPTIONS } from "../options";
+
+const sourceBucket = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+  (process.env.GCLOUD_PROJECT ? `${process.env.GCLOUD_PROJECT}.appspot.com` : "unit-test-bucket");
 
 export const importTaskWorker = onRequest(IMPORT_TASK_WORKER_OPTIONS, async (req, res) => {
   const result = await dispatchImportTask({
@@ -8,4 +20,17 @@ export const importTaskWorker = onRequest(IMPORT_TASK_WORKER_OPTIONS, async (req
     cloudTaskName: req.get("X-CloudTasks-TaskName"),
   });
   res.status(result.status).send();
+});
+
+export const confirmFinalizedImportSource = onObjectFinalized({ ...IMPORT_SOURCE_FINALIZED_OPTIONS, bucket: sourceBucket }, async (event) => {
+  const data = event.data;
+  if (!data?.name || !data.generation || data.size === undefined) return { kind: "ignored" } as const;
+  const prefix = getConfigValue(RC_KEYS.intakeBucketPath, RC_DEFAULTS[RC_KEYS.intakeBucketPath]);
+  return confirmFinalizedSource({ name: data.name, generation: String(data.generation), size: Number(data.size) },
+    firestoreSourceLifecycleStore({ db, enqueue: enqueueImportTask }), prefix);
+});
+
+export const timeoutAbandonedImportSources = onSchedule(IMPORT_SOURCE_TIMEOUT_OPTIONS, async () => {
+  await expireSources(firestoreSourceTimeoutStore({ db, enqueue: enqueueImportTask }),
+    { now: () => Date.now() }, getImportConfig().sourceTimeoutMinutes);
 });
