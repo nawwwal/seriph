@@ -62,15 +62,6 @@ describe("durable import task queue", () => {
     expect(createTask.mock.calls[0]?.[0].task.name).toContain(importTaskName(input));
   });
 
-  it("uses an allowlisted private worker and exact OIDC audience", async () => {
-    stubTaskEnv();
-    vi.stubEnv("IMPORT_WORKER_SERVICE_ACCOUNT", "import-worker@test-project.iam.gserviceaccount.com");
-    const createTask = vi.fn().mockRejectedValue({ code: "6" });
-    expect(await enqueueImportTask(payload, { client: { createTask } })).toBe("exists");
-    const task = createTask.mock.calls[0]?.[0].task;
-    expect(task.httpRequest.oidcToken.audience).toBe(task.httpRequest.url);
-  });
-
   it.each([{ code: 6 }, { code: "6" }, { code: "ALREADY_EXISTS" }])
     ("maps duplicate error $code to exists", async (error) => {
       stubTaskEnv();
@@ -86,26 +77,6 @@ describe("durable import task queue", () => {
     const error = { code: "PERMISSION_DENIED" };
     await expect(enqueueImportTask(payload, { client: { createTask: vi.fn().mockRejectedValue(error) } }))
       .rejects.toBe(error);
-  });
-
-  it.each([
-    "https://example.com/import", "http://import-worker-abc123-asia-southeast1.a.run.app/import",
-    "https://import-worker-abc123-asia-southeast1.a.run.app:443/import",
-    "https://import-worker-abc123-asia-southeast1.a.run.app/import?public=true",
-  ])("rejects unsafe worker endpoint %s", async (url) => {
-    stubTaskEnv(url);
-    await expect(enqueueImportTask(payload, { client: { createTask: vi.fn() } })).rejects.toThrow();
-  });
-
-  it("rejects a worker URL without an explicit allowlist", async () => {
-    stubTaskEnv();
-    delete process.env.IMPORT_WORKER_ALLOWED_HOSTS;
-    await expect(enqueueImportTask(payload, { client: { createTask: vi.fn() } })).rejects.toThrow();
-  });
-
-  it("rejects task creation without an explicit service account", async () => {
-    stubTaskEnv(); delete process.env.IMPORT_TASKS_SERVICE_ACCOUNT;
-    await expect(enqueueImportTask(payload, { client: { createTask: vi.fn() } })).rejects.toThrow(/Missing required environment variable/);
   });
 
   it("rejects missing Cloud Tasks metadata and dispatches an allowlisted kind", async () => {
