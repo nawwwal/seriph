@@ -13,7 +13,7 @@ export interface LogicalFaceInput {
 
 export function normalizeIdentityKey(value: string | undefined): string {
   return (value ?? "")
-    .normalize("NFKC")
+    .normalize("NFC")
     .toLocaleLowerCase("en-US")
     .replace(/[’']/g, "")
     .replace(/&/g, " and ")

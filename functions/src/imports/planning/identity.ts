@@ -105,7 +105,7 @@ export function resolvePlannedFontIdentity(input: PlannedFontInput): PlannedFont
     wwsSubfamilyName: displayName(input.wwsSubfamilyName),
     postScriptName: displayName(input.postScriptName),
     fullName: displayName(input.fullName),
-    isVariable: Boolean(input.variableAxes?.length) || input.isVariable,
+    isVariable: Boolean(input.variableAxes?.length),
   };
   const canonical = resolveCanonicalFontIdentity(canonicalInput);
   const styleName = displayName(canonical.styleName) ?? "Regular";

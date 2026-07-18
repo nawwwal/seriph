@@ -7,8 +7,15 @@
 import * as crypto from "crypto";
 import { logger } from "firebase-functions";
 import { serverParseFontFile } from "../parser/fontParser";
-import { parseStyle, canonicalFilename, gfCategory, resolveCanonicalFontIdentity, canonicalFaceId } from "./canonicalize";
-import { FontFormat } from "./transcode";
+import {
+  familyFileBase,
+  parseStyle,
+  canonicalFilename,
+  gfCategory,
+  resolvePlannedFontIdentity,
+} from "./canonicalize";
+import type { GfCategory, PlannedFontIdentity } from "./canonicalize";
+import type { FontFormat } from "./transcode";
 import { upsertFace } from "./familyStore";
 import { writeArtifacts } from "./writeArtifacts";
 import { buildFace } from "./buildFace";
@@ -17,6 +24,59 @@ import type { CanonicalAxis, FontFamilyDoc } from "../models/catalog.models";
 export interface IngestResult {
   family: FontFamilyDoc;
   faceId: string;
+}
+
+export interface IngestPlan {
+  identity: PlannedFontIdentity;
+  familyName: string;
+  slug: string;
+  fileBase: string;
+  styleName: string;
+  isVariable: boolean;
+  axisTags: string[];
+  axes?: CanonicalAxis[];
+  weight: number;
+  weightName: string;
+  italic: boolean;
+  format: FontFormat;
+  origExt: string;
+  category: GfCategory;
+  faceId: string;
+}
+
+/** Build the identity and persistence fields consumed by the upload writer. */
+export function planIngestedFont(parsed: any, originalFilename: string): IngestPlan {
+  const identity = resolvePlannedFontIdentity({
+    ...parsed,
+    filename: originalFilename,
+    format: parsed.format ?? parsed.detectedFormat,
+  });
+  const isVariable = identity.technology === "Variable";
+  const axisTags = (parsed.variableAxes || []).map((axis: any) => axis.tag).filter(Boolean);
+  const { weight, weightName, italic } = parseStyle(identity.styleName, parsed.weight);
+  const format = identity.containerFormat;
+  const axes: CanonicalAxis[] | undefined = isVariable
+    ? (parsed.variableAxes || []).map((axis: any) => ({
+        tag: axis.tag, min: axis.minValue, max: axis.maxValue, default: axis.defaultValue, name: axis.name,
+      }))
+    : undefined;
+  return {
+    identity,
+    familyName: identity.familyName,
+    slug: identity.familySlug,
+    fileBase: familyFileBase(identity.familyName),
+    styleName: identity.styleName,
+    isVariable,
+    axisTags,
+    axes,
+    weight,
+    weightName,
+    italic,
+    format,
+    origExt: format.toLowerCase(),
+    category: gfCategory(parsed.classification, !!parsed.isFixedPitch),
+    faceId: identity.logicalFaceKey,
+  };
 }
 
 export async function ingestFont(params: {
@@ -30,15 +90,9 @@ export async function ingestFont(params: {
   const parsed = await serverParseFontFile(fileBuffer, originalFilename);
   if (!parsed) return null;
 
-  const identity = resolveCanonicalFontIdentity(parsed);
-  const { familyName, slug, fileBase, styleName } = identity;
-
-  const isVariable = !!parsed.isVariable;
-  const axisTags = (parsed.variableAxes || []).map((a: any) => a.tag).filter(Boolean);
-  const { weight, weightName, italic } = parseStyle(styleName, parsed.weight);
-  const format = (parsed.format || "OTF") as FontFormat;
-  const origExt = format.toLowerCase();
-  const category = gfCategory(parsed.classification, !!parsed.isFixedPitch);
+  const plan = planIngestedFont(parsed, originalFilename);
+  const { familyName, slug, fileBase, styleName, isVariable, axisTags, weight, italic, format, origExt, category } = plan;
+  const { weightName } = plan;
 
   const nameOpts = { variable: isVariable, italic, weight, axisTags, styleName };
   const woff2Filename = canonicalFilename(familyName, nameOpts, "woff2");
@@ -51,14 +105,10 @@ export async function ingestFont(params: {
     slug, version, fileBuffer, format, origExt, origFilename, woff2Filename, contentType, logLabel: originalFilename,
   });
 
-  const axes: CanonicalAxis[] | undefined = isVariable
-    ? (parsed.variableAxes || []).map((a: any) => ({
-        tag: a.tag, min: a.minValue, max: a.maxValue, default: a.defaultValue, name: a.name,
-      }))
-    : undefined;
+  const { axes } = plan;
 
   const face = buildFace({
-    parsed, faceId: canonicalFaceId(styleName, isVariable), styleName, weight, weightName, italic, isVariable, axes, format,
+    parsed, faceId: plan.faceId, styleName, weight, weightName, italic, isVariable, axes, format,
     fileSize: fileBuffer.byteLength, servedFilename, servedStoragePath, origStoragePath, contentHash: hash,
   });
 

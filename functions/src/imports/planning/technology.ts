@@ -36,7 +36,7 @@ export function resolveFontTechnology(input: {
   isVariable?: boolean;
   variableAxes?: readonly VariableAxisLike[];
 }): FontTechnology {
-  if ((input.variableAxes ?? []).some((axis) => Boolean(axis.tag?.trim())) || input.isVariable) return "Variable";
+  if ((input.variableAxes ?? []).length > 0) return "Variable";
   return resolveContainerFormat(input);
 }
 
