@@ -32,6 +32,17 @@ describe("Task 16 review regressions", () => {
     expect(() => validatePlan(plan)).not.toThrow();
     expect(plan.families[0]?.faces[0]?.assets).toHaveLength(0);
   });
+  it("keeps a same-family reviewed duplicate linked to its canonical primary after collision", () => {
+    const primary = item("a-primary", sha("a"), "OTF", { destination: "Fonts/Atlas.otf" });
+    const duplicate = item("z-duplicate", primary.sha256, "OTF", { destination: "fonts/atlas.OTF" });
+    const plan = buildImportPlan([duplicate, primary]);
+    const reviewed = plan.items.find((entry) => entry.id === duplicate.id)!;
+    expect(reviewed).toMatchObject({ action: "review", primaryItemId: primary.id });
+    expect(reviewed.reasonCodes).toEqual(["duplicate_content", "destination_collision"]);
+    expect(() => validatePlan(plan)).not.toThrow();
+    expect(plan.families[0]?.clean).toBe(false);
+    expect(plan.families[0]?.faces[0]?.assets).toHaveLength(0);
+  });
   it("rejects mixed owner and batch inputs before building a plan", () => {
     expect(() => buildImportPlan([item("a", sha("a")), item("b", sha("b"), "OTF", { ownerId: "other" })])).toThrow("ownerId");
     expect(() => buildImportPlan([item("a", sha("a")), item("b", sha("b"), "OTF", { batchId: "other" })])).toThrow("batchId");

@@ -50,7 +50,8 @@ export function validatePlan(plan: ImportPlan): ImportPlan {
     const primary = item.primaryItemId ? items.get(item.primaryItemId) : undefined;
     requireValue(primary && (primary.action === "apply" || primary.action === "review") && primary.primaryItemId === undefined && primary.id !== item.id && primary.sha256 === item.sha256, "duplicate primary reference invalid");
     if (item.action === "duplicate") requireValue(primary.familyId === item.familyId && item.reasonCodes.includes("duplicate_content"), "same-family duplicate reference invalid");
-    if (item.action === "review") requireValue(primary.familyId !== item.familyId && item.reasonCodes.includes("cross_family_duplicate"), "cross-family duplicate reference invalid");
+    if (item.action === "review" && item.reasonCodes.includes("duplicate_content")) requireValue(primary.familyId === item.familyId && !item.reasonCodes.includes("cross_family_duplicate"), "same-family duplicate reference invalid");
+    if (item.action === "review" && !item.reasonCodes.includes("duplicate_content")) requireValue(primary.familyId !== item.familyId && item.reasonCodes.includes("cross_family_duplicate"), "cross-family duplicate reference invalid");
   }
   const families = new Map<string, any>(); const assets = new Map<string, string>();
   for (const family of plan.families) {
