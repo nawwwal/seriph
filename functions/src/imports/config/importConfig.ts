@@ -34,19 +34,31 @@ function valueFor(read: ImportConfigReader, key: ImportKey): string {
   return read(key, RC_DEFAULTS[key]) ?? RC_DEFAULTS[key];
 }
 
+function nonNegativeInteger(value: string): number | undefined {
+  const trimmed = value.trim();
+  const parsed = Number(trimmed);
+  return trimmed && Number.isFinite(parsed) && Number.isInteger(parsed) && parsed >= 0
+    ? parsed
+    : undefined;
+}
+
 function bounded(read: ImportConfigReader, key: ImportKey): number {
-  const ceiling = Number(RC_DEFAULTS[key]);
-  const value = Number(valueFor(read, key));
-  return Number.isFinite(value) && value >= 0 ? Math.min(value, ceiling) : ceiling;
+  const value = nonNegativeInteger(valueFor(read, key));
+  return value === undefined ? Number(RC_DEFAULTS[key]) : Math.min(value, Number(RC_DEFAULTS[key]));
 }
 
 function retrySeconds(read: ImportConfigReader): [number, number, number] {
   const fallback = RC_DEFAULTS[RC_KEYS.enrichmentRetrySeconds].split(",").map(Number);
-  const values = valueFor(read, RC_KEYS.enrichmentRetrySeconds).split(",").map(Number);
-  if (values.length !== 3 || values.some((value) => !Number.isFinite(value) || value < 0)) {
+  const values = valueFor(read, RC_KEYS.enrichmentRetrySeconds).split(",").map(nonNegativeInteger);
+  const [first, second, third] = values;
+  if (values.length !== 3 || first === undefined || second === undefined || third === undefined) {
     return [fallback[0], fallback[1], fallback[2]];
   }
-  return [Math.min(values[0], fallback[0]), Math.min(values[1], fallback[1]), Math.min(values[2], fallback[2])];
+  return [
+    Math.min(first, fallback[0]),
+    Math.min(second, fallback[1]),
+    Math.min(third, fallback[2]),
+  ];
 }
 
 function enabled(read: ImportConfigReader): boolean {
