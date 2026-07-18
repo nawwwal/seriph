@@ -19,7 +19,7 @@ export const createBatch = async (
   const now = FieldValue.serverTimestamp() as unknown as string;
   tx.set(ref, {
     ...input, schemaVersion: 1, sealed: false, planVersion: 0, outcome: "active",
-    registeredSourceCount: 0, counters: counters(), createdAt: now, updatedAt: now,
+    counters: counters(), createdAt: now, updatedAt: now,
     phases: {
       upload: { state: "registered", attempts: 0, updatedAt: now },
       planning: { state: "building", attempts: 0, updatedAt: now },

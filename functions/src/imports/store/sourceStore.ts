@@ -16,15 +16,15 @@ const allowed: Partial<Record<ImportSourceState, ImportSourceState[]>> = {
 export const registerSource = async (db: Firestore, input: SourceInput): Promise<{ kind: "created" | "existing" } | Conflict> =>
   db.runTransaction(async (tx) => {
     const batch = importBatchRef(db, input.ownerId, input.batchId);
-    if (!(await tx.get(batch)).exists) return { kind: "batch_missing" };
     const ref = importSourceRef(db, input.ownerId, input.batchId, input.sourceId);
+    const batchSnap = await tx.get(batch);
     const current = await tx.get(ref);
+    if (!batchSnap.exists) return { kind: "batch_missing" };
     if (current.exists) return same(input, current.data()!) ? { kind: "existing" } : { kind: "source_conflict" };
     const now = FieldValue.serverTimestamp() as unknown as string;
     tx.set(ref, { ...input, state: "registered", retryCount: 0, uploadConfirmed: false, createdAt: now, updatedAt: now });
-    const data = (await tx.get(batch)).data()!;
-    tx.update(batch, { registeredSourceCount: (data.registeredSourceCount as number) + 1,
-      counters: { ...(data.counters as ImportBatchCounters), sources: (data.counters as ImportBatchCounters).sources + 1 }, updatedAt: now });
+    const counters = batchSnap.data()!.counters as ImportBatchCounters;
+    tx.update(batch, { counters: { ...counters, sources: counters.sources + 1 }, updatedAt: now });
     return { kind: "created" };
   });
 

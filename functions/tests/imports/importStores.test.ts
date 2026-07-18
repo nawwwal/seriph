@@ -10,10 +10,14 @@ class FakeRef {
   async get() { return { exists: this.db.docs.has(this.path), data: () => this.db.docs.get(this.path) }; }
 }
 class FakeTx {
+  private wrote = false;
   constructor(private readonly db: FakeDb) {}
-  get = (ref: FakeRef) => ref.get();
-  set = (ref: FakeRef, data: Data) => { this.db.docs.set(ref.path, { ...data }); this.db.writes.push([ref.path, data]); };
-  update = (ref: FakeRef, data: Data) => { this.db.docs.set(ref.path, { ...this.db.docs.get(ref.path), ...data }); this.db.writes.push([ref.path, data]); };
+  get = (ref: FakeRef) => {
+    if (this.wrote) throw new Error("transaction read after write");
+    return ref.get();
+  };
+  set = (ref: FakeRef, data: Data) => { this.wrote = true; this.db.docs.set(ref.path, { ...data }); this.db.writes.push([ref.path, data]); };
+  update = (ref: FakeRef, data: Data) => { this.wrote = true; this.db.docs.set(ref.path, { ...this.db.docs.get(ref.path), ...data }); this.db.writes.push([ref.path, data]); };
 }
 class FakeDb {
   docs = new Map<string, Data>(); writes: [string, Data][] = [];
@@ -36,6 +40,7 @@ describe("import repositories", () => {
     await createBatch(db, batch);
     const written = db.docs.get("users/ada/importBatches/batch-1")!;
     expect(written).toMatchObject({ ...batch, outcome: "active", counters: { sources: 0, failures: 0 } });
+    expect(written).not.toHaveProperty("registeredSourceCount");
     expect(written.createdAt).toBeDefined(); expect(written.updatedAt).toBeDefined();
   });
 
@@ -43,7 +48,7 @@ describe("import repositories", () => {
     const db = new FakeDb(); await createBatch(db, batch);
     await registerSource(db, source); await registerSource(db, source);
     expect(db.writes.filter(([path]) => path.endsWith("/sources/source-1"))).toHaveLength(1);
-    expect(db.docs.get("users/ada/importBatches/batch-1")!.registeredSourceCount).toBe(1);
+    expect((db.docs.get("users/ada/importBatches/batch-1")!.counters as Data).sources).toBe(1);
   });
 
   it("returns conflicts for mismatched source identity and invalid transitions", async () => {
