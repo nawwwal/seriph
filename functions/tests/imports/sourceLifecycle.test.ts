@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   confirmFinalizedSource,
   type FinalizedObject,
@@ -56,3 +56,21 @@ it("times out stale upload sources and reconciles each batch once", async () => 
   expect(timedOut.map(({ sourceId }) => sourceId)).toEqual(["s1", "s2"]);
   expect(queued).toEqual(["u1/b1"]);
 });
+
+it.each(["uploaded", "discovering", "discovered", "failed", "canceled", "timed_out"])(
+  "ignores %s sources during timeout",
+  async (state) => {
+    const markTimedOut = vi.fn(async () => true);
+    const store: SourceTimeoutStore = {
+      listStale: async () => [{ ...stale, state }],
+      markTimedOut,
+      enqueueReconcile: async () => "created",
+    };
+
+    await expect(expireSources(store, { now: () => 1_440 * 60_000 + 1 })).resolves.toEqual({
+      timedOut: 0,
+      batchesQueued: 0,
+    });
+    expect(markTimedOut).not.toHaveBeenCalled();
+  },
+);
