@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { Firestore } from 'firebase-admin/firestore';
 import {
   createImportBatch,
+  decodeCursor,
+  listImportBatches,
   parseBatchListQuery,
   presentBatchDetail,
 } from '@/lib/server/imports/batchStore';
+import { parseCreateBatchBody } from '@/app/api/v1/import-batches/route';
 
 type Data = Record<string, unknown>;
 class Ref {
@@ -43,9 +46,22 @@ describe('import batch API helpers', () => {
 
   it('caps recent-history reads at fifty and allowlists outcomes', () => {
     expect(parseBatchListQuery(new URL('https://x.test?limit=500&outcome=failed')))
-      .toEqual({ limit: 50, outcome: 'failed' });
+      .toEqual({ limit: 50, outcome: 'failed', cursor: null });
     expect(parseBatchListQuery(new URL('https://x.test?outcome=unknown')))
-      .toEqual({ limit: 30, outcome: null });
+      .toEqual({ limit: 30, outcome: null, cursor: null });
+    const parsed = parseBatchListQuery(new URL('https://x.test?cursor=eyJpZCI6ImIxIn0'));
+    expect(parsed.cursor).toBe('b1');
+    expect(parseBatchListQuery(new URL('https://x.test?cursor=eyJpZCI6ImIvMSJ9')).cursor).toBeNull();
+  });
+
+  it('uses the owner batch cursor to continue list pages without a gap', async () => {
+    const ids = ['b3', 'b2', 'b1']; let after = ''; let limit = 0;
+    const query: any = { orderBy: () => query, where: () => query, startAfter: (doc: { id: string }) => { after = doc.id; return query; }, limit: (value: number) => { limit = value; return query; }, get: async () => ({ docs: ids.slice(after ? ids.indexOf(after) + 1 : 0, (after ? ids.indexOf(after) + 1 : 0) + limit).map((id) => ({ id, data: () => ({}) })) }) };
+    const db = { collection: () => ({ doc: () => ({ collection: () => ({ ...query, doc: (id: string) => ({ id, get: async () => ({ exists: ids.includes(id), id }) }) }) }) }) };
+    const first = await listImportBatches(db as unknown as Firestore, 'ada', { limit: 2, outcome: null, cursor: null });
+    const second = await listImportBatches(db as unknown as Firestore, 'ada', { limit: 2, outcome: null, cursor: decodeCursor(first.nextCursor) });
+    expect([first, second].flatMap((page) => page.batches).map((batch) => (batch as Data).batchId)).toEqual(ids);
+    expect(decodeCursor(first.nextCursor)).toBe('b2');
   });
 
   it('bounds detail children and removes private storage fields', () => {
@@ -56,5 +72,19 @@ describe('import batch API helpers', () => {
     expect(detail.reviewItems).toHaveLength(100);
     expect(JSON.stringify(detail)).not.toMatch(/storagePath|privateStorageUrl/);
     expect(detail).toMatchObject({ familyPlansCursor: expect.any(String), reviewItemsCursor: expect.any(String) });
+  });
+
+  it('continues detail children from 100 without skipping the first unseen item', () => {
+    const rows = Array.from({ length: 201 }, (_, id) => ({ id }));
+    const first = presentBatchDetail({}, rows.slice(0, 101), []);
+    const next = Number(decodeCursor(first.familyPlansCursor));
+    const second = presentBatchDetail({}, rows.slice(next + 1), []);
+    expect([...first.familyPlans, ...second.familyPlans].map((item) => (item as Data).id))
+      .toEqual(Array.from({ length: 200 }, (_, id) => id));
+  });
+
+  it('rejects POST bodies with keys outside the canonical command', () => {
+    expect(parseCreateBatchBody({ label: 'July', expectedSourceCount: 2 })).toEqual({ label: 'July', expectedSourceCount: 2 });
+    expect(parseCreateBatchBody({ label: 'July', expectedSourceCount: 2, ignored: true })).toBeNull();
   });
 });

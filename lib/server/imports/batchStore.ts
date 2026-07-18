@@ -6,13 +6,13 @@ type Outcome = typeof OUTCOMES[number];
 type Data = Record<string, unknown>;
 export interface CreateImportBatchCommand { ownerId: string; idempotencyKey: string; label: string; expectedSourceCount: number; }
 export type CreateImportBatchResult = { kind: 'created'; batchId: string } | { kind: 'invalid'; code: 'source_count' | 'label' } | { kind: 'conflict' };
-export interface BatchListQuery { limit: number; outcome: Outcome | null; }
+export interface BatchListQuery { limit: number; outcome: Outcome | null; cursor: string | null; }
 
 const user = (db: Firestore, ownerId: string) => db.collection('users').doc(ownerId);
 const batches = (db: Firestore, ownerId: string) => user(db, ownerId).collection('importBatches');
 const receipt = (db: Firestore, ownerId: string, key: string) => user(db, ownerId).collection('importBatchReceipts').doc(Buffer.from(key).toString('base64url'));
 const cursor = (id: string) => Buffer.from(JSON.stringify({ id })).toString('base64url');
-const after = (value: string | null) => { try { return JSON.parse(Buffer.from(value ?? '', 'base64url').toString()).id as string; } catch { return null; } };
+export const decodeCursor = (value: string | null) => { try { const id = JSON.parse(Buffer.from(value ?? '', 'base64url').toString()).id; return typeof id === 'string' && id && !id.includes('/') ? id : null; } catch { return null; } };
 const counters = () => ({ sources: 0, discoveredItems: 0, fonts: 0, families: 0, duplicates: 0, review: 0, warnings: 0, failures: 0 });
 const valid = (command: CreateImportBatchCommand): CreateImportBatchResult | null => {
   if (!command.label.trim()) return { kind: 'invalid', code: 'label' };
@@ -38,24 +38,25 @@ export async function createImportBatch(db: Firestore, command: CreateImportBatc
 export function parseBatchListQuery(url: URL): BatchListQuery {
   const raw = Number.parseInt(url.searchParams.get('limit') ?? '30', 10);
   const outcome = url.searchParams.get('outcome');
-  return { limit: Number.isFinite(raw) ? Math.min(50, Math.max(1, raw)) : 30, outcome: OUTCOMES.includes(outcome as Outcome) ? outcome as Outcome : null };
+  return { limit: Number.isFinite(raw) ? Math.min(50, Math.max(1, raw)) : 30, outcome: OUTCOMES.includes(outcome as Outcome) ? outcome as Outcome : null, cursor: decodeCursor(url.searchParams.get('cursor')) };
 }
 
 const scrub = (value: unknown): unknown => Array.isArray(value) ? value.map(scrub) : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value as Data).filter(([key]) => key !== 'storagePath' && !key.toLowerCase().includes('url')).map(([key, item]) => [key, scrub(item)])) : value;
 export function presentBatchDetail(batch: Data, familyPlans: Data[], reviewItems: Data[]) {
   const plans = familyPlans.slice(0, 100).map(scrub); const reviews = reviewItems.slice(0, 100).map(scrub);
-  return { batch: scrub(batch), familyPlans: plans, reviewItems: reviews, familyPlansCursor: familyPlans.length > 100 ? cursor(String(familyPlans[100]?.id)) : null, reviewItemsCursor: reviewItems.length > 100 ? cursor(String(reviewItems[100]?.id)) : null };
+  return { batch: scrub(batch), familyPlans: plans, reviewItems: reviews, familyPlansCursor: familyPlans.length > 100 ? cursor(String(familyPlans[99]?.id)) : null, reviewItemsCursor: reviewItems.length > 100 ? cursor(String(reviewItems[99]?.id)) : null };
 }
 
 export async function listImportBatches(db: Firestore, ownerId: string, query: BatchListQuery) {
   let request = batches(db, ownerId).orderBy('updatedAt', 'desc');
   if (query.outcome) request = request.where('outcome', '==', query.outcome).orderBy('updatedAt', 'desc');
-  const snap = await request.limit(query.limit).get();
-  return { batches: snap.docs.map((doc) => scrub({ batchId: doc.id, ...doc.data() })) };
+  if (query.cursor) { const previous = await batches(db, ownerId).doc(query.cursor).get(); if (previous.exists) request = request.startAfter(previous); }
+  const snap = await request.limit(query.limit + 1).get(); const docs = snap.docs.slice(0, query.limit);
+  return { batches: docs.map((doc) => scrub({ batchId: doc.id, ...doc.data() })), nextCursor: snap.docs.length > query.limit ? cursor(docs[docs.length - 1]!.id) : null };
 }
 
 async function children(ref: ReturnType<typeof batches> extends infer T ? T extends { doc(id: string): infer R } ? R : never : never, name: string, value: string | null) {
-  let request = (ref as unknown as { collection: (name: string) => any }).collection(name).orderBy('__name__'); const id = after(value); if (id) request = request.startAfter(id);
+  let request = (ref as unknown as { collection: (name: string) => any }).collection(name).orderBy('__name__'); const id = decodeCursor(value); if (id) request = request.startAfter(id);
   const snap = await request.limit(101).get(); return snap.docs.map((doc: { id: string; data: () => Data }) => ({ id: doc.id, ...doc.data() }));
 }
 export async function readImportBatchDetail(db: Firestore, ownerId: string, batchId: string, familyPlansCursor: string | null, reviewItemsCursor: string | null) {

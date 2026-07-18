@@ -5,17 +5,18 @@ import { fail, ok, unauthorized } from '@/lib/server/apiResponse';
 import { createImportBatch, listImportBatches, parseBatchListQuery } from '@/lib/server/imports/batchStore';
 
 export const runtime = 'nodejs';
-const body = (value: unknown) => {
-  const data = value as Record<string, unknown>;
-  return typeof data?.label === 'string' && typeof data.expectedSourceCount === 'number' ? data : null;
+export const parseCreateBatchBody = (value: unknown) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const data = value as Record<string, unknown>; const keys = Object.keys(data);
+  return keys.length === 2 && keys.every((key) => key === 'label' || key === 'expectedSourceCount') && typeof data.label === 'string' && typeof data.expectedSourceCount === 'number' ? { label: data.label, expectedSourceCount: data.expectedSourceCount } : null;
 };
 
 export async function POST(request: NextRequest) {
   const ownerId = await getUidFromRequest(request); if (!ownerId) return unauthorized();
-  const idempotencyKey = request.headers.get('Idempotency-Key'); const data = body(await request.json().catch(() => null));
+  const idempotencyKey = request.headers.get('Idempotency-Key'); const data = parseCreateBatchBody(await request.json().catch(() => null));
   if (!idempotencyKey || !data) return fail('bad_request', 'Idempotency-Key, label, and expectedSourceCount are required', 400);
   try {
-    const result = await createImportBatch(getAdminDb(), { ownerId, idempotencyKey, label: data.label as string, expectedSourceCount: data.expectedSourceCount as number });
+    const result = await createImportBatch(getAdminDb(), { ownerId, idempotencyKey, ...data });
     if (result.kind === 'conflict') return fail('conflict', 'Idempotency-Key was used with a different command', 409);
     if (result.kind === 'invalid') return fail('bad_request', `Invalid ${result.code}`, 400);
     return ok({ batchId: result.batchId }, { status: 201 });
