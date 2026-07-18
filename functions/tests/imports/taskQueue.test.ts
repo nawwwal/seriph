@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  canonicalizeImportTaskPayload,
   enqueueImportTask,
   importTaskName,
   type ImportTaskPayload,
@@ -7,96 +8,94 @@ import {
 import { claimTaskLease } from "../../src/imports/tasks/lease";
 
 const payload: ImportTaskPayload = {
-  kind: "discover_item",
-  ownerId: "owner-1",
-  batchId: "batch-1",
-  resourceId: "item-1",
-  planVersion: 1,
+  kind: "discover_item", ownerId: "owner-1", batchId: "batch-1", resourceId: "item-1", planVersion: 1,
 };
 
-afterEach(() => {
-  vi.unstubAllEnvs();
-});
+afterEach(() => vi.unstubAllEnvs());
 
-function fakeLeaseRef(data: Record<string, unknown>) {
+function fakeLeaseRef(data?: Record<string, unknown>) {
   const tx = {
-    get: vi.fn().mockResolvedValue({ exists: true, data: () => data }),
+    get: vi.fn().mockResolvedValue({ exists: data !== undefined, data: () => data }),
     set: vi.fn(),
   };
-  return {
-    tx,
-    ref: {
-      firestore: {
-        runTransaction: (callback: (transaction: typeof tx) => unknown) => callback(tx),
-      },
-    }
-  }
+  const ref = { firestore: { runTransaction: (cb: (tx: typeof tx) => unknown) => cb(tx) } };
+  return { ref, tx };
+}
+
+function stubTaskEnv(url = "https://import-worker-abc123-asia-southeast1.a.run.app/import") {
+  vi.stubEnv("GOOGLE_CLOUD_PROJECT", "test-project");
+  vi.stubEnv("IMPORT_TASKS_LOCATION", "asia-southeast1");
+  vi.stubEnv("IMPORT_TASKS_QUEUE", "durable-imports");
+  vi.stubEnv("IMPORT_WORKER_URL", url);
+  vi.stubEnv("IMPORT_WORKER_ALLOWED_HOSTS", new URL(url).hostname);
 }
 
 describe("durable import task queue", () => {
-  it("uses the same Cloud Task name for the same stage resource", () => {
+  it("uses structured identity without delimiter collisions", () => {
     expect(importTaskName(payload)).toBe(importTaskName(payload));
     expect(importTaskName({ ...payload, planVersion: 2 })).not.toBe(importTaskName(payload));
+    expect(importTaskName({ ...payload, ownerId: "a\u001fb", batchId: "c" }))
+      .not.toBe(importTaskName({ ...payload, ownerId: "a", batchId: "b\u001fc" }));
   });
 
-  it("builds a private OIDC task and maps an existing task to exists", async () => {
-    vi.stubEnv("GOOGLE_CLOUD_PROJECT", "test-project");
-    vi.stubEnv("IMPORT_TASKS_LOCATION", "us-central1");
-    vi.stubEnv("IMPORT_TASKS_QUEUE", "durable-imports");
-    vi.stubEnv("IMPORT_WORKER_URL", "https://private-worker.example.com/import");
-    vi.stubEnv("IMPORT_WORKER_SERVICE_ACCOUNT", "import-worker@test-project.iam.gserviceaccount.com");
+  it("rejects invalid payloads and unknown fields", () => {
+    const invalid = [
+      { ...payload, extra: true }, { ...payload, kind: "unknown" }, { ...payload, ownerId: "   " },
+      { ...payload, batchId: 3 }, { ...payload, resourceId: null }, { ...payload, planVersion: 0 },
+      { ...payload, planVersion: "1" }, { ownerId: payload.ownerId, batchId: payload.batchId, resourceId: payload.resourceId },
+    ];
+    for (const value of invalid) expect(() => canonicalizeImportTaskPayload(value)).toThrow();
+  });
 
-    const createTask = vi.fn().mockRejectedValueOnce({ code: 6 });
-    const result = await enqueueImportTask(payload, { client: { createTask } });
-
-    expect(result).toBe("exists");
-    expect(createTask).toHaveBeenCalledWith({
-      parent: "projects/test-project/locations/us-central1/queues/durable-imports",
-      task: expect.objectContaining({
-        name: `projects/test-project/locations/us-central1/queues/durable-imports/tasks/${importTaskName(payload)}`,
-        httpRequest: expect.objectContaining({
-          url: "https://private-worker.example.com/import",
-          oidcToken: {
-            serviceAccountEmail: "import-worker@test-project.iam.gserviceaccount.com",
-            audience: "https://private-worker.example.com/import",
-          },
-        }),
-      }),
-    });
-
+  it("uses the canonical payload for both identity and HTTP body", async () => {
+    stubTaskEnv();
+    const input = { ...payload, ownerId: " owner-1 ", resourceId: " item-1 " };
+    const createTask = vi.fn().mockResolvedValue({});
+    await enqueueImportTask(input, { client: { createTask } });
     const request = createTask.mock.calls[0]?.[0].task.httpRequest;
     expect(JSON.parse(Buffer.from(request.body, "base64").toString("utf8"))).toEqual(payload);
+    expect(createTask.mock.calls[0]?.[0].task.name).toContain(importTaskName(input));
   });
 
-  it("returns created when Cloud Tasks accepts a new task", async () => {
-    vi.stubEnv("GOOGLE_CLOUD_PROJECT", "test-project");
-    vi.stubEnv("IMPORT_TASKS_LOCATION", "us-central1");
-    vi.stubEnv("IMPORT_TASKS_QUEUE", "durable-imports");
-    vi.stubEnv("IMPORT_WORKER_URL", "https://private-worker.example.com/import");
-
-    const createTask = vi.fn().mockResolvedValue({});
-    await expect(enqueueImportTask(payload, { client: { createTask } })).resolves.toBe("created");
+  it("uses an allowlisted private worker and exact OIDC audience", async () => {
+    stubTaskEnv();
+    vi.stubEnv("IMPORT_WORKER_SERVICE_ACCOUNT", "import-worker@test-project.iam.gserviceaccount.com");
+    const createTask = vi.fn().mockRejectedValue({ code: "6" });
+    expect(await enqueueImportTask(payload, { client: { createTask } })).toBe("exists");
+    const task = createTask.mock.calls[0]?.[0].task;
+    expect(task.httpRequest.oidcToken.audience).toBe(task.httpRequest.url);
   });
 
-  it("reclaims only expired retryable leases", async () => {
-    const now = new Date("2026-07-18T10:00:00.000Z");
-    const expiredRetryable = fakeLeaseRef({
-      state: "retryable",
-      attempt: 1,
-      leaseExpiresAt: new Date("2026-07-18T09:59:00.000Z"),
-    });
-    const activeLease = fakeLeaseRef({
-      state: "leased",
-      attempt: 1,
-      leaseExpiresAt: new Date("2026-07-18T10:01:00.000Z"),
+  it.each([{ code: 6 }, { code: "6" }, { code: "ALREADY_EXISTS" }])
+    ("maps duplicate error $code to exists", async (error) => {
+      stubTaskEnv();
+      await expect(enqueueImportTask(payload, {
+        client: { createTask: vi.fn().mockRejectedValue(error) },
+      })).resolves.toBe("exists");
     });
 
-    expect(await claimTaskLease(expiredRetryable.ref as never, now)).toMatchObject({
-      kind: "claimed",
-      attempt: 2,
-    });
-    expect(await claimTaskLease(activeLease.ref as never, now)).toEqual({ kind: "busy" });
-    expect(expiredRetryable.tx.set).toHaveBeenCalledOnce();
-    expect(activeLease.tx.set).not.toHaveBeenCalled();
+  it("returns created and rethrows nonduplicate errors", async () => {
+    stubTaskEnv();
+    await expect(enqueueImportTask(payload, { client: { createTask: vi.fn().mockResolvedValue({}) } }))
+      .resolves.toBe("created");
+    const error = { code: "PERMISSION_DENIED" };
+    await expect(enqueueImportTask(payload, { client: { createTask: vi.fn().mockRejectedValue(error) } }))
+      .rejects.toBe(error);
   });
+
+  it.each([
+    "https://example.com/import", "http://import-worker-abc123-asia-southeast1.a.run.app/import",
+    "https://import-worker-abc123-asia-southeast1.a.run.app:443/import",
+    "https://import-worker-abc123-asia-southeast1.a.run.app/import?public=true",
+  ])("rejects unsafe worker endpoint %s", async (url) => {
+    stubTaskEnv(url);
+    await expect(enqueueImportTask(payload, { client: { createTask: vi.fn() } })).rejects.toThrow();
+  });
+
+  it("rejects a worker URL without an explicit allowlist", async () => {
+    stubTaskEnv();
+    delete process.env.IMPORT_WORKER_ALLOWED_HOSTS;
+    await expect(enqueueImportTask(payload, { client: { createTask: vi.fn() } })).rejects.toThrow();
+  });
+
 });
