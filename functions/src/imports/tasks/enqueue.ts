@@ -26,6 +26,9 @@ export function canonicalizeImportTaskPayload(input: unknown): ImportTaskPayload
   const source = input as Record<PropertyKey, unknown>;
   const allowed = new Set(["kind", "ownerId", "batchId", "resourceId", "planVersion"]);
   if (Reflect.ownKeys(source).some((key) => typeof key !== "string" || !allowed.has(key))) return rejectPayload("unknown field");
+  for (const field of ["kind", "ownerId", "batchId", "resourceId"]) {
+    if (!Object.prototype.hasOwnProperty.call(source, field)) return rejectPayload(`${field} must be an own property`);
+  }
   const kind = requiredString(source.kind, "kind");
   if (!KINDS.has(kind as ImportTaskPayload["kind"])) return rejectPayload("unknown kind");
   const payload: ImportTaskPayload = {

@@ -47,6 +47,14 @@ describe("durable import task queue", () => {
     for (const value of invalid) expect(() => canonicalizeImportTaskPayload(value)).toThrow();
   });
 
+  it.each(["kind", "ownerId", "batchId", "resourceId"])("rejects inherited %s", (field) => {
+    const own = { ...payload } as Record<string, unknown>;
+    delete own[field];
+    const inherited = Object.create({ [field]: payload[field as keyof ImportTaskPayload] });
+    Object.assign(inherited, own);
+    expect(() => canonicalizeImportTaskPayload(inherited)).toThrow();
+  });
+
   it("uses the canonical payload for both identity and HTTP body", async () => {
     stubTaskEnv();
     const input = { ...payload, ownerId: " owner-1 ", resourceId: " item-1 " };
