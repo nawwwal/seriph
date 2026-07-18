@@ -12,8 +12,9 @@ const fixture: RecoverySnapshot = {
 };
 
 describe("planPipelineRecovery", () => {
-  it("restores aliases and resolves stale ingests without ownerless family actions", () => {
+  it("quarantines legacy chap, restores aliases, and resolves stale ingests", () => {
     expect(planPipelineRecovery(fixture)).toEqual([
+      { kind: "quarantine_family", familyId: "chap", reason: "missing_owner_and_faces" },
       { kind: "restore_alias", familyId: "old-alias", targetId: "u1__canonical" },
       { kind: "resolve_ingest", ownerId: "u1", ingestId: "i1", state: "complete" },
     ]);
@@ -21,7 +22,7 @@ describe("planPipelineRecovery", () => {
 
   it("does not plan a requeue for an ownerless legacy family", () => { expect(planPipelineRecovery({ families: [{ id: "legacy", status: "ready", faces: [{}] }], ingests: [] })).toEqual([]); });
 
-  it("does not plan a quarantine for an ownerless malformed family", () => { expect(planPipelineRecovery({ families: [{ id: "chap", status: "ready", faces: [] }], ingests: [] })).toEqual([]); });
+  it("plans quarantine for only the ownerless malformed chap family", () => { expect(planPipelineRecovery({ families: [{ id: "chap", status: "ready", faces: [] }], ingests: [] })).toEqual([{ kind: "quarantine_family", familyId: "chap", reason: "missing_owner_and_faces" }]); });
 
   it("normalizes a slug-only legacy alias target from its owner", () => { expect(planPipelineRecovery({ families: [{ id: "u1__old-alias", ownerId: "u1", status: "enriching", faces: [{}], hidden: true, aliasOf: "canonical" }], ingests: [] })).toEqual([{ kind: "restore_alias", familyId: "u1__old-alias", targetId: "u1__canonical" }]); });
 
@@ -81,6 +82,8 @@ describe("reconcile safety", () => {
   it("rejects direct apply for an ownerless family source", async () => { const db = new FakeDb(); db.put("fontfamilies/legacy", { status: "enriching", hidden: true, aliasOfId: "u1__canonical", faces: [{}], version: 1 }); db.put("fontfamilies/u1__canonical", { status: "ready", hidden: false, faces: [{}], version: 2 }); const snapshot = { families: [{ id: "legacy", firestorePath: "fontfamilies/legacy", status: "enriching", hidden: true, aliasOfId: "u1__canonical", faces: [{}], version: 1 }], ingests: [] } as RecoverySnapshot; await expect(applyRecoveryAction({ kind: "restore_alias", familyId: "legacy", targetId: "u1__canonical" }, snapshot, db as never)).rejects.toThrow("path_identity"); });
 
   it("rejects direct apply for ownerless requeue and quarantine", async () => { const snapshot = { families: [{ id: "legacy", firestorePath: "fontfamilies/legacy", status: "ready", faces: [], version: 1 }], ingests: [] } as RecoverySnapshot; for (const action of [{ kind: "requeue_family", familyId: "legacy", version: 1 }, { kind: "quarantine_family", familyId: "legacy", reason: "missing_owner_and_faces" }] as const) { const db = new FakeDb(); db.put("fontfamilies/legacy", { status: "ready", faces: [], version: 1 }); await expect(applyRecoveryAction(action, snapshot, db as never)).rejects.toThrow("path_identity"); } });
+
+  it("allows only the exact guarded ownerless chap quarantine and audits once", async () => { const snapshot = { families: [{ id: "chap", firestorePath: "fontfamilies/chap", status: "ready", faces: [], faceCount: 0, version: 1 }], ingests: [] } as RecoverySnapshot; const action = { kind: "quarantine_family", familyId: "chap", reason: "missing_owner_and_faces" } as const; const db = new FakeDb(); db.put("fontfamilies/chap", { status: "ready", faces: [], version: 1 }); await applyRecoveryAction(action, snapshot, db as never); await applyRecoveryAction(action, snapshot, db as never); expect(db.writes.filter((path) => path === "fontfamilies/chap")).toHaveLength(1); expect(db.writes.filter((path) => path === "pipelineRecoveryAudits/quarantine_family_chap_missing_owner_and_faces")).toHaveLength(1); const invalid = new FakeDb(); invalid.put("fontfamilies/chap", { status: "ready", faces: [], version: 1 }); await expect(applyRecoveryAction({ ...action, reason: "other" }, snapshot, invalid as never)).rejects.toThrow("path_identity"); });
 
   it("takes family and ingest identity from Firestore paths", () => { const db = new FakeDb(); expect(snapshotFamilyDoc({ ref: new FakeRef("fontfamilies/u1__canonical", db), data: () => ({ id: "wrong", ownerId: "u2", faces: [] }) })).toMatchObject({ id: "u1__canonical", ownerId: "u1" }); expect(snapshotIngestDoc({ ref: new FakeRef("users/u1/ingests/i1", db), data: () => ({ ingestId: "wrong", ownerId: "u2" }) })).toMatchObject({ ingestId: "i1", ownerId: "u1" }); });
 

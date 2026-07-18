@@ -43,6 +43,7 @@ const familyOf = (snapshot: RecoverySnapshot, id: string) => snapshot.families.f
 const stateValueMatches = (current: unknown, expected: unknown): boolean => JSON.stringify(current) === JSON.stringify(expected);
 const familyStateMatches = (current: any, expected: FamilyRecoverySnapshot): boolean => ["status", "hidden", "aliasOf", "aliasOfId", "mergedInto", "mergedIntoId", "version", "recoveryRequeued", "enrichmentSubmissionRejection"].every((key) => stateValueMatches(current[key], expected[key as keyof FamilyRecoverySnapshot])) && (expected.faceCount === undefined || (Array.isArray(current.faces) ? current.faces.length : -1) === expected.faceCount);
 const ingestStateMatches = (current: any, expected: IngestRecoverySnapshot): boolean => ["analysisState", "status", "familyId", "processingId", "batchId"].every((key) => expected[key as keyof IngestRecoverySnapshot] === undefined || current[key] === expected[key as keyof IngestRecoverySnapshot]);
+const isOwnerlessChapQuarantine = (action: RecoveryAction, expected: FamilyRecoverySnapshot, identity: PathIdentity): boolean => action.kind === "quarantine_family" && action.familyId === "chap" && action.reason === "missing_owner_and_faces" && !identity.ownerId && expected.id === "chap" && expected.status === "ready" && expected.faceCount === 0;
 
 export async function applyRecoveryAction(action: RecoveryAction, snapshot: RecoverySnapshot, db: any = getFirestore()): Promise<void> {
   await db.runTransaction(async (tx: any) => {
@@ -51,7 +52,8 @@ export async function applyRecoveryAction(action: RecoveryAction, snapshot: Reco
     if (!expected?.firestorePath) throw new Error("replan_required:missing_authoritative_path");
     const identity = isIngest ? ingestPath(expected.firestorePath) : familyPath(expected.firestorePath);
     const expectedId = isIngest ? (expected as IngestRecoverySnapshot).ingestId : (expected as FamilyRecoverySnapshot).id;
-    if (!identity || identity.id !== expectedId || (isIngest ? identity.ownerId !== action.ownerId : identity.id !== action.familyId || !identity.ownerId)) throw new Error("replan_required:path_identity");
+    if (!identity || identity.id !== expectedId || (isIngest ? identity.ownerId !== action.ownerId : identity.id !== action.familyId)) throw new Error("replan_required:path_identity");
+    if (!isIngest && !identity.ownerId && !isOwnerlessChapQuarantine(action, expected as FamilyRecoverySnapshot, identity)) throw new Error("replan_required:path_identity");
     const ref = db.doc(expected.firestorePath); const audit = db.collection("pipelineRecoveryAudits").doc(auditId(action));
     const current = await tx.get(ref); const priorAudit = await tx.get(audit);
     if (priorAudit.exists) return;
