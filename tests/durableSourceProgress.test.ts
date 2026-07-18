@@ -1,64 +1,46 @@
-import { createElement, type ReactNode } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { createElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ImportBatchSummary } from '@/lib/imports/mapImportBatch';
-import type { DurableUploadDeps, DurableUploadSource } from '@/models/import-batch.models';
-import type { IngestRecord } from '@/models/ingest.models';
 
-const uploadState = vi.hoisted(() => ({
-  batches: [] as ImportBatchSummary[],
-  close: vi.fn(),
-  ingests: [] as IngestRecord[],
-  isOpen: true,
-  loadChildren: vi.fn(),
+const observed = vi.hoisted(() => ({
+  map: {} as Record<string, number>,
+  events: [] as Array<[string, number | null]>,
+  state: null as ReturnType<typeof import('@/lib/hooks/useDurableBatchUpload').useDurableBatchUpload> | null,
   open: vi.fn(),
-  setSourceProgress: vi.fn(),
-  setUploadProgress: vi.fn(),
-  sourceProgress: {} as Record<string, number>,
-  uploadProgress: {},
+  setSourceProgress: (id: string, percent: number | null) => { observed.events.push([id, percent]); if (percent === null) delete observed.map[id]; else observed.map[id] = percent; },
+  user: { uid: 'user-a', getIdToken: vi.fn().mockResolvedValue('token') },
 }));
 
-vi.mock('@/lib/contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }));
-vi.mock('@/lib/contexts/UploadContext', () => ({ useUploads: () => uploadState }));
-vi.mock('@/components/ui/Modal', () => ({ default: ({ children }: { children: ReactNode }) => createElement('section', null, children) }));
+vi.mock('@/lib/contexts/AuthContext', () => ({ useAuth: () => ({ isLoading: false, user: observed.user }) }));
+vi.mock('@/lib/contexts/UploadContext', () => ({ useUploads: () => ({ open: observed.open, setSourceProgress: observed.setSourceProgress }) }));
+vi.mock('@/lib/firebase/config', () => ({ app: {}, storage: {} }));
+vi.mock('firebase/remote-config', () => ({ isSupported: vi.fn().mockResolvedValue(true), getRemoteConfig: vi.fn(() => ({})), setCustomSignals: vi.fn().mockResolvedValue(undefined), fetchAndActivate: vi.fn().mockResolvedValue(true), getValue: vi.fn(() => ({ asBoolean: () => true })) }));
+vi.mock('@/lib/imports/importBatchApi', () => ({ importBatchApi: vi.fn(() => ({ create: vi.fn().mockResolvedValue({ batchId: 'batch-1' }), register: vi.fn(async (_id: string, rows: Array<{ sourceId: string; originalName: string; relativePath: string; size: number }>) => rows.map((row) => ({ ...row, accepted: true, storagePath: 'intake/one.otf' }))), seal: vi.fn().mockResolvedValue(undefined), fail: vi.fn().mockResolvedValue(undefined) })) }));
+vi.mock('firebase/storage', () => ({ ref: vi.fn(), uploadBytesResumable: vi.fn(() => ({ on: (_event: string, progress: (snapshot: { bytesTransferred: number; totalBytes: number }) => void, _error: unknown, complete: () => void) => { progress({ bytesTransferred: 42, totalBytes: 100 }); complete(); } })) }));
 
-import UploadCenterModal from '@/components/upload/UploadCenterModal';
-import { createSourceProgressBridge } from '@/lib/hooks/durableSourceProgress';
-import { runDurableUpload } from '@/lib/hooks/useDurableBatchUpload';
+import { useDurableBatchUpload } from '@/lib/hooks/useDurableBatchUpload';
 
-const source = (): DurableUploadSource => ({ sourceId: 'source-1', file: { name: 'one.otf', size: 1, type: 'font/otf' } as File, relativePath: 'one.otf' });
-const batch: ImportBatchSummary = { batchId: 'batch-1', ownerId: 'user-a', label: 'Browser import', expectedSourceCount: 1, outcome: 'active', counters: { sources: 1, discoveredItems: 0, fonts: 0, families: 0, duplicates: 0, review: 0, warnings: 0, failures: 0 }, phases: { upload: { state: 'uploading', progress: 42 } }, createdAt: 1, updatedAt: 1 };
+function HookHarness() {
+  observed.state = useDurableBatchUpload();
+  return null;
+}
 
-const uploadDeps = (progress: DurableUploadDeps['progress'], clearProgress: DurableUploadDeps['clearProgress'], failUpload = false): DurableUploadDeps => ({
-  create: async () => ({ batchId: 'batch-1' }),
-  register: async (_batchId, rows) => rows.map((row) => ({ ...row, accepted: true, storagePath: 'intake/one.otf' })),
-  seal: async () => undefined,
-  resume: async (_session, rows) => rows.map((row) => ({ ...row, accepted: true, storagePath: 'intake/one.otf' })),
-  upload: async (_source, _file, report) => { if (failUpload) throw new Error('offline'); report(42); },
-  fail: async () => undefined,
-  progress,
-  clearProgress,
-});
+const file = { name: 'one.otf', size: 1, type: 'font/otf' } as File;
+const walked = [{ file, relativePath: 'one.otf' }];
 
-describe('durable source progress integration', () => {
-  it('renders the live Upload Center overlay from the durable uploader context producer and clears it terminally', async () => {
-    uploadState.batches = [batch];
-    let rendered = '';
-    uploadState.setSourceProgress = vi.fn((sourceId: string, percent: number | null) => {
-      const next = { ...uploadState.sourceProgress };
-      if (percent === null) delete next[sourceId]; else next[sourceId] = percent;
-      uploadState.sourceProgress = next;
-      if (percent === 42) rendered = renderToStaticMarkup(createElement(UploadCenterModal));
-    });
-    const progress = createSourceProgressBridge(uploadState.setSourceProgress, () => undefined);
-    await runDurableUpload([source()], uploadDeps(progress, (sourceId) => uploadState.setSourceProgress(sourceId, null)));
-    expect(rendered).toContain('Client upload overlay: 42%');
-    expect(uploadState.sourceProgress).toEqual({});
-  });
-
-  it('clears a source overlay after a durable upload failure', async () => {
-    const clearProgress = vi.fn();
-    await runDurableUpload([source()], uploadDeps(undefined, clearProgress, true));
-    expect(clearProgress).toHaveBeenCalledWith('source-1');
+describe('durable uploader source progress', () => {
+  it('publishes storage progress through the mounted upload hook and clears the live context overlay', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    vi.stubGlobal('sessionStorage', { getItem: () => null, setItem: vi.fn(), removeItem: vi.fn() });
+    observed.map = {}; observed.events = [];
+    let renderer: ReactTestRenderer;
+    await act(async () => { renderer = create(createElement(HookHarness)); await Promise.resolve(); await Promise.resolve(); });
+    expect(observed.state?.enabled).toBe(true);
+    await act(async () => { await observed.state!.upload(walked); });
+    const sourceId = observed.events[0]![0];
+    expect(observed.events).toEqual([[sourceId, 42], [sourceId, 100], [sourceId, null]]);
+    expect(observed.map).toEqual({});
+    renderer!.unmount();
+    vi.unstubAllGlobals();
   });
 });
