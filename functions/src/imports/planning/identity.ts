@@ -27,6 +27,9 @@ export interface PlannedFontIdentity {
   familyKey: string;
   familySlug: string;
   styleName: string;
+  weight: number;
+  width: number;
+  italic: boolean;
   logicalFaceKey: string;
   containerFormat: ReturnType<typeof resolveContainerFormat>;
   technology: FontTechnology;
@@ -124,6 +127,9 @@ export function resolvePlannedFontIdentity(input: PlannedFontInput): PlannedFont
     familyKey: normalizeIdentityKey(canonical.familyName),
     familySlug: familySlug(canonical.familyName),
     styleName,
+    weight,
+    width,
+    italic,
     logicalFaceKey,
     containerFormat: resolveContainerFormat(input),
     technology,

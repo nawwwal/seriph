@@ -24,4 +24,23 @@ describe("production ingest identity consumer", () => {
     });
     expect(plan.identity.technology).toBe("WOFF2");
   });
+
+  it("persists italic when the planned variable ital axis defaults to 1", () => {
+    const plan = planIngestedFont({
+      familyName: "Axis Family",
+      subfamilyName: "Regular",
+      preferredFamily: "Axis Family",
+      preferredSubfamily: "Regular",
+      postScriptName: "AxisFamily-Regular",
+      format: "TTF",
+      variableAxes: [
+        { tag: "wght", minValue: 100, maxValue: 900, defaultValue: 400 },
+        { tag: "ital", minValue: 0, maxValue: 1, defaultValue: 1 },
+      ],
+    }, "AxisFamily-Regular.ttf");
+
+    expect(plan.identity.italic).toBe(true);
+    expect(plan.italic).toBe(true);
+    expect(plan.faceId).toContain("italic-yes");
+  });
 });

@@ -9,10 +9,10 @@ import { logger } from "firebase-functions";
 import { serverParseFontFile } from "../parser/fontParser";
 import {
   familyFileBase,
-  parseStyle,
   canonicalFilename,
   gfCategory,
   resolvePlannedFontIdentity,
+  weightNameFromNumber,
 } from "./canonicalize";
 import type { GfCategory, PlannedFontIdentity } from "./canonicalize";
 import type { FontFormat } from "./transcode";
@@ -53,7 +53,8 @@ export function planIngestedFont(parsed: any, originalFilename: string): IngestP
   });
   const isVariable = identity.technology === "Variable";
   const axisTags = (parsed.variableAxes || []).map((axis: any) => axis.tag).filter(Boolean);
-  const { weight, weightName, italic } = parseStyle(identity.styleName, parsed.weight);
+  const { weight, italic } = identity;
+  const weightName = weightNameFromNumber(weight);
   const format = identity.containerFormat;
   const axes: CanonicalAxis[] | undefined = isVariable
     ? (parsed.variableAxes || []).map((axis: any) => ({
