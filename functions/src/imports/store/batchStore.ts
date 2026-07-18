@@ -31,7 +31,7 @@ export const createBatch = async (
 });
 
 export type ArchiveBudgetReservation =
-  | { kind: "reserved" | "exists" | "exceeded"; reservedBytes: number; remainingBytes: number }
+  | { kind: "reserved" | "exists" | "exceeded"; reservedBytes: number; remainingBytes: number; reservationBytes: number }
   | { kind: "batch_missing"; reservedBytes: 0; remainingBytes: 0 };
 
 export async function reserveArchiveBytesOnce(
@@ -45,10 +45,10 @@ export async function reserveArchiveBytesOnce(
     const current = snap.data() as { archiveBudget?: { reservedBytes?: number; maxBytes?: number; reservations?: Record<string, number> } };
     const budget = { reservedBytes: current.archiveBudget?.reservedBytes ?? 0, maxBytes: current.archiveBudget?.maxBytes ?? 0, reservations: current.archiveBudget?.reservations ?? {} };
     const existing = budget.reservations[input.reservationId]; const maxBytes = budget.maxBytes > 0 ? budget.maxBytes : input.maxBytes;
-    if (existing !== undefined) return { kind: "exists", reservedBytes: budget.reservedBytes, remainingBytes: Math.max(0, maxBytes - budget.reservedBytes) };
-    if (budget.reservedBytes + input.bytes > maxBytes) return { kind: "exceeded", reservedBytes: budget.reservedBytes, remainingBytes: Math.max(0, maxBytes - budget.reservedBytes) };
+    if (existing !== undefined) return { kind: "exists", reservedBytes: budget.reservedBytes, remainingBytes: Math.max(0, maxBytes - budget.reservedBytes), reservationBytes: existing };
+    if (budget.reservedBytes + input.bytes > maxBytes) return { kind: "exceeded", reservedBytes: budget.reservedBytes, remainingBytes: Math.max(0, maxBytes - budget.reservedBytes), reservationBytes: 0 };
     const next = { reservedBytes: budget.reservedBytes + input.bytes, maxBytes, reservations: { ...budget.reservations, [input.reservationId]: input.bytes } };
     tx.update(ref, { archiveBudget: next, updatedAt: FieldValue.serverTimestamp() });
-    return { kind: "reserved", reservedBytes: next.reservedBytes, remainingBytes: maxBytes - next.reservedBytes };
+    return { kind: "reserved", reservedBytes: next.reservedBytes, remainingBytes: maxBytes - next.reservedBytes, reservationBytes: input.bytes };
   });
 }

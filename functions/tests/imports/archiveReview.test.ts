@@ -36,4 +36,12 @@ describe("nested archive review invariants", () => {
     expect(reservations).toEqual(["parent:font.ttf"]);
     expect(result.reviews).toContainEqual(expect.objectContaining({ reasonCode: "expanded_size" }));
   });
+
+  it("allows an entry up to its reserved allowance, not the post-reservation remainder", async () => {
+    const bytes = await zip({ "font.ttf": "0123456789abcdef".repeat(5) });
+    const result = await discoverZip({ ...base, archiveItemId: "parent", bytes, limits: { ...limits, maxEntryBytes: 100 },
+      reserve: async () => ({ kind: "reserved", remainingBytes: 20, reservationBytes: 80 }) } as any);
+    expect(result.children).toHaveLength(1);
+    expect(result.reviews).toEqual([]);
+  });
 });

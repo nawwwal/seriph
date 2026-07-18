@@ -15,7 +15,7 @@ export interface DiscoverZipInput extends Omit<InventoryProvenance, "bytes"> {
   archiveItemId: string; bytes: Buffer; limits: ArchiveLimits; depth?: number;
   reserve?: (reservationId: string, bytes: number) => Promise<ArchiveReservation>;
 }
-export interface ArchiveReservation { kind: "reserved" | "exists" | "exceeded"; remainingBytes: number }
+export interface ArchiveReservation { kind: "reserved" | "exists" | "exceeded"; remainingBytes: number; reservationBytes: number }
 
 type ZipFile = unzipper.File;
 export interface StreamEntry { path: string; stream: () => AsyncIterable<Uint8Array> }
@@ -84,7 +84,8 @@ export async function discoverZip(input: DiscoverZipInput): Promise<ArchiveDisco
   for (const file of files) {
     const reservation = input.reserve ? await input.reserve(`${input.archiveItemId}:${file.path}`, file.uncompressedSize) : undefined;
     if (reservation?.kind === "exceeded") { reviews.push(context(review(file.path, "expanded_size"))); continue; }
-    const extracted = await extractEntryBounded(file, input.limits.maxEntryBytes, reservation?.remainingBytes ?? input.limits.maxExpandedBatchBytes, reservation ? 0 : expandedBytes);
+    const extractionBudget = reservation ? reservation.remainingBytes + reservation.reservationBytes : input.limits.maxExpandedBatchBytes;
+    const extracted = await extractEntryBounded(file, input.limits.maxEntryBytes, extractionBudget, reservation ? 0 : expandedBytes);
     if (!Buffer.isBuffer(extracted)) { reviews.push(context(extracted)); continue; }
     const bytes = extracted;
     expandedBytes += bytes.byteLength;
