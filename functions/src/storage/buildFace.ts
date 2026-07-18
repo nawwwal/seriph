@@ -15,6 +15,7 @@ export function buildFace(params: {
   styleName?: string;
   weight: number;
   weightName: string;
+  width: number;
   italic: boolean;
   isVariable: boolean;
   axes?: CanonicalAxis[];
@@ -25,7 +26,7 @@ export function buildFace(params: {
   origStoragePath: string;
   contentHash: string;
 }): FontFace {
-  const { parsed, weight, weightName, italic, isVariable, axes, format, fileSize } = params;
+  const { parsed, weight, weightName, width, italic, isVariable, axes, format, fileSize } = params;
   return {
     id: params.faceId ?? faceId(weightName, italic, isVariable),
     styleName: params.styleName ?? (isVariable
@@ -33,6 +34,7 @@ export function buildFace(params: {
       : `${weightName}${italic ? " Italic" : ""}`),
     weight,
     weightName,
+    width,
     italic,
     isVariable,
     axes,

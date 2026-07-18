@@ -37,6 +37,7 @@ export interface IngestPlan {
   axes?: CanonicalAxis[];
   weight: number;
   weightName: string;
+  width: number;
   italic: boolean;
   format: FontFormat;
   origExt: string;
@@ -72,6 +73,7 @@ export function planIngestedFont(parsed: any, originalFilename: string): IngestP
     axes,
     weight,
     weightName,
+    width: identity.width,
     italic,
     format,
     origExt: format.toLowerCase(),
@@ -92,8 +94,7 @@ export async function ingestFont(params: {
   if (!parsed) return null;
 
   const plan = planIngestedFont(parsed, originalFilename);
-  const { familyName, slug, fileBase, styleName, isVariable, axisTags, weight, italic, format, origExt, category } = plan;
-  const { weightName } = plan;
+  const { familyName, slug, fileBase, styleName, isVariable, axisTags, weight, weightName, width, italic, format, origExt, category } = plan;
 
   const nameOpts = { variable: isVariable, italic, weight, axisTags, styleName };
   const woff2Filename = canonicalFilename(familyName, nameOpts, "woff2");
@@ -109,7 +110,7 @@ export async function ingestFont(params: {
   const { axes } = plan;
 
   const face = buildFace({
-    parsed, faceId: plan.faceId, styleName, weight, weightName, italic, isVariable, axes, format,
+    parsed, faceId: plan.faceId, styleName, weight, weightName, width, italic, isVariable, axes, format,
     fileSize: fileBuffer.byteLength, servedFilename, servedStoragePath, origStoragePath, contentHash: hash,
   });
 

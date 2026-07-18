@@ -32,6 +32,7 @@ export interface FontFace {
   styleName: string;
   weight: number;
   weightName: string;
+  width?: number;
   italic: boolean;
   isVariable: boolean;
   axes?: CanonicalAxis[];
