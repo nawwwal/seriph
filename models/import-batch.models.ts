@@ -11,7 +11,11 @@ export interface RegisteredSource extends SourceRegistrationInput { accepted: bo
 export interface UploadFailure { state: 'upload_failed'; detail: string; }
 export interface DurableUploadSource { sourceId: string; file: File; relativePath: string; }
 export interface RecoverySource { sourceId: string; originalName: string; relativePath: string; size: number; }
-export interface RecoverySession { batchId: string; idempotencyKey: string; sourceIds: string[]; sources: RecoverySource[]; }
+export type DurableUploadPhase = 'setup' | 'creating' | 'registering' | 'resuming' | 'sealing' | 'uploading' | 'completed';
+export interface DurableUploadSuccess { ok: true; batchId: string; phase: 'completed'; }
+export interface DurableUploadFailure { ok: false; phase: Exclude<DurableUploadPhase, 'completed'>; mutationStarted: boolean; error: unknown; }
+export type DurableUploadResult = DurableUploadSuccess | DurableUploadFailure;
+export interface RecoverySession { ownerId: string; batchId: string; idempotencyKey: string; sourceIds: string[]; sources: RecoverySource[]; }
 export interface DurableUploadDeps {
   create(input: CreateBatchInput): Promise<CreatedBatch>;
   register(batchId: string, sources: SourceRegistrationInput[]): Promise<RegisteredSource[]>;
@@ -21,4 +25,5 @@ export interface DurableUploadDeps {
   fail(batchId: string, sourceId: string, error: UploadFailure): Promise<void>;
   progress?(sourceId: string, percent: number): void;
   persist?(session: RecoverySession): void;
+  clearPersisted?(): void;
 }

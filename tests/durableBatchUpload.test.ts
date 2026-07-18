@@ -7,7 +7,7 @@ import { prepareDurableSources, readDurableEnabled, runDurableUpload, uploadWith
 import type { DurableUploadDeps, DurableUploadSource, RecoverySession } from '@/models/import-batch.models';
 
 const files = (count = 2): DurableUploadSource[] => Array.from({ length: count }, (_, i) => ({ sourceId: `s${i + 1}`, file: { name: `${i + 1}.otf`, size: i + 1, type: 'font/otf' } as File, relativePath: `${i + 1}.otf` }));
-const recovery: RecoverySession = { batchId: 'b1', idempotencyKey: 'key-1', sourceIds: ['s1', 's2'], sources: files().map(({ sourceId, file, relativePath }) => ({ sourceId, originalName: file.name, relativePath, size: file.size })) };
+const recovery: RecoverySession = { ownerId: 'u1', batchId: 'b1', idempotencyKey: 'key-1', sourceIds: ['s1', 's2'], sources: files().map(({ sourceId, file, relativePath }) => ({ sourceId, originalName: file.name, relativePath, size: file.size })) };
 const deps = (calls: string[], upload: DurableUploadDeps['upload'] = async (source, _file, progress) => { calls.push(`upload:${source.sourceId}`); progress(50); }): DurableUploadDeps => ({
   create: async (input) => (calls.push(`create:${input.idempotencyKey}`), { batchId: 'b1' }),
   register: async (_id, sources) => (calls.push(`register:${sources.map((s) => s.sourceId).join(',')}`), sources.map((s) => ({ ...s, accepted: s.sourceId !== 's2', storagePath: s.sourceId }))),
@@ -34,8 +34,27 @@ describe('durable batch upload', () => {
   it('reselects matching metadata and resumes its persisted batch without creating another', async () => {
     const walked = files().map(({ file, relativePath }) => ({ file, relativePath })); const prepared = prepareDurableSources(walked, recovery);
     expect(prepared.map((source) => source.sourceId)).toEqual(['s1', 's2']); const calls: string[] = [];
-    await runDurableUpload(prepared, deps(calls), recovery);
+    await runDurableUpload(prepared, deps(calls), recovery, 'u1');
     expect(calls).toContain('resume:b1:key-1'); expect(calls.some((call) => call.startsWith('create:'))).toBe(false);
+    expect(calls.some((call) => call.startsWith('register:'))).toBe(false); expect(calls).not.toContain('seal:b1');
+  });
+
+  it('does not reuse another owner recovery and clears successful recovery before an identical later upload', async () => {
+    const walked = files().map(({ file, relativePath }) => ({ file, relativePath })); const prepared = prepareDurableSources(walked, recovery);
+    const otherOwnerCalls: string[] = [];
+    await runDurableUpload(prepared, deps(otherOwnerCalls), recovery, 'u2');
+    expect(otherOwnerCalls.some((call) => call.startsWith('create:'))).toBe(true);
+    expect(otherOwnerCalls).not.toContain('resume:b1:key-1');
+
+    let persisted: RecoverySession | null = recovery;
+    const successfulCalls: string[] = [];
+    await runDurableUpload(prepared, { ...deps(successfulCalls), persist: (session) => { persisted = session; }, clearPersisted: () => { persisted = null; } }, persisted, 'u1');
+    expect(persisted).toBeNull();
+
+    const laterCalls: string[] = [];
+    await runDurableUpload(prepared, deps(laterCalls), persisted, 'u1');
+    expect(laterCalls.some((call) => call.startsWith('create:'))).toBe(true);
+    expect(laterCalls).not.toContain('resume:b1:key-1');
   });
 
   it('fails closed for Remote Config and sets the signal before fetch and activate', async () => {
@@ -46,8 +65,18 @@ describe('durable batch upload', () => {
   });
 
   it('falls back to legacy for disabled or failed durable setup', async () => {
-    const calls: string[] = []; await uploadWithFallback(files(), async () => false, async () => { calls.push('legacy:disabled'); });
-    await uploadWithFallback(files(), async () => { throw new Error('api failed'); }, async () => { calls.push('legacy:failed'); });
+    const calls: string[] = []; await uploadWithFallback(files(), async () => ({ ok: false, phase: 'setup', mutationStarted: false, error: new Error('disabled') }), async () => { calls.push('legacy:disabled'); });
+    await uploadWithFallback(files(), async () => ({ ok: false, phase: 'setup', mutationStarted: false, error: new Error('api failed') }), async () => { calls.push('legacy:failed'); });
     expect(calls).toEqual(['legacy:disabled', 'legacy:failed']);
+  });
+
+  it('surfaces durable failure after create begins without invoking legacy upload', async () => {
+    const calls: string[] = [];
+    await expect(uploadWithFallback(files(), async () => runDurableUpload(files(), {
+      ...deps(calls),
+      create: async () => { calls.push('create:started'); throw new Error('create failed'); },
+    }, null, 'u1'), async () => { calls.push('legacy:unexpected'); })).rejects.toThrow('create failed');
+    expect(calls).toContain('create:started');
+    expect(calls).not.toContain('legacy:unexpected');
   });
 });
