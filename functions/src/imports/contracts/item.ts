@@ -17,6 +17,12 @@ export type ImportItemReason =
   | "unsafe_archive" | "duplicate_content" | "disposable_name";
 
 export type ImportArchiveState = "expanding" | "complete" | "review";
+export interface ImportArchiveReview {
+  path: string;
+  reasonCode: string;
+  parentItemId: string;
+  lineage: ImportArchiveLineageEntry[];
+}
 export interface ImportArchiveLifecycle {
   state: ImportArchiveState;
   inventoryDurable: boolean;
@@ -24,6 +30,7 @@ export interface ImportArchiveLifecycle {
   discoveredChildren: number;
   terminalChildren: number;
   reviewCount: number;
+  reviewEntries: ImportArchiveReview[];
 }
 
 export interface ImportArchiveLineageEntry {

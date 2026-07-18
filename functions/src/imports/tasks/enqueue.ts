@@ -9,6 +9,7 @@ export interface ImportTaskPayload {
   batchId: string;
   resourceId: string;
   planVersion?: number;
+  archiveBudgetKey?: string;
 }
 const KINDS = new Set<ImportTaskPayload["kind"]>(["discover_source", "discover_item", "finalize_plan", "apply_family", "reconcile_batch"]);
 type Task = protos.google.cloud.tasks.v2.ITask;
@@ -24,7 +25,7 @@ function requiredString(value: unknown, field: string): string {
 export function canonicalizeImportTaskPayload(input: unknown): ImportTaskPayload {
   if (!input || typeof input !== "object" || Array.isArray(input)) return rejectPayload("object required");
   const source = input as Record<PropertyKey, unknown>;
-  const allowed = new Set(["kind", "ownerId", "batchId", "resourceId", "planVersion"]);
+  const allowed = new Set(["kind", "ownerId", "batchId", "resourceId", "planVersion", "archiveBudgetKey"]);
   if (Reflect.ownKeys(source).some((key) => typeof key !== "string" || !allowed.has(key))) return rejectPayload("unknown field");
   for (const field of ["kind", "ownerId", "batchId", "resourceId"]) {
     if (!Object.prototype.hasOwnProperty.call(source, field)) return rejectPayload(`${field} must be an own property`);
@@ -39,6 +40,7 @@ export function canonicalizeImportTaskPayload(input: unknown): ImportTaskPayload
     if (!Number.isSafeInteger(source.planVersion) || (source.planVersion as number) < 1) return rejectPayload("planVersion must be a positive safe integer");
     payload.planVersion = source.planVersion as number;
   }
+  if (Object.prototype.hasOwnProperty.call(source, "archiveBudgetKey")) payload.archiveBudgetKey = requiredString(source.archiveBudgetKey, "archiveBudgetKey");
   return payload;
 }
 function serializedPayload(input: unknown): { payload: ImportTaskPayload; serialized: string } {

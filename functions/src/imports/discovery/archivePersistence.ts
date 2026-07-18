@@ -1,6 +1,7 @@
 import type { Firestore } from "firebase-admin/firestore";
 import type { ArchiveChild, ArchiveDiscovery } from "./discoverZip";
 import { completeArchiveIfReady, createItemOnce, markArchiveInventoryDurableOnce } from "../store/itemStore";
+import type { ImportArchiveReview } from "../contracts/item";
 import type { ImportTaskPayload } from "../tasks/enqueue";
 
 export interface ArchivePersistenceDependencies {
@@ -30,9 +31,13 @@ export async function persistArchiveDiscovery(
   const first = discovery.children[0]?.inventory;
   const ownerId = first?.ownerId ?? deps.ownerId; const batchId = first?.batchId ?? deps.batchId;
   if (ownerId && batchId) {
+    const reviewEntries: ImportArchiveReview[] = discovery.reviews.map((entry) => ({
+      path: entry.entryPath, reasonCode: entry.reasonCode, parentItemId: entry.parentItemId ?? archiveItemId,
+      lineage: entry.lineage ?? [{ archiveItemId, entryPath: entry.entryPath }],
+    }));
     await markArchiveInventoryDurableOnce(db, {
       ownerId, batchId, itemId: archiveItemId,
-    expectedChildren: discovery.children.length, reviewCount: discovery.reviews.length,
+    expectedChildren: discovery.children.length, reviewCount: reviewEntries.length, reviewEntries,
     });
     await completeArchiveIfReady(db, { ownerId, batchId, itemId: archiveItemId });
   }

@@ -3,6 +3,7 @@ import { buildInventoryItem, type InventoryItem } from "./inventory";
 import { discoverZip, persistArchiveDiscovery } from "./discoverZip";
 import type { ArchiveChild } from "./discoverZip";
 import { createItemOnce, importItemRef, markItemTerminalOnce } from "../store/itemStore";
+import { reserveArchiveBytesOnce } from "../store/batchStore";
 import { importSourceRef } from "../store/paths";
 import { transitionSource, type SourceInput } from "../store/sourceStore";
 import type { ImportTaskPayload } from "../tasks/enqueue";
@@ -22,7 +23,12 @@ const sourceInput = (data: Record<string, any>) => ({ ownerId: data.ownerId, bat
   originalPath: data.originalPath, archiveLineage: [], filename: data.filename, extension: extensionOf(data.filename), declaredMimeType: data.declaredMimeType });
 
 async function expandItem(item: InventoryItem, bytes: Buffer, runtime: DiscoveryRuntime): Promise<void> {
-  const discovery = await discoverZip({ ...item, archiveItemId: item.itemId, bytes, limits: runtime.limits, depth: item.archiveLineage.length });
+  const discovery = await discoverZip({ ...item, archiveItemId: item.itemId, bytes, limits: runtime.limits, depth: item.archiveLineage.length,
+    reserve: async (reservationId, size) => {
+      const result = await reserveArchiveBytesOnce(runtime.db, { ownerId: item.ownerId, batchId: item.batchId, reservationId, bytes: size, maxBytes: runtime.limits.maxExpandedBatchBytes });
+      if (result.kind === "batch_missing") throw new Error("import batch missing while reserving archive bytes");
+      return result;
+    } });
   await persistArchiveDiscovery(runtime.db, item.itemId, discovery, { stage: runtime.stage, enqueue: runtime.enqueue, ownerId: item.ownerId, batchId: item.batchId });
 }
 

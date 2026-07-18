@@ -25,6 +25,7 @@ describe("safe ZIP discovery", () => {
   it.each([
     ["../escape.otf", "path_traversal"], ["/absolute.ttf", "absolute_path"],
     ["..\\escape.ttf", "path_traversal"],
+    ["C:foo.ttf", "absolute_path"], ["c:/foo.ttf", "absolute_path"], ["C:\\foo.ttf", "absolute_path"],
   ])("quarantines unsafe entry %s", async (entryPath, reasonCode) => {
     const result = await inspectArchive(await fixtureZip({ [entryPath]: "font" }), limits);
     expect(result).toContainEqual(expect.objectContaining({ action: "review", reasonCode }));
@@ -92,6 +93,7 @@ describe("safe ZIP discovery", () => {
     expect(first.children[0].inventory.archiveLineage).toEqual([{ archiveItemId: "item-archive", entryPath: "fonts/ok.ttf" }]);
     expect(first.children[1].inventory.role).toBe("archive");
     expect(first.children.every((child) => child.task.kind === "discover_item")).toBe(true);
+    expect(first.children.every((child) => child.task.archiveBudgetKey === provenance.batchId)).toBe(true);
   });
 
   it("registers production discovery stages while future stages remain unregistered", () => {

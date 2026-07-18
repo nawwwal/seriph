@@ -55,6 +55,12 @@ export interface ImportBatchCounters {
   failures: number;
 }
 
+export interface ImportArchiveBudget {
+  reservedBytes: number;
+  maxBytes: number;
+  reservations: Record<string, number>;
+}
+
 export interface BatchTerminalSummary {
   appliedFamilies: number;
   canceled: number;
@@ -79,6 +85,7 @@ export interface ImportBatch {
   };
   counters: ImportBatchCounters;
   outcome: ImportBatchOutcome;
+  archiveBudget?: ImportArchiveBudget;
   terminalSummary?: BatchTerminalSummary;
   createdAt: string;
   updatedAt: string;

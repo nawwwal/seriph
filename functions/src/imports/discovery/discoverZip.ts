@@ -1,5 +1,5 @@
 import * as unzipper from "unzipper";
-import { buildInventoryItem, type InventoryItem, type InventoryProvenance } from "./inventory";
+import { buildInventoryItem, type InventoryInput, type InventoryItem, type InventoryProvenance } from "./inventory";
 import { assessArchiveEntry, type ArchiveDecision, type ArchiveLimits, review } from "./archivePolicy";
 import { archiveStagingPath } from "./archivePaths";
 import type { ImportTaskPayload } from "../tasks/enqueue";
@@ -13,7 +13,9 @@ export interface ArchiveChild {
 export interface ArchiveDiscovery { children: ArchiveChild[]; reviews: ArchiveDecision[] }
 export interface DiscoverZipInput extends Omit<InventoryProvenance, "bytes"> {
   archiveItemId: string; bytes: Buffer; limits: ArchiveLimits; depth?: number;
+  reserve?: (reservationId: string, bytes: number) => Promise<ArchiveReservation>;
 }
+export interface ArchiveReservation { kind: "reserved" | "exists" | "exceeded"; remainingBytes: number }
 
 type ZipFile = unzipper.File;
 export interface StreamEntry { path: string; stream: () => AsyncIterable<Uint8Array> }
@@ -68,28 +70,34 @@ const extensionOf = (name: string): string => {
 export async function discoverZip(input: DiscoverZipInput): Promise<ArchiveDiscovery> {
   const decisions = await inspectArchive(input.bytes, input.limits, input.depth ?? input.archiveLineage.length);
   const allowed = new Map(decisions.filter((item) => item.action === "stage").map((item) => [item.entryPath, item]));
-  const reviews = decisions.filter((item) => item.action === "review");
+  const context = (decision: ArchiveDecision): ArchiveDecision => ({ ...decision, parentItemId: input.archiveItemId,
+    lineage: [...input.archiveLineage, { archiveItemId: input.archiveItemId, entryPath: decision.entryPath }] });
+  const reviews = decisions.filter((item) => item.action === "review").map(context);
   if (!allowed.size) return { children: [], reviews };
   let directory: unzipper.CentralDirectory;
-  try { directory = await unzipper.Open.buffer(input.bytes); } catch { return { children: [], reviews: [...reviews, review("", "malformed_archive")] }; }
+  try { directory = await unzipper.Open.buffer(input.bytes); } catch { return { children: [], reviews: [...reviews, context(review("", "malformed_archive"))] }; }
   const seenPaths = new Set<string>();
   const files = directory.files.filter((file) => allowed.has(file.path) && !seenPaths.has(file.path) && seenPaths.add(file.path))
     .sort((a, b) => a.path.localeCompare(b.path));
   const children: ArchiveChild[] = [];
   let expandedBytes = 0;
   for (const file of files) {
-    const extracted = await extractEntryBounded(file, input.limits.maxEntryBytes, input.limits.maxExpandedBatchBytes, expandedBytes);
-    if (!Buffer.isBuffer(extracted)) { reviews.push(extracted); continue; }
+    const reservation = input.reserve ? await input.reserve(`${input.archiveItemId}:${file.path}`, file.uncompressedSize) : undefined;
+    if (reservation?.kind === "exceeded") { reviews.push(context(review(file.path, "expanded_size"))); continue; }
+    const extracted = await extractEntryBounded(file, input.limits.maxEntryBytes, reservation?.remainingBytes ?? input.limits.maxExpandedBatchBytes, reservation ? 0 : expandedBytes);
+    if (!Buffer.isBuffer(extracted)) { reviews.push(context(extracted)); continue; }
     const bytes = extracted;
     expandedBytes += bytes.byteLength;
     const safePath = allowed.get(file.path)!.normalizedPath!;
     const lineage = [...input.archiveLineage, { archiveItemId: input.archiveItemId, entryPath: file.path }];
-    const inventory = await buildInventoryItem({ ...input, bytes, archiveLineage: lineage,
-      originalPath: input.originalPath, filename: safePath.split("/").pop()!, extension: extensionOf(safePath),
-      declaredMimeType: "application/octet-stream", name: safePath });
+    const childInput: InventoryInput = { ownerId: input.ownerId, batchId: input.batchId, sourceId: input.sourceId,
+      originalPath: input.originalPath, archiveLineage: lineage,
+      filename: safePath.split("/").pop()!, extension: extensionOf(safePath),
+      declaredMimeType: "application/octet-stream", bytes, name: safePath };
+    const inventory = await buildInventoryItem(childInput);
     const stagingPath = archiveStagingPath({ ...input, entryPath: safePath });
     children.push({ inventory: { ...inventory, stagingPath }, staging: { path: stagingPath, bytes, contentHash: inventory.sha256 },
-      task: { kind: "discover_item", ownerId: input.ownerId, batchId: input.batchId, resourceId: inventory.itemId, planVersion: 1 } });
+      task: { kind: "discover_item", ownerId: input.ownerId, batchId: input.batchId, resourceId: inventory.itemId, planVersion: 1, archiveBudgetKey: input.batchId } });
   }
   return { children, reviews };
 }

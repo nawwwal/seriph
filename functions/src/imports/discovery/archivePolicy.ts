@@ -23,12 +23,14 @@ export interface ArchiveDecision {
   reasonCode: string;
   entryPath: string;
   normalizedPath?: string;
+  parentItemId?: string;
+  lineage?: Array<{ archiveItemId: string; entryPath: string }>;
 }
 
 export function normalizeArchivePath(entryPath: string, maxPathBytes = 1024): string | ArchiveDecision {
   const normalized = entryPath.normalize("NFKC").replace(/\\/g, "/");
   if (normalized.includes("\0")) return review(entryPath, "invalid_path");
-  if (normalized.startsWith("/") || /^[A-Za-z]:\//.test(normalized)) return review(entryPath, "absolute_path");
+  if (normalized.startsWith("/") || /^[A-Za-z]:/.test(normalized)) return review(entryPath, "absolute_path");
   const parts: string[] = [];
   for (const part of normalized.split("/")) {
     if (!part || part === ".") continue;
