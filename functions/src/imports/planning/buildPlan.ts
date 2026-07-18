@@ -10,14 +10,14 @@ export interface PlanInventoryItem extends Partial<PlannedFontInput> {
 }
 export interface PlanItem {
   id: string; itemId: string; sha256: string; action: "apply" | "duplicate" | "review";
-  reasonCode: string; familyId: string; logicalFaceKey: string; primaryItemId?: string;
+  reasonCode: string; reasonCodes: string[]; familyId: string; logicalFaceKey: string; primaryItemId?: string;
 }
 export interface PlanAsset { assetId: string; itemId: string; sha256: string; format: string; version: string; }
 export interface PlanFace {
   logicalFaceKey: string; styleName: string; weight: number; width: number; italic: boolean; assets: PlanAsset[];
 }
 export interface PlanFamily { familyId: string; familyName: string; familySlug: string; faces: PlanFace[]; clean: boolean; }
-export interface ReviewItem { itemId: string; reasonCode: string; detail: string; }
+export interface ReviewItem { itemId: string; reasonCode: string; reasonCodes: string[]; detail: string; details: string[]; }
 export interface ImportPlan {
   ownerId: string; batchId: string; planVersion: number; state: "validated";
   items: PlanItem[]; families: PlanFamily[]; reviewItems: ReviewItem[]; contentHash?: string;
@@ -34,12 +34,18 @@ function candidate(input: PlanInventoryItem): Candidate {
 }
 function addReview(reviews: ReviewItem[], item: PlanItem, reasonCode: string, detail: string): void {
   if (item.action !== "review") item.action = "review";
-  if (item.reasonCode === "planned" || item.reasonCode === "duplicate_content") item.reasonCode = reasonCode;
-  if (!reviews.some((entry) => entry.itemId === item.id)) reviews.push({ itemId: item.id, reasonCode: item.reasonCode, detail });
+  if (!item.reasonCodes.includes(reasonCode)) item.reasonCodes.push(reasonCode);
+  if (item.reasonCode === "planned") item.reasonCode = reasonCode;
+  const existing = reviews.find((entry) => entry.itemId === item.id);
+  if (existing) { existing.reasonCodes = [...item.reasonCodes]; existing.details.push(detail); return; }
+  reviews.push({ itemId: item.id, reasonCode: item.reasonCodes[0] ?? item.reasonCode, reasonCodes: [...item.reasonCodes], detail, details: [detail] });
 }
 export function buildImportPlan(inputs: readonly PlanInventoryItem[], planVersion = 1): ImportPlan {
+  const ownerId = inputs[0]?.ownerId ?? ""; const batchId = inputs[0]?.batchId ?? "";
+  if (inputs.some((input) => input.ownerId !== ownerId)) throw new Error("all plan items must share ownerId");
+  if (inputs.some((input) => input.batchId !== batchId)) throw new Error("all plan items must share batchId");
   const candidates = inputs.map(candidate).sort((a, b) => a.id.localeCompare(b.id));
-  const items = candidates.map((entry): PlanItem => ({ id: entry.id, itemId: entry.id, sha256: entry.input.sha256, action: "apply", reasonCode: "planned", familyId: entry.familyId, logicalFaceKey: entry.identity.logicalFaceKey }));
+  const items = candidates.map((entry): PlanItem => ({ id: entry.id, itemId: entry.id, sha256: entry.input.sha256, action: "apply", reasonCode: "planned", reasonCodes: [], familyId: entry.familyId, logicalFaceKey: entry.identity.logicalFaceKey }));
   const byKey = new Map<string, Candidate[]>();
   candidates.forEach((entry) => { const key = `${entry.familyId}\0${entry.identity.logicalFaceKey}`; byKey.set(key, [...(byKey.get(key) ?? []), entry]); });
   const reviews: ReviewItem[] = [];
@@ -55,7 +61,7 @@ export function buildImportPlan(inputs: readonly PlanInventoryItem[], planVersio
     sameBytes.slice(1).forEach((entry) => {
       const planItem = itemFor(entry.id);
       planItem.primaryItemId = primary.id;
-      if (entry.familyId === primary.familyId) { planItem.action = "duplicate"; planItem.reasonCode = "duplicate_content"; }
+      if (entry.familyId === primary.familyId) { planItem.action = "duplicate"; planItem.reasonCode = "duplicate_content"; planItem.reasonCodes = ["duplicate_content"]; }
       else addReview(reviews, planItem, "cross_family_duplicate", `Exact bytes reference primary ${primary.id} in another family`);
     });
   }
@@ -77,7 +83,6 @@ export function buildImportPlan(inputs: readonly PlanInventoryItem[], planVersio
     return result;
   }, []).sort((a, b) => a.familyId.localeCompare(b.familyId));
   families.forEach((family) => { family.faces.sort((a, b) => a.logicalFaceKey.localeCompare(b.logicalFaceKey)); family.clean = !items.some((entry) => entry.familyId === family.familyId && entry.action === "review"); });
-  const ownerId = inputs[0]?.ownerId ?? ""; const batchId = inputs[0]?.batchId ?? "";
   if (new Set(items.map((entry) => entry.id)).size !== items.length) throw new Error("plan item IDs must be unique");
   return validatePlan({ ownerId, batchId, planVersion, state: "validated", items: items.sort((a, b) => a.id.localeCompare(b.id)), families, reviewItems: reviews.sort((a, b) => a.itemId.localeCompare(b.itemId)) });
 }

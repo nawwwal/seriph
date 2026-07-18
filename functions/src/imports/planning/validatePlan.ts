@@ -32,21 +32,25 @@ export function validatePlan(plan: ImportPlan): ImportPlan {
     requireValue(item && typeof item.id === "string" && item.id === item.itemId && !items.has(item.id), "plan item IDs must be unique");
     requireValue(typeof item.familyId === "string" && typeof item.logicalFaceKey === "string", "plan item family identity required");
     requireValue(item.action === "apply" || item.action === "duplicate" || item.action === "review", "unknown plan item action");
+    requireValue(Array.isArray(item.reasonCodes) && new Set(item.reasonCodes).size === item.reasonCodes.length, "plan reason list invalid");
+    if (item.action === "apply") requireValue(item.reasonCodes.length === 0 && item.reasonCode === "planned" && item.primaryItemId === undefined, "apply item semantics invalid");
+    if (item.action === "duplicate") requireValue(typeof item.primaryItemId === "string" && item.reasonCodes.includes("duplicate_content"), "duplicate primary reference required");
+    if (item.action === "review") requireValue(item.reasonCodes.length > 0, "review reasons required");
     requireValue(SHA256.test(item.sha256) || (item.action === "review" && item.reasonCode === "invalid_sha256"), "plan contains non-exact SHA-256");
     items.set(item.id, item);
   }
   const reviewIds = new Set<string>();
   for (const review of plan.reviewItems) {
     const item = items.get(review.itemId);
-    requireValue(item && item.action === "review" && item.reasonCode === review.reasonCode && !reviewIds.has(review.itemId), "review item consistency failed");
+    requireValue(item && item.action === "review" && item.reasonCode === review.reasonCode && Array.isArray(review.reasonCodes) && JSON.stringify(review.reasonCodes) === JSON.stringify(item.reasonCodes) && Array.isArray(review.details) && !reviewIds.has(review.itemId), "review item consistency failed");
     reviewIds.add(review.itemId);
   }
   for (const item of plan.items.filter((entry) => entry.action === "review")) requireValue(reviewIds.has(item.id), "review item missing decision");
   for (const item of plan.items.filter((entry) => entry.primaryItemId !== undefined)) {
     const primary = item.primaryItemId ? items.get(item.primaryItemId) : undefined;
-    requireValue(primary && primary.action === "apply" && primary.id !== item.id && primary.sha256 === item.sha256, "duplicate primary reference invalid");
-    if (item.action === "duplicate") requireValue(primary.familyId === item.familyId && item.reasonCode === "duplicate_content", "same-family duplicate reference invalid");
-    if (item.action === "review") requireValue(primary.familyId !== item.familyId && item.reasonCode === "cross_family_duplicate", "cross-family duplicate reference invalid");
+    requireValue(primary && (primary.action === "apply" || primary.action === "review") && primary.primaryItemId === undefined && primary.id !== item.id && primary.sha256 === item.sha256, "duplicate primary reference invalid");
+    if (item.action === "duplicate") requireValue(primary.familyId === item.familyId && item.reasonCodes.includes("duplicate_content"), "same-family duplicate reference invalid");
+    if (item.action === "review") requireValue(primary.familyId !== item.familyId && item.reasonCodes.includes("cross_family_duplicate"), "cross-family duplicate reference invalid");
   }
   const families = new Map<string, any>(); const assets = new Map<string, string>();
   for (const family of plan.families) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildImportPlan } from "../../src/imports/planning/buildPlan";
-import { validatePlan } from "../../src/imports/planning/validatePlan";
+import { planContentHash, validatePlan } from "../../src/imports/planning/validatePlan";
 import { claimAsset, commitAssetClaim } from "../../src/imports/store/assetClaimStore";
 
 type Data = Record<string, any>;
@@ -22,6 +22,20 @@ describe("Task 16 review regressions", () => {
     expect(plan.families.find((family) => family.familyId === "bravo")?.clean).toBe(false);
     expect(plan.families.find((family) => family.familyId === "bravo")?.faces[0]?.assets).toHaveLength(0);
   });
+  it("allows a duplicate to reference a review primary without creating an apply asset", () => {
+    const primary = item("a-primary", sha("a"), "OTF", { destination: "Fonts/Atlas.otf" });
+    const collision = item("b-collision", sha("b"), "OTF", { destination: "fonts/atlas.OTF" });
+    const duplicate = item("z-duplicate", primary.sha256);
+    const plan = buildImportPlan([duplicate, collision, primary]);
+    expect(plan.items.find((entry) => entry.id === primary.id)).toMatchObject({ action: "review" });
+    expect(plan.items.find((entry) => entry.id === duplicate.id)).toMatchObject({ action: "duplicate", primaryItemId: primary.id });
+    expect(() => validatePlan(plan)).not.toThrow();
+    expect(plan.families[0]?.faces[0]?.assets).toHaveLength(0);
+  });
+  it("rejects mixed owner and batch inputs before building a plan", () => {
+    expect(() => buildImportPlan([item("a", sha("a")), item("b", sha("b"), "OTF", { ownerId: "other" })])).toThrow("ownerId");
+    expect(() => buildImportPlan([item("a", sha("a")), item("b", sha("b"), "OTF", { batchId: "other" })])).toThrow("batchId");
+  });
   it("handles Firestore Timestamp-like leases for busy, expiry takeover, and commit", async () => {
     const db = new Db(); const input = { ownerId: "owner-1", batchId: "batch-1", itemId: "item-1", familyId: "atlas", logicalFaceKey: "regular", assetId: "asset-1", sha256: sha("d") };
     db.docs.set(`users/${input.ownerId}/assetClaims/${input.sha256}`, { ...input, claimId: "other:item", status: "leased", leaseExpiresAt: timestamp(new Date("2026-07-18T01:00:00Z")) });
@@ -35,10 +49,22 @@ describe("Task 16 review regressions", () => {
     expect(() => buildImportPlan([item("same", sha("a")), item("same", sha("b"), "OTF")])).toThrow("unique");
     const wrongPrimary = structuredClone(plan) as any; wrongPrimary.items.find((entry: any) => entry.id === "z").primaryItemId = "missing";
     expect(() => validatePlan(wrongPrimary)).toThrow("primary");
+    const missingPrimary = structuredClone(plan) as any; delete missingPrimary.items.find((entry: any) => entry.id === "z").primaryItemId;
+    expect(() => validatePlan(missingPrimary)).toThrow("primary");
     const drifted = structuredClone(plan) as any; drifted.families[0].faces[0].assets[0].itemId = "z";
     expect(() => validatePlan(drifted)).toThrow("family");
-    const tampered = structuredClone(plan) as any; tampered.contentHash = sha("f");
+    const tampered = structuredClone(plan) as any; tampered.families[0].faces[0].assets[0].version = "tampered";
+    expect(planContentHash(tampered)).not.toBe(plan.contentHash);
     expect(() => validatePlan(tampered)).toThrow("content hash");
     expect(Object.isFrozen(plan.families[0]!.faces[0]!.assets[0]!)).toBe(true);
+  });
+  it("preserves every deterministic review reason on the item and review record", () => {
+    const first = item("a", sha("a"), "OTF", { destination: "Fonts/Atlas.otf" });
+    const second = item("b", sha("b"), "OTF", { destination: "fonts/atlas.OTF" });
+    const plan = buildImportPlan([second, first]);
+    const planned = plan.items.find((entry) => entry.id === first.id)!;
+    const review = plan.reviewItems.find((entry) => entry.itemId === first.id)!;
+    expect(planned.reasonCodes).toEqual(["same_format_version_conflict", "destination_collision"]);
+    expect(review.reasonCodes).toEqual(planned.reasonCodes);
   });
 });
