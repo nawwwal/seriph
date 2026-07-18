@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Firestore } from 'firebase-admin/firestore';
+import { Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { failImportSource, registerImportSources, sealImportBatch } from '@/lib/server/imports/sourceCommands';
 import { failureResponse } from '@/app/api/v1/import-batches/[batchId]/sources/[sourceId]/failure/route';
 
@@ -17,6 +17,12 @@ describe('import source commands', () => {
     const db = new Db(); const result = await registerImportSources(firestore(db), batch(db), [{ ...source, size: 512 * 1024 * 1024 + 1 }]);
     expect(sources(result)).toEqual([{ sourceId: source.sourceId, accepted: false, state: 'failed', errorCode: 'source_too_large' }]);
     expect(db.docs.get('users/ada/importBatches/b1/sources/' + source.sourceId)).toMatchObject({ state: 'failed', errorCode: 'source_too_large' });
+  });
+
+  it('uses concrete timestamps rather than FieldValue transforms in source events', async () => {
+    const db = new Db(); await registerImportSources(firestore(db), batch(db), [{ ...source, size: 512 * 1024 * 1024 + 1 }]);
+    const events = db.docs.get('users/ada/importBatches/b1/sources/' + source.sourceId)!.events as { at: unknown }[];
+    expect(events).toHaveLength(2); expect(events.every((event) => event.at instanceof Timestamp)).toBe(true);
   });
 
   it('normalizes separators, uses the exact intake path, and is idempotent', async () => {

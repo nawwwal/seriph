@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { FieldValue, type Firestore } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 
 type Data = Record<string, unknown>; type Batch = { ownerId: string; id: string };
 export interface RegisterSourceInput { sourceId: string; originalName: string; relativePath: string; size: number; declaredContentType?: string; }
@@ -28,11 +28,11 @@ export async function registerImportSources(db: Firestore, batch: Batch, inputs:
   for (const group of chunks(rows)) {
     const outcome = await db.runTransaction(async (tx) => {
       const batchSnap = await tx.get(batchRef(db, batch)); if (!batchSnap.exists) return null; if (batchSnap.data()!.sealed) return 'batch_sealed' as const;
-      const refs = group.map((row) => row.error === 'invalid_source_id' || row.error === 'duplicate_source_id' ? rejectionRef(db, batch, row) : sourceRef(db, batch, row.input.sourceId)); const existing = await Promise.all(refs.map((ref) => tx.get(ref))); const now = FieldValue.serverTimestamp(); let added = 0; let failures = 0;
+      const refs = group.map((row) => row.error === 'invalid_source_id' || row.error === 'duplicate_source_id' ? rejectionRef(db, batch, row) : sourceRef(db, batch, row.input.sourceId)); const existing = await Promise.all(refs.map((ref) => tx.get(ref))); const now = FieldValue.serverTimestamp(); const eventAt = Timestamp.now(); let added = 0; let failures = 0;
       const registered = group.map((row, index) => {
         const prior = existing[index]!; if (prior.exists) return present(prior.data()!);
         const { input, error, normalizedPath } = row; const base = { sourceId: input.sourceId, ownerId: batch.ownerId, batchId: batch.id, originalName: input.originalName, relativePath: input.relativePath, normalizedRelativePath: normalizedPath, declaredSize: input.size, declaredContentType: input.declaredContentType ?? null, createdAt: now, updatedAt: now };
-        const storagePath = `intake/${batch.ownerId}/${batch.id}/${input.sourceId}/${filename(input.originalName)}`; const stored = error ? { ...base, state: 'failed', errorCode: error, events: [{ type: 'registered', at: now }, { type: 'failed', at: now }] } : { ...base, filename: filename(input.originalName), storagePath, state: 'uploading', events: [{ type: 'registered', at: now }] };
+        const storagePath = `intake/${batch.ownerId}/${batch.id}/${input.sourceId}/${filename(input.originalName)}`; const stored = error ? { ...base, state: 'failed', errorCode: error, events: [{ type: 'registered', at: eventAt }, { type: 'failed', at: eventAt }] } : { ...base, filename: filename(input.originalName), storagePath, state: 'uploading', events: [{ type: 'registered', at: eventAt }] };
         tx.set(refs[index]!, stored); if (error !== 'invalid_source_id' && error !== 'duplicate_source_id') { added++; if (error) failures++; }
         return error ? { sourceId: input.sourceId, accepted: false, state: 'failed' as const, errorCode: error } : { sourceId: input.sourceId, accepted: true, state: 'uploading' as const, storagePath };
       });
