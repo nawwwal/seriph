@@ -1,41 +1,46 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 
-type Data = Record<string, unknown>;
-type Batch = { ownerId: string; id: string };
+type Data = Record<string, unknown>; type Batch = { ownerId: string; id: string };
 export interface RegisterSourceInput { sourceId: string; originalName: string; relativePath: string; size: number; declaredContentType?: string; }
 export interface RegisteredSourceResult { sourceId: string; accepted: boolean; storagePath?: string; state: 'uploading' | 'failed'; errorCode?: string; }
-type RegisterResult = { kind: 'registered'; sources: RegisteredSourceResult[] } | { kind: 'batch_missing' } | { kind: 'source_conflict' };
-const MIB_512 = 512 * 1024 * 1024;
+type RegisterResult = { kind: 'registered'; sources: RegisteredSourceResult[] } | { kind: 'batch_missing' };
+type Row = { index: number; input: RegisterSourceInput; error: string | null; normalizedPath: string };
+const MIB_512 = 512 * 1024 * 1024; const CHUNK_SIZE = 200;
+const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
 const batchRef = (db: Firestore, batch: Batch) => db.collection('users').doc(batch.ownerId).collection('importBatches').doc(batch.id);
 const sourceRef = (db: Firestore, batch: Batch, sourceId: string) => batchRef(db, batch).collection('sources').doc(sourceId);
-const normalized = (path: string) => path.replace(/\\/g, '/');
-const safePath = (path: string) => {
-  const value = normalized(path); if (!value || /^[\\/]/.test(path) || value.split('/').some((part) => part === '.' || part === '..')) return null;
-  return value;
-};
-const filename = (name: string) => {
-  const value = normalized(name).split('/').pop()!.replace(/[^A-Za-z0-9._-]/g, '_').replace(/^\.+$/, '');
-  return value || 'source';
-};
-const errorFor = (source: RegisterSourceInput, index: number) => index >= 200 ? 'request_source_limit' : !Number.isSafeInteger(source.size) || source.size < 0 ? 'invalid_size' : source.size > MIB_512 ? 'source_too_large' : !safePath(source.relativePath) ? 'invalid_path' : null;
-const result = (source: Data): RegisteredSourceResult => source.state === 'uploading' ? { sourceId: String(source.sourceId), accepted: true, state: 'uploading', storagePath: String(source.storagePath) } : { sourceId: String(source.sourceId), accepted: false, state: 'failed', errorCode: String(source.errorCode) };
+const rejectionRef = (db: Firestore, batch: Batch, index: number) => batchRef(db, batch).collection('sourceRejections').doc(String(index).padStart(6, '0'));
+const normalize = (path: string) => path.replace(/\\/g, '/');
+const invalidPath = (path: string) => !path || /^(?:[\\/]|[A-Za-z]:[\\/])/.test(path) || normalize(path).split('/').some((part) => part === '.' || part === '..');
+const filename = (name: string) => normalize(name).split('/').pop()!.replace(/[^A-Za-z0-9._-]/g, '_').replace(/^\.+$/, '') || 'source';
+const present = (source: Data): RegisteredSourceResult => source.state === 'uploading' ? { sourceId: String(source.sourceId), accepted: true, state: 'uploading', storagePath: String(source.storagePath) } : { sourceId: String(source.sourceId), accepted: false, state: 'failed', errorCode: String(source.errorCode) };
+const chunks = <T>(rows: T[]) => Array.from({ length: Math.ceil(rows.length / CHUNK_SIZE) }, (_, index) => rows.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE));
 
 export async function registerImportSources(db: Firestore, batch: Batch, inputs: RegisterSourceInput[]): Promise<RegisterResult> {
-  return db.runTransaction(async (tx) => {
-    const batchSnap = await tx.get(batchRef(db, batch)); const refs = inputs.map((input) => sourceRef(db, batch, input.sourceId)); const existing = await Promise.all(refs.map((ref) => tx.get(ref)));
-    if (!batchSnap.exists) return { kind: 'batch_missing' } as RegisterResult;
-    const rows = inputs.map((input, index) => ({ input, ref: refs[index]!, error: errorFor(input, index), path: safePath(input.relativePath), existing: existing[index]! }));
-    if (rows.some(({ existing: snap, input }) => snap.exists && snap.data()!.sourceId !== input.sourceId)) return { kind: 'source_conflict' };
-    const now = FieldValue.serverTimestamp(); let added = 0;
-    for (const { input, ref, error, path, existing: snap } of rows) {
-      if (snap.exists) continue;
-      const base = { sourceId: input.sourceId, ownerId: batch.ownerId, batchId: batch.id, originalName: input.originalName, relativePath: input.relativePath, normalizedRelativePath: path, declaredSize: input.size, declaredContentType: input.declaredContentType ?? null, createdAt: now, updatedAt: now };
-      const stored = error ? { ...base, state: 'failed', errorCode: error, events: [{ type: 'registered', at: now }, { type: 'failed', at: now }] } : { ...base, filename: filename(input.originalName), storagePath: `intake/${batch.ownerId}/${batch.id}/${input.sourceId}/${filename(input.originalName)}`, state: 'uploading', events: [{ type: 'registered', at: now }] };
-      tx.set(ref, stored); added++;
-    }
-    if (added) { const counters = batchSnap.data()!.counters as Data; tx.update(batchRef(db, batch), { counters: { ...counters, sources: Number(counters.sources ?? 0) + added, failures: Number(counters.failures ?? 0) + rows.filter((row) => !row.existing.exists && row.error).length }, updatedAt: now }); }
-    return { kind: 'registered', sources: rows.map(({ input, error, existing: snap }) => snap.exists ? result(snap.data()!) : error ? { sourceId: input.sourceId, accepted: false, state: 'failed', errorCode: error } : { sourceId: input.sourceId, accepted: true, state: 'uploading', storagePath: `intake/${batch.ownerId}/${batch.id}/${input.sourceId}/${filename(input.originalName)}` }) } as RegisterResult;
+  const seen = new Set<string>(); const rows: Row[] = inputs.map((input, index) => {
+    const normalizedPath = normalize(input.relativePath); const duplicate = seen.has(input.sourceId); if (uuid(input.sourceId)) seen.add(input.sourceId);
+    const error = index >= CHUNK_SIZE ? 'request_source_limit' : !uuid(input.sourceId) ? 'invalid_source_id' : duplicate ? 'duplicate_source_id' : !Number.isSafeInteger(input.size) || input.size < 0 ? 'invalid_size' : input.size > MIB_512 ? 'source_too_large' : invalidPath(input.relativePath) ? 'invalid_path' : null;
+    return { index, input, error, normalizedPath };
   });
+  const results: RegisteredSourceResult[] = [];
+  // Each transaction writes at most 200 source inventory documents; over-cap entries remain terminal inventory.
+  for (const group of chunks(rows)) {
+    const outcome = await db.runTransaction(async (tx) => {
+      const batchSnap = await tx.get(batchRef(db, batch)); const refs = group.map((row) => row.error === 'invalid_source_id' || row.error === 'duplicate_source_id' ? rejectionRef(db, batch, row.index) : sourceRef(db, batch, row.input.sourceId)); const existing = await Promise.all(refs.map((ref) => tx.get(ref)));
+      if (!batchSnap.exists) return null; const now = FieldValue.serverTimestamp(); let added = 0; let failures = 0;
+      const registered = group.map((row, index) => {
+        const prior = existing[index]!; if (prior.exists) return present(prior.data()!);
+        const { input, error, normalizedPath } = row; const base = { sourceId: input.sourceId, ownerId: batch.ownerId, batchId: batch.id, originalName: input.originalName, relativePath: input.relativePath, normalizedRelativePath: normalizedPath, declaredSize: input.size, declaredContentType: input.declaredContentType ?? null, createdAt: now, updatedAt: now };
+        const storagePath = `intake/${batch.ownerId}/${batch.id}/${input.sourceId}/${filename(input.originalName)}`; const stored = error ? { ...base, state: 'failed', errorCode: error, events: [{ type: 'registered', at: now }, { type: 'failed', at: now }] } : { ...base, filename: filename(input.originalName), storagePath, state: 'uploading', events: [{ type: 'registered', at: now }] };
+        tx.set(refs[index]!, stored); if (error !== 'invalid_source_id' && error !== 'duplicate_source_id') { added++; if (error) failures++; }
+        return error ? { sourceId: input.sourceId, accepted: false, state: 'failed' as const, errorCode: error } : { sourceId: input.sourceId, accepted: true, state: 'uploading' as const, storagePath };
+      });
+      if (added) { const counters = batchSnap.data()!.counters as Data; tx.update(batchRef(db, batch), { counters: { ...counters, sources: Number(counters.sources ?? 0) + added, failures: Number(counters.failures ?? 0) + failures }, updatedAt: now }); }
+      return registered;
+    });
+    if (!outcome) return { kind: 'batch_missing' }; results.push(...outcome);
+  }
+  return { kind: 'registered', sources: results };
 }
 
 export async function sealImportBatch(db: Firestore, batch: Batch) {
@@ -43,6 +48,6 @@ export async function sealImportBatch(db: Firestore, batch: Batch) {
 }
 
 export async function failImportSource(db: Firestore, batch: Batch, sourceId: string, state: string, detail: string) {
-  if (state !== 'upload_failed' && state !== 'canceled') return { kind: 'invalid_failure' as const };
+  if (state !== 'upload_failed' && state !== 'canceled') return { kind: 'invalid_failure' as const }; if (!uuid(sourceId)) return { kind: 'invalid_source_id' as const };
   return db.runTransaction(async (tx) => { const batchDoc = batchRef(db, batch); const source = sourceRef(db, batch, sourceId); const [batchSnap, sourceSnap] = await Promise.all([tx.get(batchDoc), tx.get(source)]); if (!batchSnap.exists || !sourceSnap.exists) return { kind: 'not_found' as const }; if (sourceSnap.data()!.state === 'failed' || sourceSnap.data()!.state === 'canceled') return { kind: 'existing' as const }; const now = FieldValue.serverTimestamp(); const next = state === 'canceled' ? 'canceled' : 'failed'; const counters = batchSnap.data()!.counters as Data; tx.update(source, { state: next, clientFailureDetail: detail.slice(0, 2000), failureCode: state, updatedAt: now }); tx.update(batchDoc, { counters: { ...counters, failures: Number(counters.failures ?? 0) + (next === 'failed' ? 1 : 0) }, reconciliation: { state: 'scheduled', requestedAt: now }, updatedAt: now }); return { kind: 'failed' as const }; });
 }

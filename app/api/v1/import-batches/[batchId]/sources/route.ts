@@ -13,6 +13,6 @@ export const parseSourcesBody = (value: unknown): RegisterSourceInput[] | null =
 export async function POST(request: NextRequest, context: { params: Promise<{ batchId: string }> }) {
   const ownerId = await getUidFromRequest(request); if (!ownerId) return unauthorized();
   const sources = parseSourcesBody(await request.json().catch(() => null)); if (!sources) return fail('bad_request', 'sources are required', 400);
-  try { const { batchId } = await context.params; const result = await registerImportSources(getAdminDb(), { ownerId, id: batchId }, sources); return result.kind === 'batch_missing' ? fail('not_found', 'Import batch not found', 404) : result.kind === 'source_conflict' ? fail('conflict', 'Source conflicts with an existing registration', 409) : ok(result); }
+  try { const { batchId } = await context.params; const result = await registerImportSources(getAdminDb(), { ownerId, id: batchId }, sources); return result.kind === 'batch_missing' ? fail('not_found', 'Import batch not found', 404) : ok(result); }
   catch (error) { console.error('POST import sources failed', error); return fail('internal_error', 'Failed to register import sources', 500); }
 }
