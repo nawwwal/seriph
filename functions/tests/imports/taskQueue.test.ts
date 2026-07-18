@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  canonicalizeImportTaskPayload,
-  enqueueImportTask,
-  importTaskName,
-  type ImportTaskPayload,
-} from "../../src/imports/tasks/enqueue";
+import { canonicalizeImportTaskPayload, enqueueImportTask, importTaskName, type ImportTaskPayload } from "../../src/imports/tasks/enqueue";
+import { dispatchImportTask } from "../../src/imports/tasks/dispatch";
 import { claimTaskLease } from "../../src/imports/tasks/lease";
 
 const payload: ImportTaskPayload = {
@@ -104,6 +100,16 @@ describe("durable import task queue", () => {
     stubTaskEnv();
     delete process.env.IMPORT_WORKER_ALLOWED_HOSTS;
     await expect(enqueueImportTask(payload, { client: { createTask: vi.fn() } })).rejects.toThrow();
+  });
+
+  it("rejects missing Cloud Tasks metadata and dispatches an allowlisted kind", async () => {
+    const claimLease = vi.fn().mockResolvedValue({ kind: "claimed", attempt: 1 });
+    await expect(dispatchImportTask({ body: JSON.stringify(payload) }, { claimLease, stages: {} }))
+      .resolves.toMatchObject({ status: 400 });
+    await expect(dispatchImportTask({ body: JSON.stringify(payload), cloudTaskName: "task-1" }, {
+      claimLease, stages: { discover_item: async () => ({ status: 204 }) },
+    })).resolves.toMatchObject({ status: 204 });
+    expect(claimLease).toHaveBeenCalledOnce();
   });
 
 });

@@ -42,3 +42,12 @@ export const CDN_FUNCTION_OPTIONS = {
   cors: true,
   maxInstances: 5,
 };
+
+export const IMPORT_TASK_WORKER_OPTIONS = {
+  region: "asia-southeast1",
+  memory: "1GiB" as const,
+  cpu: 2,
+  timeoutSeconds: 540,
+  maxInstances: 4,
+  invoker: "import-task-service-account@seriph.iam.gserviceaccount.com",
+};
