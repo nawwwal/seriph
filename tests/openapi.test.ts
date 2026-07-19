@@ -25,16 +25,12 @@ describe('OpenAPI contract', () => {
       '/api/v1/family-merges/{mergeId}/undo',
       '/api/v1/search',
       '/api/v1/search-index',
-      '/api/v1/uploads/registrations',
-      '/api/v1/uploads/direct-submissions',
-      '/api/v1/uploads/active',
-      '/api/v1/uploads/{ingestId}',
       '/api/v1/shares',
     ];
 
     expect(spec).toContain('openapi: 3.1.0');
     for (const path of requiredPaths) expect(spec).toContain(path);
-    for (const schema of ['ShelfFamily', 'ShelfStatsSummary', 'FontFamilyDetail', 'FontFace', 'FamilyListEnvelope', 'FamilyStatsEnvelope', 'FamilyDetailEnvelope', 'FamilyPatchRequest', 'FamilyMergeRequest', 'FamilyMergeEnvelope', 'FamilyMergeUndoEnvelope', 'BulkFamilyDeleteEnvelope', 'UploadRegistrationEnvelope', 'DirectUploadEnvelope', 'ActiveUploadsEnvelope', 'IngestEnvelope', 'SearchEnvelope', 'SearchIndexEnvelope', 'ShareEnvelope', 'ApiError']) {
+    for (const schema of ['ShelfFamily', 'ShelfStatsSummary', 'FontFamilyDetail', 'FontFace', 'FamilyListEnvelope', 'FamilyStatsEnvelope', 'FamilyDetailEnvelope', 'FamilyPatchRequest', 'FamilyMergeRequest', 'FamilyMergeEnvelope', 'FamilyMergeUndoEnvelope', 'BulkFamilyDeleteEnvelope', 'SearchEnvelope', 'SearchIndexEnvelope', 'ShareEnvelope', 'ApiError']) {
       expect(spec).toContain(`${schema}:`);
     }
   });
@@ -44,17 +40,17 @@ describe('OpenAPI contract', () => {
     for (const response of ['BadRequest', 'Unauthorized', 'Forbidden', 'NotFound', 'PayloadTooLarge', 'InternalError']) {
       expect(spec).toContain(`${response}:`);
     }
-    for (const path of ['/api/v1/families', '/api/v1/families/stats', '/api/v1/families/{familyId}', '/api/v1/families/bulk-delete', '/api/v1/family-merges', '/api/v1/search', '/api/v1/search-index', '/api/v1/uploads/active', '/api/v1/uploads/{ingestId}', '/api/v1/shares']) {
+    for (const path of ['/api/v1/families', '/api/v1/families/stats', '/api/v1/families/{familyId}', '/api/v1/families/bulk-delete', '/api/v1/family-merges', '/api/v1/search', '/api/v1/search-index', '/api/v1/shares']) {
       const block = pathBlock(spec, path);
       expect(block).toContain("application/json");
       expect(block).toContain("$ref: '#/components/responses/Unauthorized'");
     }
-    for (const path of ['/api/v1/family-merges', '/api/v1/search', '/api/v1/uploads/registrations', '/api/v1/shares']) {
+    for (const path of ['/api/v1/family-merges', '/api/v1/search', '/api/v1/shares']) {
       expect(pathBlock(spec, path)).toContain('requestBody:');
     }
   });
 
-  it('documents typed family enrichment while preserving legacy metadata fields', () => {
+  it('documents typed family enrichment', () => {
     const spec = readFileSync(specPath, 'utf8');
     const document = loadYaml(spec) as {
       components: { schemas: { FamilyEnrichment: { properties: Record<string, Record<string, unknown>> } } };
@@ -73,5 +69,12 @@ describe('OpenAPI contract', () => {
     }
     expect(enrichment.confidence).toMatchObject({ type: 'number', minimum: 0, maximum: 1 });
     expect(enrichment.enrichedAt).toMatchObject({ type: 'string', format: 'date-time' });
+  });
+
+  it('removes the retired upload API from the published contract', () => {
+    const spec = readFileSync(specPath, 'utf8');
+    for (const path of ['/api/v1/uploads/registrations', '/api/v1/uploads/direct-submissions', '/api/v1/uploads/active', '/api/v1/uploads/{ingestId}']) {
+      expect(spec).not.toContain(path);
+    }
   });
 });

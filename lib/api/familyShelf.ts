@@ -1,5 +1,5 @@
 import type { Classification } from '@/models/font.models';
-import { mapLegacyCoverFace, mapStoredCoverFace } from '@/lib/api/familyShelfCover';
+import { mapStoredCoverFace } from '@/lib/api/familyShelfCover';
 import { canonicalSearchClassification } from '@/lib/search/searchClassification';
 import type { FamilyCursor, ShelfFamily } from '@/models/shelf.models';
 
@@ -34,8 +34,6 @@ function normalizeFace(face: unknown): Record<string, unknown> | null {
 
 export function mapCatalogDocToShelfFamily(data: Record<string, unknown>, id: string): ShelfFamily {
   const faces = Array.isArray(data.faces) ? data.faces.map(normalizeFace).filter((face) => face !== null) : [];
-  const coverFaceId = typeof data.coverFaceId === 'string' ? data.coverFaceId : null;
-  const coverFace = faces.find((face) => face.id === coverFaceId) ?? faces[0] ?? null;
   const storedCoverFace = isObject(data.coverFace) ? data.coverFace : null;
   const category = typeof data.category === 'string' ? data.category : '';
   const enrichment = isObject(data.enrichment) ? data.enrichment : {};
@@ -52,7 +50,7 @@ export function mapCatalogDocToShelfFamily(data: Record<string, unknown>, id: st
     styleCount,
     isVariable,
     updatedAt: toIso(data.updatedAt),
-    coverFace: mapStoredCoverFace(storedCoverFace) ?? mapLegacyCoverFace(coverFace),
+    coverFace: mapStoredCoverFace(storedCoverFace),
   };
 }
 

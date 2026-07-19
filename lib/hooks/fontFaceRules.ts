@@ -45,8 +45,7 @@ export function buildFamilyFontFaceRules(family: FontFamily, representativeOnly:
   const faces = representativeOnly ? pickRepresentativeFace(family.fonts) : family.fonts;
   for (const face of faces) {
     const cdn = typeof face.metadata?.cdnUrl === 'string' ? face.metadata.cdnUrl : undefined;
-    const storagePath = face.metadata?.storagePath || null;
-    const src = cdn || (storagePath ? `/api/font/gcs?path=${encodeURIComponent(storagePath)}` : null);
+    const src = cdn || null;
     if (!src || seen.has(`${face.id}::${src}`)) continue;
     seen.add(`${face.id}::${src}`);
     rules.push(buildFontFaceRule(family.name, face, src));

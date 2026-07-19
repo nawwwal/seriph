@@ -41,6 +41,10 @@ export async function applyOutputRow(row: BatchOutputRow): Promise<boolean> {
     return false;
   }
   const key = parseBatchCatalogKey(catalogKey);
+  if (!key) {
+    logger.warn("Ignoring enrichment output with a non-canonical catalog key", { catalogKey });
+    return false;
+  }
   const providerRunId = key.providerRunId ?? key.jobId;
   const familyVersion = key.familyVersion ?? key.version;
   const db = getFirestore();

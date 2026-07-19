@@ -23,9 +23,6 @@ export async function findOwnedTopLevelFamily(
 ): Promise<DocumentSnapshot | null> {
   const canonical = await db.collection(FAMILIES_COLLECTION).doc(canonicalFamilyDocId(uid, familyId)).get();
   if (canonical.exists && canonical.data()?.ownerId === uid) return canonical;
-  const direct = await db.collection(FAMILIES_COLLECTION).doc(familyId).get();
-  const directData = direct.data();
-  if (direct.exists && directData?.ownerId === uid) return direct;
   const slugSnap = await db.collection(FAMILIES_COLLECTION)
     .where('ownerId', '==', uid)
     .where('slug', '==', familyId)
@@ -35,8 +32,5 @@ export async function findOwnedTopLevelFamily(
 }
 
 export async function findReadableFamily(db: Firestore, uid: string, familyId: string): Promise<DocumentSnapshot | null> {
-  const topLevel = await findOwnedTopLevelFamily(db, uid, familyId);
-  if (topLevel) return topLevel;
-  const legacy = await db.collection('users').doc(uid).collection('fontfamilies').doc(familyId).get();
-  return legacy.exists ? legacy : null;
+  return findOwnedTopLevelFamily(db, uid, familyId);
 }

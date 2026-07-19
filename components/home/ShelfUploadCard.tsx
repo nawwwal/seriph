@@ -1,9 +1,8 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import type { IngestRecord } from '@/models/ingest.models';
-import AnalysisStateIndicator from '@/components/font/AnalysisStateIndicator';
-import { getCombinedStatus } from '@/lib/upload/combinedStatus';
+import type { ImportBatchSummary } from '@/lib/imports/mapImportBatch';
+import { currentPhase } from '@/components/upload/UploadCenterSummary';
 
 function statusBadgeClass(status: string, priority?: 'upload' | 'analysis' | 'complete') {
   if (status === 'failed' || status === 'error') return 'bg-[var(--danger)] text-[var(--paper)]';
@@ -13,14 +12,15 @@ function statusBadgeClass(status: string, priority?: 'upload' | 'analysis' | 'co
 }
 
 /** Live card for an in-flight upload/analysis on the shelf. */
-export default function ShelfUploadCard({ ingest, reduceMotion }: { ingest: IngestRecord; reduceMotion: boolean }) {
-  const status = getCombinedStatus(ingest.uploadState, ingest.analysisState);
-  const priorityLabel = status.priority === 'upload' ? 'Upload' : status.priority === 'analysis' ? 'Analysis' : 'Complete';
+export default function ShelfUploadCard({ batch, reduceMotion }: { batch: ImportBatchSummary; reduceMotion: boolean }) {
+  const phase = currentPhase(batch);
+  const priorityLabel = phase.name === 'upload' ? 'Upload' : 'Analysis';
+  const statusText = batch.outcome === 'needs_review' ? 'Needs review' : phase.state.replace(/_/g, ' ');
 
   return (
     <motion.div
       layout={!reduceMotion}
-      layoutId={reduceMotion ? undefined : `ingest-${ingest.id}`}
+      layoutId={reduceMotion ? undefined : `batch-${batch.batchId}`}
       initial={reduceMotion ? false : { opacity: 0, scale: 0.9 }}
       animate={reduceMotion ? {} : { opacity: 1, scale: 1 }}
       exit={reduceMotion ? undefined : { opacity: 0, scale: 0.9 }}
@@ -30,23 +30,15 @@ export default function ShelfUploadCard({ ingest, reduceMotion }: { ingest: Inge
       <div>
         <div className="flex items-center justify-between gap-3">
           <div className="uppercase text-xs font-bold opacity-70">{priorityLabel}</div>
-          <span className={`uppercase text-xs font-bold px-2 py-1 rounded-[var(--radius)] whitespace-nowrap ${statusBadgeClass(ingest.status, status.priority)}`}>
-            {status.displayText}
+          <span className={`uppercase text-xs font-bold px-2 py-1 rounded-[var(--radius)] whitespace-nowrap ${statusBadgeClass(batch.outcome, batch.outcome === 'succeeded' ? 'complete' : undefined)}`}>
+            {statusText}
           </span>
         </div>
-        <div className="mt-3 font-bold text-lg truncate">{ingest.originalName}</div>
-        {ingest.familyId && <div className="text-sm opacity-70 mt-1 truncate">Target family: {ingest.familyId}</div>}
-        {ingest.quarantined && <div className="text-xs uppercase font-bold text-[var(--danger)] mt-1">Quarantined</div>}
+        <div className="mt-3 font-bold text-lg truncate">{batch.label}</div>
       </div>
       <div className="text-sm opacity-70">
-        {ingest.error ? (
-          <div className="text-[var(--danger)]">Error: {ingest.error}</div>
-        ) : (
-          <AnalysisStateIndicator
-            analysisState={status.analysisState || 'not_started'}
-            showSteps={status.analysisState === 'analyzing' || status.analysisState === 'enriching'}
-          />
-        )}
+        {batch.counters.failures > 0 && <div className="text-[var(--danger)]">Error: {batch.counters.failures} failed</div>}
+        {batch.counters.failures === 0 && <div>{phase.name.replace(/_/g, ' ')}: {phase.state.replace(/_/g, ' ')}</div>}
       </div>
     </motion.div>
   );

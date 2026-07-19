@@ -9,7 +9,6 @@ import { useUploads } from '@/lib/contexts/UploadContext';
 import { importBatchApi } from '@/lib/imports/importBatchApi';
 import type { DurableUploadDeps, DurableUploadFailure, DurableUploadPhase, DurableUploadResult, DurableUploadSource, RecoverySession, RecoverySource, RegisteredSource, SourceRegistrationInput } from '@/models/import-batch.models';
 import type { WalkedFile } from '@/utils/walkDirectoryEntries';
-import { setupFailure } from './durableFallback';
 import { readDurableEnabled } from './durableRemoteConfig';
 import { createSourceProgressBridge } from './durableSourceProgress';
 
@@ -91,13 +90,13 @@ export function useDurableBatchUpload() {
   }, []);
   const publishProgress = useMemo(() => createSourceProgressBridge(setSourceProgress, publishLocalProgress), [publishLocalProgress, setSourceProgress]);
   const upload = useCallback(async (walked: WalkedFile[]): Promise<DurableUploadResult> => {
-    if (!user || !enabled || walked.length === 0) return setupFailure(new Error('Durable upload is unavailable'));
+    if (!user || !enabled || walked.length === 0) return { ok: false, phase: 'setup', mutationStarted: false, error: new Error('Durable upload is unavailable') };
     setIsUploading(true); open(); const recovery = saved(user.uid);
     const sources = prepareDurableSources(walked, recovery);
     try {
       const token = await user.getIdToken(); const api = importBatchApi(token);
       return await runDurableUpload(sources, { ...api, resume: async (session, rows) => rows.map((row) => ({ ...row, accepted: true, storagePath: `intake/${user.uid}/${session.batchId}/${row.sourceId}/${filename(row.originalName)}` })), persist: (session) => sessionStorage.setItem(KEY, JSON.stringify(session)), clearPersisted: () => sessionStorage.removeItem(KEY), progress: publishProgress, clearProgress: (sourceId) => publishProgress(sourceId, null), upload: (source, file, progress) => new Promise((resolve, reject) => { const task = uploadBytesResumable(ref(storage, source.storagePath!), file); task.on('state_changed', (snap) => progress(snap.totalBytes ? Math.round(snap.bytesTransferred / snap.totalBytes * 100) : 0), reject, () => { progress(100); resolve(); }); }) }, recovery, user.uid);
-    } catch (error) { setEnabled(false); return setupFailure(error); } finally { setIsUploading(false); }
+    } catch (error) { setEnabled(false); return { ok: false, phase: 'setup', mutationStarted: false, error }; } finally { setIsUploading(false); }
   }, [enabled, open, publishProgress, user]);
   return { upload, isUploading, enabled, recovery: saved(user?.uid), progressBySource };
 }

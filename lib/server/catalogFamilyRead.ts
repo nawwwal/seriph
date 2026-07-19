@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { adaptFamilyDoc, isCatalogAliasDoc, mergedInto } from '@/lib/db/catalogAdapter';
+import { adaptFamilyDoc, isCatalogAliasDoc, isCatalogDoc, mergedInto } from '@/lib/db/catalogAdapter';
 import type { FontFamily } from '@/models/font.models';
 import { FAMILIES_COLLECTION, findReadableFamily } from '@/lib/server/catalogFamilyShared';
 
@@ -13,7 +13,7 @@ export async function getOwnedFamilyDetail(db: Firestore, uid: string, familyId:
   const snap = await findReadableFamily(db, uid, familyId);
   if (!snap || !snap.exists) return null;
   const data = snap.data();
-  if (!data || (data.ownerId && data.ownerId !== uid)) return null;
+  if (!data || (data.ownerId && data.ownerId !== uid) || !isCatalogDoc(data)) return null;
   const targetId = mergedInto(data);
   if (targetId) return getOwnedFamilyDetail(db, uid, targetId);
   if (isCatalogAliasDoc(data)) return null;

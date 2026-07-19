@@ -1,7 +1,7 @@
 import { db } from '@/lib/firebase/config';
 import { collection, doc, getDoc, getDocs, query, where, Timestamp } from 'firebase/firestore';
 import type { FontFamily } from '@/models/font.models';
-import { adaptFamilyDoc, isCatalogAliasDoc, mergedInto } from './catalogAdapter';
+import { adaptFamilyDoc, isCatalogAliasDoc, isCatalogDoc, mergedInto } from './catalogAdapter';
 
 const FAMILIES_COLLECTION = 'fontfamilies';
 
@@ -37,8 +37,11 @@ export async function getAllFontFamilies(ownerId?: string): Promise<{
     const qy = ownerId ? query(col, where('ownerId', '==', ownerId)) : query(col);
     const snap = await getDocs(qy);
     const families = snap.docs
-      .filter((d) => !isCatalogAliasDoc(d.data()))
-      .map((d) => adaptFamilyDoc(d.data(), d.id))
+      .map((d) => {
+        const data = d.data();
+        return isCatalogDoc(data) && !isCatalogAliasDoc(data) ? adaptFamilyDoc(data, d.id) : null;
+      })
+      .filter((family): family is FontFamily => family !== null)
       .sort((a, b) => a.name.localeCompare(b.name));
     return { families };
   } catch (error) {
@@ -57,9 +60,10 @@ export async function getFontFamilyById(familyId: string): Promise<FontFamily | 
     const targetId = mergedInto(data);
     if (targetId) {
       const target = await getDoc(doc(db, FAMILIES_COLLECTION, targetId));
-      return target.exists() && !isCatalogAliasDoc(target.data()) ? adaptFamilyDoc(target.data(), target.id) : null;
+      const targetData = target.data();
+      return target.exists() && isCatalogDoc(targetData) && !isCatalogAliasDoc(targetData) ? adaptFamilyDoc(targetData, target.id) : null;
     }
-    return isCatalogAliasDoc(data) ? null : adaptFamilyDoc(data, familyId);
+    return isCatalogDoc(data) && !isCatalogAliasDoc(data) ? adaptFamilyDoc(data, familyId) : null;
   } catch (error) {
     console.error(`Error fetching family "${familyId}":`, error);
     return null;

@@ -4,28 +4,26 @@ import { Hourglass, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { useMemo } from 'react';
 import { useUploads } from '@/lib/contexts/UploadContext';
-import { getCombinedStatus } from '@/lib/contexts/ImportContext';
 
 /**
  * Thin floating shortcut: shows live batch progress and opens the Upload Center
  * modal (the single source of truth). No drawer of its own.
  */
 export default function BatchHUD() {
-  const { ingests, uploadProgress, open } = useUploads();
+  const { batches, open } = useUploads();
   const shouldReduceMotion = useReducedMotion();
 
   const { active, complete, errors, total } = useMemo(() => {
     let active = 0;
     let complete = 0;
     let errors = 0;
-    for (const ing of ingests) {
-      const { stage } = getCombinedStatus(ing.uploadState, ing.analysisState, uploadProgress[ing.ingestId]);
-      if (stage === 'complete') complete += 1;
-      else if (stage === 'error' || stage === 'quarantined') errors += 1;
+    for (const batch of batches) {
+      if (batch.outcome === 'succeeded') complete += 1;
+      else if (batch.outcome === 'failed' || batch.outcome === 'partial') errors += 1;
       else active += 1;
     }
-    return { active, complete, errors, total: ingests.length };
-  }, [ingests, uploadProgress]);
+    return { active, complete, errors, total: batches.length };
+  }, [batches]);
 
   if (total === 0) return null;
 

@@ -21,7 +21,6 @@ export function useVariableFontFace(font: Font | null | undefined, fontFamilyNam
   );
 
   const cdn = font ? metadataString(font, 'cdnUrl') : undefined;
-  const storagePath = font ? metadataString(font, 'storagePath') : undefined;
   const format = font?.format ?? 'WOFF2';
 
   useEffect(() => {
@@ -33,12 +32,12 @@ export function useVariableFontFace(font: Font | null | undefined, fontFamilyNam
       el.id = styleId;
       document.head.appendChild(el);
     }
-    const src = cdn || (storagePath ? `/api/font/gcs?path=${encodeURIComponent(storagePath)}` : undefined);
+    const src = cdn;
     if (!src) return;
     const ext = (src.split('?')[0].split('.').pop() || '').toLowerCase();
     const cssFormat = ext === 'woff2' ? 'woff2' : format === 'TTF' ? 'truetype' : format.toLowerCase();
     el.textContent = `@font-face { font-family: '${cssString(cssName)}'; src: url('${cssString(src)}') format('${cssString(cssFormat)}'); font-weight: 1 1000; font-style: normal; font-display: swap; }`;
-  }, [cdn, storagePath, format, cssName, enabled, font]);
+  }, [cdn, format, cssName, enabled, font]);
 
   return cssName;
 }

@@ -44,7 +44,7 @@ vi.mock('@/components/home/useHomeShelfView', () => ({
       pendingDeleteIds: null, mergeUndo: null,
       setPendingDeleteIds: vi.fn(), setMergeUndo: vi.fn(),
     },
-    pendingIngests: [], uploadCount: 0, openUploadCenter: vi.fn(),
+    pendingBatches: [], uploadCount: 0, openUploadCenter: vi.fn(),
     handleAddFonts: vi.fn(), handleFilesSelected: vi.fn(),
     activeInitial: 'ALL', setSelectedInitial: vi.fn(),
     presentInitials: new Set(),

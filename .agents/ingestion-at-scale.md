@@ -1,20 +1,19 @@
-# Ingestion at Scale + Upload Status
+# Durable Ingestion + Upload Status
 
 How Seriph ingests a real "attic" of fonts (loose files, zips, nested folders)
-and how upload/analysis status is modeled and surfaced. Read before touching the
-upload journey, the ingest state machine, or the Storage-triggered functions.
+through durable import batches and how status is modeled and surfaced. Read
+before touching the upload journey, import state machine, or Storage triggers.
 
-## Event-driven, recursive pipeline
+## Durable import pipeline
 
 ```
-Client (folder walk + resumable upload, files as-is)
-        ↓ intake/{batchId}/{processingId}-{name}  (customMetadata: ownerId, batchId, relPath, processingId)
-expandArchive  (onObjectFinalized, intake prefix)
-   • font → create ingest if needed → copy to unprocessed_fonts/**  ──▶ processUploadedFontStorage
-   • zip  → unzip; fonts emitted, nested zips written back to intake/** (recurse, depth ≤ 4)
-   • zip > 150MB → skipped + ledger `oversized`  (TODO: Cloud Run job, Phase 3)
-   • other → ignored + ledger `skipped`
-processUploadedFontStorage → parse/hash/group → family `ready` → enrichFontOnReady → finalize ingests
+Client walks files and creates one durable import batch.
+        ↓ register sources, seal batch, upload to intake/{ownerId}/{batchId}/{sourceId}/{filename}
+confirmFinalizedImportSource  (onObjectFinalized, registered source path)
+        ↓ enqueue durable archive/parse/plan/apply tasks
+importTaskWorker → dispatches idempotent stages → canonical catalogue mutations
+        ↓
+submitEnrichmentBatch / pollEnrichmentBatch → enrich canonical families
 ```
 
 Why recursive: extracted entries re-enter `intake/**`, so nested zips and deep
@@ -23,17 +22,15 @@ folders fall out structurally — no special cases.
 ### Key files
 - Client walk: `utils/walkDirectoryEntries.ts` (drag-drop entries API +
   `webkitdirectory` input → `WalkedFile[]` with relative paths).
-- Resumable upload: `lib/hooks/useResumableBatchUpload.ts` (registers in chunks
-  of 100, uploads to `intake/**` with bounded concurrency, drives live progress).
+- Durable upload: `lib/hooks/useDurableBatchUpload.ts` (registers, seals,
+  uploads with persisted source IDs, and drives live progress).
 - Dropzone folder support: `components/ui/Dropzone.tsx` (`allowFolders`,
   `onFilesWalked`).
-- Register: `app/api/upload/register/route.ts` (accepts any type into
-  `intake/{batchId}/...`, `pending` state, contentHash dup check, returns batchId).
-- Expander: `functions/src/ingest/expandArchive.ts` + `expandArchive` trigger in
-  `functions/src/index.ts`. RC key `intake_bucket_path` (default `intake`).
-- Dedup: content-hash gate in `emitFont` (skips fonts the user already has).
-- Batch ledger: `users/{uid}/batches/{batchId}` counters (fonts/zips/dupes/
-  skipped/oversized) via `FieldValue.increment`.
+- Batch/source APIs: `app/api/v1/import-batches/**` and
+  `lib/imports/importBatchApi.ts`.
+- Reconciler: `functions/src/imports/reconcile/**` and
+  `functions/src/imports/tasks/**`.
+- Durable archive worker: `functions/src/imports/archiveWorker/**`.
 
 ## Upload/analysis state machine (single source of truth)
 
@@ -50,11 +47,8 @@ Two independent lanes; the legacy `status` field is no longer used for display.
 even while the doc still says `pending` (no client Firestore writes needed).
 
 Server emits the real stages:
-- `processUploadedFontStorage`: `queued` → `analyzing` (before parse) →
-  `enriching` (after parse; stays visible) — see `functions/src/index.ts`.
-- `enrichFontOnReady`: runs enrichment, then `finalizeIngestsForFamily(slug)` in
-  a `finally` marks the originating ingest(s) `complete` even if enrichment is
-  disabled/fails.
+The canonical import feed emits durable batch/source/item/family-plan stages;
+enrichment is a separate batch lane and never blocks catalogue visibility.
 
 ## Global Upload Center
 
@@ -67,7 +61,8 @@ Server emits the real stages:
   that opens it. The import page is a thin launcher; live status lives here.
 
 ## Deploy / ops notes (required for Part B to run)
-- Deploy the new `expandArchive` function (gen2, `asia-southeast1`).
+- Deploy the durable source-finalization, task-worker, and timeout functions
+  (gen2, `asia-southeast1`).
 - Storage rules must allow authed users to write `intake/**` (resumable client
   uploads). Confirm/extend `storage.rules`.
 - Add Remote Config key `intake_bucket_path` (default `intake`) if overriding.

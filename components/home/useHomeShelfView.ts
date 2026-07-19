@@ -24,7 +24,7 @@ import type { User } from 'firebase/auth';
 
 export function useHomeShelfView(user: User) {
   const router = useRouter();
-  const { activeCount, ingests: pendingIngests, onCompleted, open: openUploadCenter } = useUploads();
+  const { activeCount, batches, onCompleted, open: openUploadCenter } = useUploads();
   const shelf = useInfiniteFamilies();
   const searchIndex = useSearchIndex({ enabled: true });
   const [selectedInitial, setSelectedInitial] = useState<AlphabetInitial>('ALL');
@@ -64,15 +64,16 @@ export function useHomeShelfView(user: User) {
   }, [activeInitial, filters, indexById, shelf.families]);
   const moods = useMemo(() => deriveShelfMoods(searchIndex.items), [searchIndex.items]);
 
-  const uploadCount = Math.max(activeCount, pendingIngests.length);
+  const uploadCount = Math.max(activeCount, batches.length);
+  const pendingBatches = useMemo(() => batches.filter((batch) => batch.outcome === 'active' || batch.outcome === 'needs_review'), [batches]);
   const showShelfSkeleton = shelf.isInitialLoading && shelf.families.length === 0;
-  const isEmpty = !showShelfSkeleton && shelf.families.length === 0 && pendingIngests.length === 0;
-  const hasBlockingError = Boolean(shelf.error && shelf.families.length === 0 && pendingIngests.length === 0);
+  const isEmpty = !showShelfSkeleton && shelf.families.length === 0 && pendingBatches.length === 0;
+  const hasBlockingError = Boolean(shelf.error && shelf.families.length === 0 && pendingBatches.length === 0);
 
   return {
     shelf,
     mutations,
-    pendingIngests,
+    pendingBatches,
     uploadCount,
     openUploadCenter,
     handleAddFonts: () => router.push('/import'),

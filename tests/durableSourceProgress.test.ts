@@ -6,7 +6,6 @@ const stable = vi.hoisted(() => ({
   open: vi.fn(),
   user: { uid: 'user-a', getIdToken: vi.fn().mockResolvedValue('token') },
   loadChildren: vi.fn(),
-  legacyIngests: [],
   send100: null as (() => void) | null,
   complete: null as (() => void) | null,
 }));
@@ -15,7 +14,6 @@ vi.mock('@/lib/contexts/AuthContext', () => ({ useAuth: () => ({ isLoading: fals
 vi.mock('@/lib/cache/familyDetailClient', () => ({ clearFamilyDetailNegativeCacheForUser: vi.fn() }));
 vi.mock('@/lib/hooks/useImportBatchFeed', () => ({ useImportBatchFeed: () => ({ batches: [], activeCount: 0, transport: 'realtime' }) }));
 vi.mock('@/lib/hooks/useImportBatchChildren', () => ({ useImportBatchChildren: () => ({ loadChildren: stable.loadChildren }) }));
-vi.mock('@/lib/contexts/useActiveUploadPolling', () => ({ useActiveUploadPolling: () => stable.legacyIngests }));
 vi.mock('@/lib/firebase/config', () => ({ app: {}, storage: {} }));
 vi.mock('firebase/remote-config', () => ({ isSupported: vi.fn().mockResolvedValue(true), getRemoteConfig: vi.fn(() => ({})), setCustomSignals: vi.fn().mockResolvedValue(undefined), fetchAndActivate: vi.fn().mockResolvedValue(true), getValue: vi.fn(() => ({ asBoolean: () => true })) }));
 vi.mock('@/lib/imports/importBatchApi', () => ({ importBatchApi: vi.fn(() => ({ create: vi.fn().mockResolvedValue({ batchId: 'batch-1' }), register: vi.fn(async (_id: string, rows: Array<{ sourceId: string; originalName: string; relativePath: string; size: number }>) => rows.map((row) => ({ ...row, accepted: true, storagePath: 'intake/one.otf' }))), seal: vi.fn().mockResolvedValue(undefined), fail: vi.fn().mockResolvedValue(undefined) })) }));

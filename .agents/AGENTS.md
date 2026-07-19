@@ -16,7 +16,7 @@ directory. Read the relevant doc before changing its area.
 | [models-and-stack.md](models-and-stack.md) | Model and infrastructure choices: multimodal analysis, embeddings, Firestore vector search, and alternatives. |
 | [search-and-agents.md](search-and-agents.md) | Hybrid/semantic/visual search, RAG, and future MCP access for agents. |
 | [frontend-ux.md](frontend-ux.md) | Front-end surface map, the catalogue auth gate, theming/tokens (and how to add a theme), inline nav search, variable-font detection, and wired interactions. Read before any UI change. |
-| [ingestion-at-scale.md](ingestion-at-scale.md) | Folder/zip/nested ingestion (intake → expandArchive → unprocessed), the two-lane upload/analysis state machine, and the global Upload Center. Read before upload-journey, ingest-status, or Storage-trigger work. |
+| [ingestion-at-scale.md](ingestion-at-scale.md) | Durable import batches, source finalization, task dispatch, and the global Upload Center. Read before upload-journey, ingest-status, or Storage-trigger work. |
 | [implementation-status.md](implementation-status.md) | As-built and live status: deployed functions, schema, decisions, verification, and deferred follow-ups. Start here for current state. |
 | [deployment.md](deployment.md) | Deployment commands, Remote Config, IAM, troubleshooting, monitoring, and production checklist. |
 | [roadmap.md](roadmap.md) | Short orientation and phase order. Plane is canonical for execution sequencing when configured. |
@@ -33,7 +33,8 @@ directory. Read the relevant doc before changing its area.
 - **GCP project:** `seriph` (#277527180126).
 - **Live app:** Vercel production aliases include `https://seriph.naw.al`.
 - **Font CDN:** `https://seriph.web.app` serves `/s/**`, `/d/**`, and `/css2`.
-- **Deployed functions:** `processUploadedFontStorage`, `enrichFontOnReady`,
+- **Deployed functions:** `confirmFinalizedImportSource`, `timeoutAbandonedImportSources`,
+  `importTaskWorker`, `submitEnrichmentBatch`, `pollEnrichmentBatch`,
   `searchFontsHttpUs`, `css2`, and `serveFont`.
 - **Search backend URL:** `https://us-central1-seriph.cloudfunctions.net/searchFontsHttpUs`.
 - **Remote Config:** all AI/config flags and model names belong there. Do not

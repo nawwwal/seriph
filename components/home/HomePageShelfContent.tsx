@@ -6,7 +6,7 @@ import ShelfState from '@/components/home/ShelfState';
 import WelcomeState from '@/components/home/WelcomeState';
 import type { useInfiniteFamilies } from '@/lib/hooks/useInfiniteFamilies';
 import type { useShelfMutations } from '@/lib/hooks/useShelfMutations';
-import type { IngestRecord } from '@/models/ingest.models';
+import type { ImportBatchSummary } from '@/lib/imports/mapImportBatch';
 import type { ShelfFamily } from '@/models/shelf.models';
 
 type ShelfController = ReturnType<typeof useInfiniteFamilies>;
@@ -18,7 +18,7 @@ interface HomePageShelfContentProps {
   mutations: ShelfMutations;
   isEmpty: boolean;
   showShelfSkeleton: boolean;
-  pendingIngests: IngestRecord[];
+  pendingBatches: ImportBatchSummary[];
   onFilesSelected: (files: File[]) => void;
 }
 
@@ -28,7 +28,7 @@ export default function HomePageShelfContent({
   mutations,
   isEmpty,
   showShelfSkeleton,
-  pendingIngests,
+  pendingBatches,
   onFilesSelected,
 }: HomePageShelfContentProps) {
   if (showShelfSkeleton) return <ShelfSkeleton />;
@@ -38,7 +38,7 @@ export default function HomePageShelfContent({
     <>
       <ShelfState
         families={families}
-        pendingIngests={pendingIngests}
+        pendingBatches={pendingBatches}
         shelfMode="covers"
         hasMore={shelf.hasMore}
         isLoadingMore={shelf.isLoadingMore}
@@ -49,7 +49,7 @@ export default function HomePageShelfContent({
         onToggleSelected={mutations.toggleSelection}
         onDeleteFamilies={mutations.requestDelete}
       />
-      {pendingIngests.length > 0 && <BatchHUD />}
+      {pendingBatches.length > 0 && <BatchHUD />}
     </>
   );
 }

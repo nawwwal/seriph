@@ -72,8 +72,7 @@ export function buildPlaygroundFaceRegistration(
   font: Font
 ): PlaygroundFaceRegistration | null {
   const cdn = typeof font.metadata.cdnUrl === 'string' ? font.metadata.cdnUrl : undefined;
-  const storagePath = typeof font.metadata.storagePath === 'string' ? font.metadata.storagePath : undefined;
-  const src = cdn || (storagePath ? `/api/font/gcs?path=${encodeURIComponent(storagePath)}` : undefined);
+  const src = cdn;
   if (!src) return null;
   const safeName = `${familyName}_${font.id}`.replace(/[^a-z0-9_-]+/gi, '_');
   const cssFamily = `SeriphPlayground_${safeName}`;

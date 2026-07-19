@@ -88,8 +88,6 @@ export function mapCatalogDoc(data: CatalogRecord, id: string): FontFamily {
   };
 }
 
-export function adaptFamilyDoc(data: unknown, id: string): FontFamily {
-  if (isCatalogDoc(data)) return mapCatalogDoc(data, id);
-  const legacy = (asRecord(data) ?? {}) as Partial<FontFamily>;
-  return { ...legacy, id: typeof legacy.id === 'string' ? legacy.id : id } as FontFamily;
+export function adaptFamilyDoc(data: CatalogRecord & { faces: unknown[] }, id: string): FontFamily {
+  return mapCatalogDoc(data, id);
 }

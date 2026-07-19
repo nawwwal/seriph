@@ -5,7 +5,6 @@ vi.mock('@/lib/contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }
 vi.mock('@/lib/contexts/UploadContext', () => ({ useUploads: () => ({ open: vi.fn(), setSourceProgress: vi.fn() }) }));
 import { prepareDurableSources, runDurableUpload } from '@/lib/hooks/useDurableBatchUpload';
 import { readDurableEnabled } from '@/lib/hooks/durableRemoteConfig';
-import { uploadWithFallback } from '@/lib/hooks/durableFallback';
 import type { DurableUploadDeps, DurableUploadSource, RecoverySession } from '@/models/import-batch.models';
 
 const files = (count = 2): DurableUploadSource[] => Array.from({ length: count }, (_, i) => ({ sourceId: `s${i + 1}`, file: { name: `${i + 1}.otf`, size: i + 1, type: 'font/otf' } as File, relativePath: `${i + 1}.otf` }));
@@ -96,19 +95,4 @@ describe('durable batch upload', () => {
     await expect(readDurableEnabled('u1', { ...remote, signal: async () => { throw new Error('offline'); } })).resolves.toBe(false);
   });
 
-  it('falls back to legacy for disabled or failed durable setup', async () => {
-    const calls: string[] = []; await uploadWithFallback(files(), async () => ({ ok: false, phase: 'setup', mutationStarted: false, error: new Error('disabled') }), async () => { calls.push('legacy:disabled'); });
-    await uploadWithFallback(files(), async () => ({ ok: false, phase: 'setup', mutationStarted: false, error: new Error('api failed') }), async () => { calls.push('legacy:failed'); });
-    expect(calls).toEqual(['legacy:disabled', 'legacy:failed']);
-  });
-
-  it('surfaces durable failure after create begins without invoking legacy upload', async () => {
-    const calls: string[] = [];
-    await expect(uploadWithFallback(files(), async () => runDurableUpload(files(), {
-      ...deps(calls),
-      create: async () => { calls.push('create:started'); throw new Error('create failed'); },
-    }, null, 'u1'), async () => { calls.push('legacy:unexpected'); })).rejects.toThrow('create failed');
-    expect(calls).toContain('create:started');
-    expect(calls).not.toContain('legacy:unexpected');
-  });
 });

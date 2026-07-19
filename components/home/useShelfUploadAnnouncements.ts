@@ -1,28 +1,26 @@
 'use client';
 
 import { useEffect, useMemo, useRef } from 'react';
-import type { IngestRecord } from '@/models/ingest.models';
-import { getCombinedStatus } from '@/lib/upload/combinedStatus';
+import type { ImportBatchSummary } from '@/lib/imports/mapImportBatch';
 import { announceStatus } from '@/lib/utils/statusAnnouncer';
 
-export function useShelfUploadAnnouncements(pendingIngests: IngestRecord[]): IngestRecord[] {
+export function useShelfUploadAnnouncements(pendingBatches: ImportBatchSummary[]): ImportBatchSummary[] {
   const lastAnnounced = useRef(new Set<string>());
   const activeUploads = useMemo(
-    () => pendingIngests.filter((ingest) => ingest.status !== 'completed'),
-    [pendingIngests]
+    () => pendingBatches.filter((batch) => batch.outcome === 'active' || batch.outcome === 'needs_review'),
+    [pendingBatches]
   );
 
   useEffect(() => {
-    activeUploads.forEach((ingest) => {
-      const status = getCombinedStatus(ingest.uploadState, ingest.analysisState);
-      const key = `${ingest.ingestId}:${status.uploadState}:${status.analysisState}`;
+    pendingBatches.forEach((batch) => {
+      const key = `${batch.batchId}:${batch.outcome}`;
       if (lastAnnounced.current.has(key)) return;
-      if (status.analysisState === 'complete' || status.uploadState === 'uploaded') {
+      if (batch.outcome !== 'active') {
         lastAnnounced.current.add(key);
-        announceStatus(`${ingest.originalName}: ${status.displayText}`);
+        announceStatus(`${batch.label}: ${batch.outcome === 'succeeded' ? 'Complete' : batch.outcome.replace('_', ' ')}`);
       }
     });
-  }, [activeUploads]);
+  }, [pendingBatches]);
 
   return activeUploads;
 }

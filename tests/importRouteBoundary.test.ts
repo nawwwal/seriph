@@ -71,9 +71,26 @@ describe('import route boundary', () => {
     const workspaceSource = readRepoFile('components/import/ImportWorkspace.tsx');
 
     expect(workspaceSource).toContain("from '@/components/ui/Dropzone'");
-    expect(workspaceSource).toContain("from '@/lib/hooks/useResumableBatchUpload'");
+    expect(workspaceSource).toContain("from '@/lib/hooks/useDurableBatchUpload'");
+    expect(workspaceSource).not.toContain('uploadWithFallback');
+    expect(workspaceSource).not.toContain('useResumableBatchUpload');
     expect(workspaceSource).toContain("from '@/utils/pendingFonts'");
     expect(workspaceSource).toContain("from '@/utils/walkDirectoryEntries'");
+  });
+
+  it('removes retired routes while keeping the canonical import-batch boundary', () => {
+    for (const route of [
+      'app/api/families/route.ts',
+      'app/api/search/route.ts',
+      'app/api/share/route.ts',
+      'app/api/upload/route.ts',
+      'app/api/font/gcs/route.ts',
+      'app/api/v1/uploads/registrations/route.ts',
+      'app/api/v1/uploads/direct-submissions/route.ts',
+      'app/api/v1/uploads/active/route.ts',
+      'app/api/v1/uploads/[ingestId]/route.ts',
+    ]) expect(fs.existsSync(path.join(repoRoot, route))).toBe(false);
+    expect(fs.existsSync(path.join(repoRoot, 'app/api/v1/import-batches/route.ts'))).toBe(true);
   });
 
   it('keeps the import frame rendered while the pending-file workspace chunk loads', () => {

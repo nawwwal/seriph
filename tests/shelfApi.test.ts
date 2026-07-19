@@ -15,6 +15,10 @@ describe('family shelf API helpers', () => {
         category: 'SANS_SERIF',
         updatedAt: '2026-06-29T10:00:00.000Z',
         coverFaceId: 'bold',
+        coverFace: {
+          id: 'bold', subfamily: 'Bold', weight: 700, italic: false, isVariable: true,
+          cdnUrl: 'https://seriph.web.app/s/abc/bold.woff2',
+        },
         faces: [
           {
             id: 'regular',

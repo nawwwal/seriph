@@ -20,7 +20,7 @@ describe('catalog alias helpers', () => {
 });
 
 describe('catalog family adapter', () => {
-  it('projects logical face variants while preserving the legacy face fields', () => {
+  it('projects logical face variants from the canonical catalogue shape', () => {
     const family = adaptFamilyDoc({
       name: 'Atlas', slug: 'atlas', category: 'SANS_SERIF', faces: [{
         id: 'regular', styleName: 'Regular', weight: 400, weightName: 'Regular', italic: false,

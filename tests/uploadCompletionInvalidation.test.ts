@@ -16,9 +16,6 @@ const feed = vi.hoisted(() => ({ onCompletion: undefined as ((event: { kind: 'fa
 vi.mock('@/lib/contexts/AuthContext', () => ({
   useAuth: () => ({ user: { uid: 'user-a' }, isLoading: false }),
 }));
-vi.mock('@/lib/contexts/useActiveUploadPolling', () => ({
-  useActiveUploadPolling: () => [],
-}));
 vi.mock('@/lib/hooks/useImportBatchFeed', () => ({
   useImportBatchFeed: ({ onCompletion }: { onCompletion: typeof feed.onCompletion }) => {
     feed.onCompletion = onCompletion;

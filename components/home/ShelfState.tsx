@@ -2,7 +2,7 @@
 
 import { FontFamily } from '@/models/font.models';
 import type { ShelfFamily } from '@/models/shelf.models';
-import { IngestRecord } from '@/models/ingest.models';
+import type { ImportBatchSummary } from '@/lib/imports/mapImportBatch';
 import ShelfUploadCard from './ShelfUploadCard';
 import { AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useCallback, useEffect, useState } from 'react';
@@ -18,7 +18,7 @@ const PREFETCH_ROOT_MARGIN = '2800px 0px';
 
 interface ShelfStateProps {
   families: Array<FontFamily | ShelfFamily>;
-  pendingIngests: IngestRecord[];
+  pendingBatches: ImportBatchSummary[];
   shelfMode: 'spines' | 'covers';
   coverSeed?: number;
   hasMore?: boolean;
@@ -33,7 +33,7 @@ interface ShelfStateProps {
 
 export default function ShelfState({
   families,
-  pendingIngests,
+  pendingBatches,
   shelfMode,
   coverSeed = 0,
   hasMore = false,
@@ -45,7 +45,7 @@ export default function ShelfState({
   onToggleSelected,
   onDeleteFamilies,
 }: ShelfStateProps) {
-  const activeUploads = useShelfUploadAnnouncements(pendingIngests);
+  const activeUploads = useShelfUploadAnnouncements(pendingBatches);
   const shouldReduceMotion = useReducedMotion() ?? false;
   const { ref: sentinelRef, inView } = useInViewport<HTMLDivElement>(PREFETCH_ROOT_MARGIN);
   const [contextMenu, setContextMenu] = useState<{ familyId: string; x: number; y: number } | null>(null);
@@ -62,8 +62,8 @@ export default function ShelfState({
       {activeUploads.length > 0 && (
         <div className={SHELF_GRID_CLASS}>
           <AnimatePresence mode="popLayout">
-            {activeUploads.map((ingest) => (
-              <ShelfUploadCard key={`ingest-${ingest.id}`} ingest={ingest} reduceMotion={shouldReduceMotion} />
+            {activeUploads.map((batch) => (
+              <ShelfUploadCard key={`batch-${batch.batchId}`} batch={batch} reduceMotion={shouldReduceMotion} />
             ))}
           </AnimatePresence>
         </div>

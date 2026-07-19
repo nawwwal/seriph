@@ -2,15 +2,12 @@ import { createElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { ImportBatchSummary } from '@/lib/imports/mapImportBatch';
-import type { IngestRecord } from '@/models/ingest.models';
 import { matchesUploadFilter } from '@/components/upload/uploadCenterFilters';
 
 const uploadState = vi.hoisted(() => ({
   batches: [] as ImportBatchSummary[],
   close: vi.fn(),
-  ingests: [] as IngestRecord[],
   isOpen: true,
-  uploadProgress: {},
   sourceProgress: {} as Record<string, number>,
 }));
 
@@ -49,7 +46,6 @@ const batchFixture: ImportBatchSummary = {
 
 function renderUploadCenter(batches: ImportBatchSummary[], sourceProgress: Record<string, number> = {}) {
   uploadState.batches = batches;
-  uploadState.ingests = [];
   uploadState.sourceProgress = sourceProgress;
   return renderToStaticMarkup(createElement(UploadCenterModal));
 }
