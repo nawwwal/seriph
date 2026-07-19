@@ -14,7 +14,8 @@ import ImportWorkspace from '@/components/import/ImportWorkspace';
 describe('ImportWorkspace boundary', () => {
   it('shows a visible message when durable setup cannot start an import', async () => {
     stable.upload.mockResolvedValue({ ok: false, phase: 'setup', mutationStarted: false, error: new Error('offline') });
-    const renderer = create(createElement(ImportWorkspace));
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => { renderer = create(createElement(ImportWorkspace)); });
     const dropzone = renderer.root.findAll((node) => String(node.type) === 'dropzone')[0]!;
 
     await act(async () => { await dropzone.props.onFilesWalked([{ file: { name: 'one.otf', size: 1 }, relativePath: 'one.otf' }]); });

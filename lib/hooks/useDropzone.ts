@@ -40,7 +40,9 @@ export function useDropzone({ disabled, onFilesWalked, onFilesSelected }: UseDro
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (disabled) return;
-    if (e.target.files) emitWalked(filesFromInput(e.target.files));
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = '';
+    if (files.length > 0) emitWalked(filesFromInput(files));
   };
 
   return { isDragOver, fileInputRef, folderInputRef, dragProps, handleFileChange };

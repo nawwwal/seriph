@@ -33,6 +33,20 @@ export default function Dropzone({
     onFilesSelected,
   });
 
+  const setFolderInput = (node: HTMLInputElement | null) => {
+    folderInputRef.current = node;
+    if (node) {
+      (node as HTMLInputElement & { webkitdirectory?: boolean }).webkitdirectory = true;
+      node.setAttribute('webkitdirectory', '');
+    }
+  };
+
+  const selectFolder = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!disabled) folderInputRef.current?.click();
+  };
+
   return (
     <div
       className={`relative dashed-border rounded-[var(--radius)] p-8 sm:p-10 flex flex-col items-center justify-center text-center mx-auto group cursor-pointer transition-colors ${
@@ -54,11 +68,8 @@ export default function Dropzone({
       />
       {allowFolders && (
         <input
-          ref={folderInputRef}
+          ref={setFolderInput}
           type="file"
-          // @ts-expect-error non-standard but widely supported folder picker attrs
-          webkitdirectory=""
-          directory=""
           multiple
           className="hidden"
           onChange={handleFileChange}
@@ -78,10 +89,7 @@ export default function Dropzone({
       {allowFolders && (
         <Button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!disabled) folderInputRef.current?.click();
-          }}
+          onClick={selectFolder}
           className="mb-6"
           size="mdText"
         >

@@ -12,7 +12,9 @@ import { dispatchImportTask, productionImportStages } from "../imports/tasks/dis
 import { enqueueImportTask } from "../imports/tasks/enqueue";
 import { IMPORT_SOURCE_FINALIZED_OPTIONS, IMPORT_SOURCE_TIMEOUT_OPTIONS, IMPORT_TASK_WORKER_OPTIONS } from "../options";
 
-const sourceBucket = resolveImportTriggerBucket();
+// Pass the deployment environment explicitly so this trigger's bucket and
+// task-delivery contract are captured by the Functions revision.
+const sourceBucket = resolveImportTriggerBucket(process.env);
 
 export const importTaskWorker = onRequest(IMPORT_TASK_WORKER_OPTIONS, async (req, res) => {
   const result = await dispatchImportTask({
