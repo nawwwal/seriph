@@ -8,12 +8,12 @@ import { catalogKeyFromOutputRow, textFromOutputRow, type BatchOutputRow } from 
 export { readOutputLines } from "./outputRows";
 
 /** Mark every ingest pointing at a family as fully complete (best-effort). */
-export async function finalizeIngestsForFamily(familyId: string, jobId?: string, version?: number): Promise<void> {
+export async function finalizeIngestsForFamily(familyId: string, providerRunId?: string, familyVersion?: number): Promise<void> {
   const db = getFirestore();
   try {
     let query = db.collectionGroup("ingests").where("familyId", "==", familyId);
-    if (jobId && version !== undefined) {
-      query = query.where("enrichmentJobId", "==", jobId).where("enrichmentJobVersion", "==", version);
+    if (providerRunId && familyVersion !== undefined) {
+      query = query.where("enrichmentJobId", "==", providerRunId).where("enrichmentJobVersion", "==", familyVersion);
     }
     const snap = await query.get();
     await Promise.all(
@@ -41,6 +41,8 @@ export async function applyOutputRow(row: BatchOutputRow): Promise<boolean> {
     return false;
   }
   const key = parseBatchCatalogKey(catalogKey);
+  const providerRunId = key.providerRunId ?? key.jobId;
+  const familyVersion = key.familyVersion ?? key.version;
   const db = getFirestore();
   const ref = db.collection(FAMILIES_COLLECTION).doc(key.familyId);
   const snap = await ref.get();
@@ -50,8 +52,8 @@ export async function applyOutputRow(row: BatchOutputRow): Promise<boolean> {
     logger.info(`[batch] skipping merged alias ${catalogKey}.`);
     return false;
   }
-  if (key.jobId && (family.enrichmentJobId !== key.jobId || family.enrichmentJobVersion !== key.version)) {
-    logger.warn("[batch] stale output row ignored", { familyId: key.familyId, jobId: key.jobId });
+  if (providerRunId && (family.enrichmentJobId !== providerRunId || family.enrichmentJobVersion !== familyVersion)) {
+    logger.warn("[batch] stale output row ignored", { familyId: key.familyId, providerRunId });
     return false;
   }
 
@@ -75,6 +77,6 @@ export async function applyOutputRow(row: BatchOutputRow): Promise<boolean> {
     enrichmentJobVersion: FieldValue.delete(),
     enrichmentLeaseExpiresAt: FieldValue.delete(),
   }, { merge: true });
-  await finalizeIngestsForFamily(family.id, key.jobId, key.version);
+  await finalizeIngestsForFamily(family.id, providerRunId, familyVersion);
   return true;
 }
