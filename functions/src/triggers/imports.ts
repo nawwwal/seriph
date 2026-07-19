@@ -2,7 +2,7 @@ import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { db } from "../bootstrap/adminApp";
-import { resolveStorageBucket } from "../bootstrap/storageBucket";
+import { resolveImportTriggerBucket } from "../imports/config/sourceTriggerConfig";
 import { getImportConfig } from "../imports/config/importConfig";
 import { getConfigValue } from "../config/remoteConfig";
 import { RC_DEFAULTS, RC_KEYS } from "../config/rcKeys";
@@ -12,7 +12,7 @@ import { dispatchImportTask, productionImportStages } from "../imports/tasks/dis
 import { enqueueImportTask } from "../imports/tasks/enqueue";
 import { IMPORT_SOURCE_FINALIZED_OPTIONS, IMPORT_SOURCE_TIMEOUT_OPTIONS, IMPORT_TASK_WORKER_OPTIONS } from "../options";
 
-const sourceBucket = resolveStorageBucket() ?? "unit-test-bucket";
+const sourceBucket = resolveImportTriggerBucket();
 
 export const importTaskWorker = onRequest(IMPORT_TASK_WORKER_OPTIONS, async (req, res) => {
   const result = await dispatchImportTask({

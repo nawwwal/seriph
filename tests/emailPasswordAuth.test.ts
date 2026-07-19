@@ -50,6 +50,9 @@ describe('email/password auth helpers', () => {
     expect(mapFirebaseAuthError({ code: 'auth/email-already-in-use' })).toBe('An account already exists for that email.');
     expect(mapFirebaseAuthError({ code: 'auth/weak-password' })).toBe('Use at least 8 characters for the password.');
     expect(mapFirebaseAuthError({ code: 'auth/too-many-requests' })).toBe('Too many attempts. Wait a moment and try again.');
+    expect(mapFirebaseAuthError({ code: 'auth/permission-denied' })).toBe(
+      'Seriph is in closed beta. This email is not on the invite list.'
+    );
     expect(mapFirebaseAuthError(new Error('network broke'))).toBe('network broke');
   });
 });

@@ -6,3 +6,4 @@ import "./bootstrap/adminApp";
 export { submitEnrichmentBatch, pollEnrichmentBatch, watchdogEnrichmentLeases } from "./triggers/enrich";
 export { searchFontsHttpUs, css2, serveFont } from "./triggers/serve";
 export { confirmFinalizedImportSource, importTaskWorker, timeoutAbandonedImportSources } from "./triggers/imports";
+export { beforecreated, beforesignedin, beforeemailsent } from "./triggers/auth";

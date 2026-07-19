@@ -43,6 +43,9 @@ export function mapFirebaseAuthError(error: unknown): string {
       return 'Too many attempts. Wait a moment and try again.';
     case 'auth/network-request-failed':
       return 'Network trouble. Check your connection and try again.';
+    case 'auth/permission-denied':
+    case 'permission-denied':
+      return 'Seriph is in closed beta. This email is not on the invite list.';
     default:
       return error instanceof Error && error.message ? error.message : 'Something went wrong. Try again.';
   }

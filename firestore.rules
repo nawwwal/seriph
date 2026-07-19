@@ -51,6 +51,11 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Closed-beta invite list: Admin SDK / Cloud Functions only.
+    match /betaAllowlist/{email} {
+      allow read, write: if false;
+    }
+
     // Deny everything else by default (no catch-all allow).
   }
 }

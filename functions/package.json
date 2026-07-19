@@ -12,6 +12,7 @@
         "backfill:search": "npm run build && node lib/scripts/backfillSearchVectors.js",
         "backfill:catalog-summary": "npm run build && node lib/scripts/backfillCatalogSummaries.js",
         "auth:set-password": "npm run build && node lib/scripts/setAuthPassword.js",
+        "auth:beta-allowlist": "npm run build && node lib/scripts/manageBetaAllowlist.js",
         "migrate:old-schema-fonts": "npm run build && node lib/scripts/migrateOldSchemaFonts.js",
         "migrate:historical-imports": "npm run build && node lib/scripts/migrateHistoricalImports.js",
         "merge:split-families": "npm run build && node lib/scripts/mergeSplitFamilies.js",
