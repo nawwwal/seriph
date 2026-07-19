@@ -139,10 +139,10 @@ Canonical details, interfaces, code snippets, dependency graph, and commands: [i
 
 ## Phase 7: Migration and rollout
 
-- [ ] Task 27: Add additive migration and old-ingest compatibility.
-  - Acceptance: synthetic history never invents inventory; CLI is idempotent/dry-run-first; bounded dual-read prefers new batches.
+- [ ] Task 27: Import old-ingest history into the durable tree.
+  - Acceptance: synthetic history never invents inventory; CLI is idempotent and dry-run-first; no runtime dual-read, legacy merge, flags, or fallback remains.
   - Verify: migration planner test, Functions build, JSON dry run.
-  - Files: migration script/planner/test, Functions package script, UploadContext.
+  - Files: migration script/planner/test, Functions package script.
 - [ ] Task 28: Complete API docs, canary, observability, lifecycle, and staged cutover.
   - Acceptance: OpenAPI covers all routes; replay canary is stable; setup/deploy/runbook/metrics/rollback gates are executable.
   - Verify: every root/Functions/emulator/build gate and staged infrastructure inspections in the canonical plan.
