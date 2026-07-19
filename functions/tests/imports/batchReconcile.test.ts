@@ -3,10 +3,7 @@ import {
   reconcileBatch,
   type ReconcileBatchDependencies,
 } from "../../src/imports/reconcile/reconcileBatch";
-import {
-  rollbackMutation,
-  type RollbackDependencies,
-} from "../../src/imports/apply/rollbackMutation";
+import { AggregateReadOverflowError } from "../../src/storage/paginatedRead";
 
 const batchRef = { path: "users/owner-1/importBatches/batch-1" } as never;
 
@@ -54,44 +51,40 @@ describe("import batch reconciliation", () => {
 
     expect(deps.rebuildSummary).toHaveBeenCalledTimes(1);
   });
-});
 
-describe("mutation rollback", () => {
-  it("refuses rollback after a later family version", async () => {
-    const deps: RollbackDependencies = {
-      deleteAsset: vi.fn(async () => undefined),
-      createReviewItem: vi.fn(async () => undefined),
+  it("waits for every descendant and lifecycle collection before cleanup", async () => {
+    const deleteContainers = vi.fn(async (_ref: unknown, paths: readonly string[]) => paths.map((path) => ({ path, kind: "deleted" as const })));
+    const parent = { state: "classified", storagePath: "intake/owner-1/batch-1/archive.zip", archive: {
+      state: "expanding", inventoryDurable: true, expectedChildren: 1, terminalChildren: 0,
+    } };
+    const child = { state: "classified", stagingPath: "import_staging/owner-1/batch-1/font.ttf" };
+    const deps: ReconcileBatchDependencies = {
+      listSources: async () => [{ state: "discovered", storagePath: parent.storagePath }],
+      listItems: async () => [parent, child], listPlans: async () => [{ state: "applied" }],
+      listMutations: async () => [{ status: "committed" }], listEnrichments: async () => [{ state: "complete" }],
+      writeBatch: vi.fn(async () => undefined), rebuildSummary: vi.fn(async () => undefined), deleteContainers,
     };
-    const oldMutation = {
-      mutationId: "mutation-1",
-      familyId: "atlas",
-      familyVersion: 4,
-      introducedAssetIds: ["asset-1"],
-    };
-    const currentFamily = { id: "atlas", version: 5, faces: [] };
 
-    expect(await rollbackMutation(oldMutation, currentFamily, deps)).toEqual({
-      kind: "review_required",
-    });
-    expect(deps.deleteAsset).not.toHaveBeenCalled();
-    expect(deps.createReviewItem).toHaveBeenCalledOnce();
+    await reconcileBatch(batchRef, deps);
+    expect(deleteContainers).not.toHaveBeenCalled();
+
+    parent.archive.state = "complete";
+    parent.archive.terminalChildren = 1;
+    await reconcileBatch(batchRef, deps);
+    expect(deleteContainers).toHaveBeenCalledOnce();
   });
 
-  it("removes only assets introduced by the guarded mutation", async () => {
-    const deleted: string[] = [];
-    const deps: RollbackDependencies = {
-      deleteAsset: async (assetId) => { deleted.push(assetId); },
-      createReviewItem: async () => undefined,
-    };
-    const mutation = {
-      mutationId: "mutation-1",
-      familyId: "atlas",
-      familyVersion: 4,
-      introducedAssetIds: ["asset-1"],
+  it("turns an aggregate read overflow into a review without cleanup", async () => {
+    const writeBatch = vi.fn(async () => undefined);
+    const deleteContainers = vi.fn(async () => []);
+    const deps: ReconcileBatchDependencies = {
+      listSources: async () => { throw new AggregateReadOverflowError("items", 100_000); },
+      listItems: async () => [], listPlans: async () => [], listMutations: async () => [], listEnrichments: async () => [],
+      writeBatch, rebuildSummary: vi.fn(async () => undefined), deleteContainers,
     };
 
-    await expect(rollbackMutation(mutation, { id: "atlas", version: 4, faces: [] }, deps))
-      .resolves.toEqual({ kind: "rolled_back", familyVersion: 4 });
-    expect(deleted).toEqual(["asset-1"]);
+    await expect(reconcileBatch(batchRef, deps)).resolves.toMatchObject({ outcome: "needs_review", reviewItems: 1 });
+    expect(writeBatch).toHaveBeenCalledWith(batchRef, expect.objectContaining({ audit: expect.objectContaining({ aggregateReadOverflow: "items" }) }));
+    expect(deleteContainers).not.toHaveBeenCalled();
   });
 });

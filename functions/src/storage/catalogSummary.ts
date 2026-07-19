@@ -1,4 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
+import { readQueryPages } from './paginatedRead';
 
 const FAMILY_COLLECTION = 'fontfamilies';
 const SUMMARY_COLLECTION = 'catalogSummaries';
@@ -15,8 +16,17 @@ function timestamp(value: unknown): number {
 }
 
 function styles(data: Record<string, unknown>): number {
-  if (typeof data.styleCount === 'number') return data.styleCount;
+  if (data.styleCount !== undefined) {
+    if (typeof data.styleCount !== 'number' || !Number.isSafeInteger(data.styleCount) || data.styleCount < 0) throw new Error('catalog style count overflow');
+    return data.styleCount;
+  }
   return Array.isArray(data.faces) ? data.faces.length : 0;
+}
+
+function addCount(total: number, next: number): number {
+  const value = total + next;
+  if (!Number.isSafeInteger(value)) throw new Error('catalog summary count overflow');
+  return value;
 }
 
 export function summarizeCatalogFamilyRecords(records: Record<string, unknown>[], now: string, libraryRevision: number) {
@@ -26,8 +36,8 @@ export function summarizeCatalogFamilyRecords(records: Record<string, unknown>[]
   let recentCreatedAt = 0;
   for (const record of records) {
     if (record.hidden === true) continue;
-    familyCount += 1;
-    styleCount += styles(record);
+    familyCount = addCount(familyCount, 1);
+    styleCount = addCount(styleCount, styles(record));
     const createdAt = timestamp(record.createdAt);
     if (createdAt >= recentCreatedAt) {
       recentCreatedAt = createdAt;
@@ -38,7 +48,11 @@ export function summarizeCatalogFamilyRecords(records: Record<string, unknown>[]
 }
 
 function revision(value: unknown): number {
-  return isRecord(value) && typeof value.libraryRevision === 'number' ? value.libraryRevision + 1 : 1;
+  const current = isRecord(value) && value.libraryRevision !== undefined ? value.libraryRevision : 0;
+  if (!Number.isSafeInteger(current) || (current as number) < 0 || (current as number) >= Number.MAX_SAFE_INTEGER) {
+    throw new Error('catalog library revision overflow');
+  }
+  return (current as number) + 1;
 }
 
 const pendingSummaryRebuilds = new Map<string, Promise<void>>();
@@ -52,13 +66,15 @@ export async function rebuildCatalogSummary(db: Firestore, ownerId: string, task
   if (pending) return pending;
   const work = (async () => {
   const ref = db.collection(SUMMARY_COLLECTION).doc(ownerId);
-  const [families, current] = await Promise.all([
-    db.collection(FAMILY_COLLECTION).where('ownerId', '==', ownerId).select('name', 'styleCount', 'faces', 'createdAt', 'hidden').get(),
-    ref.get(),
-  ]);
-  await ref.set(summarizeCatalogFamilyRecords(
-    families.docs.map((doc) => doc.data()), new Date().toISOString(), revision(current.data())
-  ));
+  const families = await readQueryPages(db.collection(FAMILY_COLLECTION).where('ownerId', '==', ownerId)
+    .select('name', 'styleCount', 'faces', 'createdAt', 'hidden'), FAMILY_COLLECTION);
+  const invalidationToken = taskKey.startsWith('import-batch:') ? taskKey : undefined;
+  await db.runTransaction(async (tx) => {
+    const current = await tx.get(ref); const data = current.data();
+    if (invalidationToken && data?.lastInvalidationToken === invalidationToken) return;
+    const summary = summarizeCatalogFamilyRecords(families.map((doc) => doc.data()), new Date().toISOString(), revision(data));
+    tx.set(ref, { ...summary, ...(invalidationToken ? { lastInvalidationToken: invalidationToken } : data?.lastInvalidationToken ? { lastInvalidationToken: data.lastInvalidationToken } : {}) });
+  });
   })();
   pendingSummaryRebuilds.set(taskKey, work);
   try { await work; } finally { if (pendingSummaryRebuilds.get(taskKey) === work) pendingSummaryRebuilds.delete(taskKey); }

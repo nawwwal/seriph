@@ -4,7 +4,9 @@ import { deriveBatchOutcome } from "../state/deriveBatchOutcome";
 import type { ImportBatchCounters, BatchTerminalSummary } from "../contracts/batch";
 import { importBatchRef } from "../store/paths";
 import { rebuildCatalogSummary } from "../../storage/catalogSummary";
+import { AggregateReadOverflowError, readQueryPages } from "../../storage/paginatedRead";
 import type { ImportTaskPayload } from "../tasks/enqueue";
+import { appliedFamilies, enrichmentTerminal, issue, itemTerminal, list, mutationTerminal, ownerBatch, overflowReview, planTerminal, rebuildOnce, rowValue, sourceTerminal, verifiedPath } from "./reconcileBatchSupport";
 
 export type BatchRef = Pick<DocumentReference, "path">;
 export type TerminalRecord = Record<string, unknown>;
@@ -24,71 +26,48 @@ export interface ReconcileBatchResult {
   terminalSummary: BatchTerminalSummary; cataloguedFamilies: number; reviewItems: number;
   warnings: readonly unknown[]; failures: readonly unknown[]; audit: ReconcileAudit; cleanup?: readonly CleanupResult[];
 }
-export interface ReconcileAudit { nonterminalItems: number; claimCatalogueMismatches: number; missingPublicObjects: number; summaryCountMismatches: number; orphanCandidates: readonly string[] }
-
-const value = (row: TerminalRecord): string => String(row.status ?? row.state ?? "");
-const itemTerminal = (row: TerminalRecord): boolean => new Set(["classified", "applied", "duplicate", "review", "discarded", "failed"]).has(value(row));
-const sourceTerminal = (row: TerminalRecord): boolean => new Set(["discovered", "failed", "canceled", "timed_out"]).has(value(row));
-const planTerminal = (row: TerminalRecord): boolean => new Set(["applied", "partial", "failed"]).has(value(row));
-const enrichmentTerminal = (row: TerminalRecord): boolean => new Set(["complete", "failed", "skipped_disabled"]).has(value(row));
-const list = (row: TerminalRecord, key: string): unknown[] => Array.isArray(row[key]) ? row[key] as unknown[] : [];
-const issue = (rows: readonly TerminalRecord[], key: string): unknown[] => rows.flatMap((row) => list(row, key));
-const ids = (rows: readonly TerminalRecord[], key: string): Set<string> => new Set(rows.flatMap((row) => {
-  const candidate = row[key]; return typeof candidate === "string" ? [candidate] : [];
-}));
-function ownerBatch(ref: BatchRef): { ownerId: string; batchId: string } {
-  const parts = ref.path.split("/");
-  if (parts.length < 4 || parts[0] !== "users" || parts[2] !== "importBatches") throw new Error("invalid import batch reference");
-  return { ownerId: parts[1]!, batchId: parts[3]! };
-}
-function verifiedPath(path: unknown, ownerId: string, batchId: string): path is string {
-  return typeof path === "string" && (path.startsWith(`intake/${ownerId}/${batchId}/`) || path.startsWith(`import_staging/${ownerId}/${batchId}/`));
-}
-function appliedFamilies(plans: readonly TerminalRecord[], mutations: readonly TerminalRecord[]): Set<string> {
-  const result = ids(mutations.filter((row) => ["committed", "applied"].includes(value(row))), "familyId");
-  plans.filter((row) => value(row) === "applied").forEach((row) => list(row, "familyIds").forEach((id) => { if (typeof id === "string") result.add(id); }));
-  return result;
-}
-const coalesced = new Map<string, Promise<void>>();
-async function rebuildOnce(key: string, work: () => Promise<void>): Promise<void> {
-  const prior = coalesced.get(key); if (prior) return prior;
-  let current!: Promise<void>;
-  current = work().finally(() => { if (coalesced.get(key) === current) coalesced.delete(key); });
-  coalesced.set(key, current); return current;
-}
+export interface ReconcileAudit { nonterminalItems: number; claimCatalogueMismatches: number; missingPublicObjects: number; summaryCountMismatches: number; orphanCandidates: readonly string[]; aggregateReadOverflow?: string }
 
 export async function reconcileBatch(ref: BatchRef, deps: ReconcileBatchDependencies): Promise<ReconcileBatchResult> {
   const { ownerId, batchId } = ownerBatch(ref);
-  const [sources, items, plans, mutations, enrichments] = await Promise.all([
-    deps.listSources(ref), deps.listItems(ref), deps.listPlans(ref), deps.listMutations(ref), deps.listEnrichments(ref),
-  ]);
+  let sources: readonly TerminalRecord[]; let items: readonly TerminalRecord[]; let plans: readonly TerminalRecord[];
+  let mutations: readonly TerminalRecord[]; let enrichments: readonly TerminalRecord[];
+  try {
+    [sources, items, plans, mutations, enrichments] = await Promise.all([
+      deps.listSources(ref), deps.listItems(ref), deps.listPlans(ref), deps.listMutations(ref), deps.listEnrichments(ref),
+    ]);
+  } catch (error) {
+    if (error instanceof AggregateReadOverflowError) return overflowReview(ref, deps, error);
+    throw error;
+  }
   const families = appliedFamilies(plans, mutations);
-  const reviewIds = new Set(items.filter((row) => value(row) === "review").map((row, index) => typeof row.itemId === "string" ? row.itemId : `item:${index}`));
+  const reviewIds = new Set(items.filter((row) => rowValue(row) === "review").map((row, index) => typeof row.itemId === "string" ? row.itemId : `item:${index}`));
   plans.flatMap((row) => list(row, "reviewItems")).forEach((review, index) => reviewIds.add(typeof review === "object" && review !== null && typeof (review as TerminalRecord).itemId === "string" ? (review as TerminalRecord).itemId as string : `plan-review:${index}`));
   const reviewItems = reviewIds.size;
   const warnings = [...issue([...sources, ...items, ...plans, ...mutations, ...enrichments], "warnings"), ...issue([...sources, ...items, ...plans, ...mutations, ...enrichments], "warning")];
   const failures = [...issue([...sources, ...items, ...plans, ...mutations, ...enrichments], "failures"), ...issue([...sources, ...items, ...plans, ...mutations, ...enrichments], "error")];
-  const duplicateCount = items.filter((row) => ["duplicate", "deduplicate"].includes(value(row))).length;
-  const canceled = [...sources, ...items, ...plans, ...mutations, ...enrichments].filter((row) => value(row) === "canceled").length;
-  const failed = [...sources, ...items, ...plans, ...mutations, ...enrichments].filter((row) => value(row) === "failed" || row.error !== undefined).length;
-  const nonterminal = sources.filter((row) => !sourceTerminal(row)).length + items.filter((row) => !itemTerminal(row)).length + plans.filter((row) => !planTerminal(row)).length + enrichments.filter((row) => !enrichmentTerminal(row)).length;
+  const duplicateCount = items.filter((row) => ["duplicate", "deduplicate"].includes(rowValue(row))).length;
+  const canceled = [...sources, ...items, ...plans, ...mutations, ...enrichments].filter((row) => rowValue(row) === "canceled").length;
+  const failed = [...sources, ...items, ...plans, ...mutations, ...enrichments].filter((row) => rowValue(row) === "failed" || row.error !== undefined).length;
+  const nonterminal = sources.filter((row) => !sourceTerminal(row)).length + items.filter((row) => !itemTerminal(row)).length + plans.filter((row) => !planTerminal(row)).length + mutations.filter((row) => !mutationTerminal(row)).length + enrichments.filter((row) => !enrichmentTerminal(row)).length;
   const audit: ReconcileAudit = { nonterminalItems: items.filter((row) => !itemTerminal(row)).length, claimCatalogueMismatches: items.filter((row) => row.claimStatus !== undefined && row.catalogued !== undefined && row.claimStatus !== row.catalogued).length, missingPublicObjects: items.filter((row) => row.publicObjectExists === false).length, summaryCountMismatches: items.filter((row) => row.summaryCount !== undefined && row.expectedSummaryCount !== row.summaryCount).length, orphanCandidates: items.flatMap((row) => row.orphanCandidate === true && typeof row.itemId === "string" ? [row.itemId] : []) };
   const terminalSummary = { appliedFamilies: families.size, canceled, duplicates: duplicateCount, failures: failed, nonterminal, review: reviewItems, warnings, failureDetails: failures };
   const outcome = deriveBatchOutcome(terminalSummary);
   const counters: ImportBatchCounters = { sources: sources.length, discoveredItems: items.length, fonts: items.filter((row) => row.role === "font" || row.action === "apply").length, families: families.size, duplicates: duplicateCount, review: reviewItems, warnings: warnings.length, failures: failed };
   let cleanup: readonly CleanupResult[] | undefined;
-  const allItemsTerminal = items.length > 0 && items.every(itemTerminal) && plans.some((row) => value(row) !== "building");
-  if (allItemsTerminal && deps.deleteContainers) {
+  const allLifecycleRowsTerminal = items.length > 0 && sources.every(sourceTerminal) && items.every(itemTerminal) && plans.length > 0 && plans.every(planTerminal) && mutations.every(mutationTerminal) && enrichments.every(enrichmentTerminal);
+  if (allLifecycleRowsTerminal && deps.deleteContainers) {
     const paths = [...new Set([...sources, ...items].flatMap((row) => [row.storagePath, row.stagingPath]).filter((path) => verifiedPath(path, ownerId, batchId)))];
     cleanup = await deps.deleteContainers(ref, paths);
   }
-  await deps.writeBatch(ref, { counters, outcome, terminalSummary, terminalIssues: { warnings, failures }, audit, ...(cleanup ? { cleanup } : {}) });
+  const invalidationToken = families.size > 0 ? `import-batch:${ownerId}:${batchId}` : undefined;
+  await deps.writeBatch(ref, { counters, outcome, terminalSummary, terminalIssues: { warnings, failures }, audit, ...(invalidationToken ? { catalogSummaryInvalidationToken: invalidationToken } : {}), ...(cleanup ? { cleanup } : {}) });
   if (families.size > 0) await rebuildOnce(`${ownerId}/${batchId}`, () => deps.rebuildSummary(ownerId, batchId));
   return { outcome, counters, terminalSummary, cataloguedFamilies: families.size, reviewItems, warnings, failures, audit, ...(cleanup ? { cleanup } : {}) };
 }
 
 export function firestoreReconcileDependencies(db: Firestore): ReconcileBatchDependencies {
-  const listCollection = async (ref: BatchRef, name: string) => (await (ref as DocumentReference).collection(name).get()).docs.map((doc) => doc.data());
+  const listCollection = async (ref: BatchRef, name: string) => (await readQueryPages((ref as DocumentReference).collection(name), name)).map((doc) => doc.data());
   const bucket = getStorage().bucket();
   return {
     listSources: (ref) => listCollection(ref, "sources"), listItems: (ref) => listCollection(ref, "items"), listPlans: (ref) => listCollection(ref, "plans"),
