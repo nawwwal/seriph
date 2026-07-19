@@ -53,7 +53,7 @@ function rowFor(
   const parts: Array<{ inlineData: { mimeType: string; data: string } } | { text: string }> = [];
   if (specimen) parts.push({ inlineData: { mimeType: "image/png", data: specimen.toString("base64") } });
   parts.push({ text: buildPrompt(family, Boolean(specimen), true, catalogKey) });
-  return JSON.stringify({ request: {
+  return JSON.stringify({ key: catalogKey, request: {
     contents: [{ role: "user", parts }],
     ...(deps.generationConfig ? { generationConfig: deps.generationConfig } : {}),
     ...(deps.safetySettings ? { safetySettings: deps.safetySettings } : {}),

@@ -9,7 +9,7 @@ export interface EnrichmentJobKey {
 }
 
 export type EnrichmentJobState =
-  | "blocked" | "queued" | "rendering" | "submitted" | "analyzing"
+  | "blocked" | "queued" | "rendering" | "submitting" | "submitted" | "analyzing"
   | "embedding" | "indexing" | "complete" | "retrying" | "failed" | "skipped_disabled";
 
 export interface EnrichmentJob extends EnrichmentJobKey {

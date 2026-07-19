@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildProviderRun } from "../../src/enrichment/provider/buildInput";
+import { catalogKeyFromOutputRow } from "../../src/ingest/batch/outputRows";
 import type { FontFamilyDoc } from "../../src/models/catalog.models";
 import type { EnrichmentJob } from "../../src/enrichment/jobs/jobTypes";
 
@@ -42,6 +43,14 @@ describe("provider submission input", () => {
 
     expect(run.expectedJobIds).toEqual([jobA.id, jobB.id]);
     expect(run.rows).toHaveLength(2);
+  });
+
+  it("uses the canonical catalog key as the provider key and output address", async () => {
+    const run = await buildProviderRun([job("job-a")], deps());
+    const input = JSON.parse(run.rows[0]) as { key: string };
+
+    expect(input.key).toContain("job-a");
+    expect(catalogKeyFromOutputRow({ key: input.key })).toBe(input.key);
   });
 
   it("rejects one render failure without omitting it silently", async () => {

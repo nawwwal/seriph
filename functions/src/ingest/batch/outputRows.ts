@@ -18,6 +18,7 @@ function nested(record: BatchOutputRow | null, key: string): BatchOutputRow | nu
 }
 
 export function catalogKeyFromOutputRow(row: BatchOutputRow): string | null {
+  if (typeof row.key === "string" && row.key) return row.key;
   const request = nested(row, "request");
   const contents = records(request?.contents);
   const parts = records(contents[0]?.parts);
