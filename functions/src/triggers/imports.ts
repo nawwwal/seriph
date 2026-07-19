@@ -1,6 +1,7 @@
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { logger } from "firebase-functions";
 import { db } from "../bootstrap/adminApp";
 import { resolveImportTriggerBucket } from "../imports/config/sourceTriggerConfig";
 import { getImportConfig } from "../imports/config/importConfig";
@@ -17,10 +18,9 @@ import { IMPORT_SOURCE_FINALIZED_OPTIONS, IMPORT_SOURCE_TIMEOUT_OPTIONS, IMPORT_
 const sourceBucket = resolveImportTriggerBucket(process.env);
 
 export const importTaskWorker = onRequest(IMPORT_TASK_WORKER_OPTIONS, async (req, res) => {
-  const result = await dispatchImportTask({
-    body: req.body,
-    cloudTaskName: req.get("X-CloudTasks-TaskName"),
-  }, { stages: productionImportStages });
+  const cloudTaskName = req.get("X-CloudTasks-TaskName");
+  const result = await dispatchImportTask({ body: req.body, cloudTaskName }, { stages: productionImportStages });
+  if (result.status === 503) logger.error("Import task failed", { cloudTaskName, body: req.body });
   res.status(result.status).send();
 });
 
