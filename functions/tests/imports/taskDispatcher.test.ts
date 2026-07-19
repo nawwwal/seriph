@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "crypto";
 import { firestore, seedApplyFamily, sourceBytes } from "./workerIntegrationHarness";
 
@@ -14,7 +14,10 @@ vi.mock("../../src/bootstrap/adminApp", async () => {
   const harness = await import("./workerIntegrationHarness");
   return { db: harness.firestore, storage: { bucket: () => harness.bucket } };
 });
-vi.mock("../../src/config/remoteConfig", () => ({ getConfigValue: (_key: string, fallback: string) => fallback }));
+vi.mock("../../src/config/remoteConfig", () => ({
+  getConfigValue: (_key: string, fallback: string) => fallback,
+  getConfigNumber: (_key: string, fallback: number) => fallback,
+}));
 vi.mock("../../src/ingest/batchEnrich", () => ({ submitPendingEnrichmentBatch: vi.fn(async () => undefined) }));
 
 import { dispatchImportTask, type ImportStageRegistry, importTaskLeaseId, productionImportStages } from "../../src/imports/tasks/dispatch";
@@ -26,6 +29,8 @@ const payload = { kind: "discover_item" as const, ownerId: "owner-1", batchId: "
 const request = { body: JSON.stringify(payload), cloudTaskName: "projects/test/tasks/task-1" };
 const applyPayload = { kind: "apply_family" as const, ownerId: "owner-1", batchId: "batch-1", resourceId: "atlas", planVersion: 2 };
 const sha = createHash("sha256").update(sourceBytes).digest("hex");
+
+afterEach(() => vi.unstubAllEnvs());
 
 const response = () => {
   const statuses: number[] = [];
@@ -64,6 +69,7 @@ describe("authenticated durable import dispatcher", () => {
     vi.stubEnv("IMPORT_TASKS_QUEUE", "seriph-import");
     vi.stubEnv("IMPORT_WORKER_URL", "https://asia-southeast1-test-project.cloudfunctions.net/importTaskWorker");
     vi.stubEnv("IMPORT_WORKER_ALLOWED_HOSTS", "asia-southeast1-test-project.cloudfunctions.net");
+    vi.stubEnv("IMPORT_WORKER_SERVICE_ACCOUNT", "import-worker@test-project.iam.gserviceaccount.com");
     seedApplyFamily(sha);
     const task = buildHttpTask(applyPayload);
     const headers = { authorization: "Bearer integration-test-token", "x-cloudtasks-taskname": task.name };
@@ -72,7 +78,7 @@ describe("authenticated durable import dispatcher", () => {
     await importTaskWorker(taskRequest as any, first.res as any);
     const second = response();
     await importTaskWorker(taskRequest as any, second.res as any);
-    expect(task.httpRequest?.oidcToken).toMatchObject({ serviceAccountEmail: "test-project@appspot.gserviceaccount.com", audience: task.httpRequest?.url });
+    expect(task.httpRequest?.oidcToken).toMatchObject({ serviceAccountEmail: "import-worker@test-project.iam.gserviceaccount.com", audience: task.httpRequest?.url });
     expect(first.statuses).toEqual([204]);
     expect(second.statuses).toEqual([204]);
     expect([...first.statuses, ...second.statuses]).not.toContain(503);
