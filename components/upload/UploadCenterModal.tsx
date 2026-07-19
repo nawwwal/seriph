@@ -10,7 +10,7 @@ import UploadBatchRow from './UploadBatchRow';
 import { matchesUploadFilter, toggleUploadFilter, type UploadCenterFilter } from './uploadCenterFilters';
 
 export default function UploadCenterModal() {
-  const { batches, isOpen, close, uploadProgress, sourceProgress, loadChildren } = useUploads();
+  const { batches, isOpen, close, sourceProgress, loadChildren } = useUploads();
   const { user } = useAuth();
   const [filter, setFilter] = useState<UploadCenterFilter | null>(null);
   const actions = useMemo(() => user ? createImportBatchActions(() => user.getIdToken()) : undefined, [user]);
@@ -64,7 +64,7 @@ export default function UploadCenterModal() {
           {filtered.length === 0 ? (
             <p className="text-sm opacity-60 py-6 text-center">No uploads to show.</p>
           ) : (
-            filtered.map((batch) => <UploadBatchRow key={batch.batchId} batch={batch} clientProgress={uploadProgress[batch.batchId] ?? clientProgress} loadChildren={loadChildren} actions={actions} />)
+            filtered.map((batch) => <UploadBatchRow key={batch.batchId} batch={batch} clientProgress={clientProgress} loadChildren={loadChildren} actions={actions} />)
           )}
         </div>
       </div>

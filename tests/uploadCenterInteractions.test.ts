@@ -47,7 +47,7 @@ describe('Upload Center rendered interactions', () => {
   it('mounts authenticated actions and gates retry and cancel controls from batch state', async () => {
     const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ data: {} }) }));
     vi.stubGlobal('fetch', fetchMock);
-    const loadChildren = vi.fn(async () => children()); state.batches = [makeBatch('July archive', 'active')]; state.ingests = []; state.loadChildren = loadChildren;
+    const loadChildren = vi.fn(async () => children()); state.batches = [makeBatch('July archive', 'active')]; state.loadChildren = loadChildren;
     let renderer!: ReactTestRenderer;
     await act(async () => { renderer = create(createElement(UploadCenterModal)); });
     await act(async () => { renderer.root.findByProps({ 'aria-controls': 'upload-batch-july-archive' }).props.onClick(); });
