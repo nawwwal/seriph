@@ -1,8 +1,12 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
-import { FAMILIES_COLLECTION } from "../../storage/familyStore";
 import { JOBS_COLLECTION, ACTIVE_STATES, SUCCESS_STATES, FAIL_STATES, batchClient } from "./client";
-import { readOutputLines, applyOutputRow } from "./output";
+import { readOutputLines } from "./output";
+import { reconcileProviderOutput } from "../../enrichment/provider/reconcileOutput";
+import { retryState } from "../../enrichment/jobs/retryPolicy";
+
+export const ENRICHMENT_POLL_SCHEDULE = "every 2 minutes";
+export const ENRICHMENT_LEASE_WATCHDOG_SCHEDULE = "every 5 minutes";
 
 interface JobDoc {
   jobName: string;
@@ -11,10 +15,33 @@ interface JobDoc {
   familyIds?: string[];
   bucket: string;
   outputPrefix: string;
+  expectedJobIds?: string[];
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** Return expired provider leases to the bounded job retry lane. */
+export async function watchExpiredEnrichmentLeases(now = new Date()): Promise<number> {
+  const db = getFirestore();
+  const snap = await db.collection("enrichmentJobs").where("state", "in", ["submitted", "analyzing", "embedding"])
+    .where("leaseExpiresAt", "<=", now).get();
+  for (const doc of snap.docs) {
+    const data = doc.data() as Record<string, unknown>;
+    const attempt = Number(data.attempt ?? 0); const plan = retryState(attempt);
+    const batch = db.batch();
+    batch.set(doc.ref, {
+      state: plan.state, attempt: plan.attempt, failureCode: "lease_expired",
+      ...(plan.delayMs === null ? { failedAt: FieldValue.serverTimestamp() } : { retryAt: new Date(now.getTime() + plan.delayMs) }),
+      leaseExpiresAt: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    if (typeof data.providerRunId === "string") batch.set(db.collection(JOBS_COLLECTION).doc(data.providerRunId), {
+      reconciliationRequestedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    await batch.commit();
+  }
+  return snap.size;
 }
 
 /**
@@ -23,6 +50,9 @@ function errorMessage(error: unknown): string {
  */
 export async function pollEnrichmentBatches(): Promise<{ checked: number; completed: number }> {
   const db = getFirestore();
+  try { await watchExpiredEnrichmentLeases(); } catch (error) {
+    logger.warn("[batch] enrichment lease watchdog failed", { message: errorMessage(error) });
+  }
   const snap = await db.collection(JOBS_COLLECTION).where("state", "in", ACTIVE_STATES).get();
   if (snap.empty) return { checked: 0, completed: 0 };
 
@@ -46,13 +76,11 @@ export async function pollEnrichmentBatches(): Promise<{ checked: number; comple
     if (SUCCESS_STATES.includes(state)) {
       try {
         const rows = await readOutputLines(job.bucket, job.outputPrefix);
-        let applied = 0;
-        for (const row of rows) {
-          if (await applyOutputRow(row)) applied++;
-        }
+        const result = await reconcileProviderOutput({ id: jobDoc.id, expectedJobIds: job.expectedJobIds ?? [] }, rows, { db });
+        const applied = Object.values(result.byJob).filter((outcome) => outcome === "complete").length;
         completed++;
         await jobDoc.ref.update({
-          state, applied, rows: rows.length,
+          state, applied, rows: rows.length, outcomes: result.byJob,
           finishedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
         });
         logger.info(`[batch] ${job.jobName} ${state}: applied ${applied}/${rows.length} rows.`);
@@ -65,24 +93,11 @@ export async function pollEnrichmentBatches(): Promise<{ checked: number; comple
     }
 
     if (FAIL_STATES.includes(state)) {
+      const result = await reconcileProviderOutput({ id: jobDoc.id, expectedJobIds: job.expectedJobIds ?? [] }, [], { db });
       const writer = db.batch();
-      const ids = job.familyIds ?? job.slugs ?? [];
-      for (const id of ids) {
-        writer.set(
-          db.collection(FAMILIES_COLLECTION).doc(id),
-          {
-            status: "ready",
-            enrichmentJobId: FieldValue.delete(),
-            enrichmentJobVersion: FieldValue.delete(),
-            enrichmentLeaseExpiresAt: FieldValue.delete(),
-            updatedAt: FieldValue.serverTimestamp(),
-          },
-          { merge: true }
-        );
-      }
       writer.update(jobDoc.ref, { state, finishedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
       await writer.commit();
-      logger.warn(`[batch] ${job.jobName} ${state}; returned ${ids.length} families to ready.`);
+      logger.warn(`[batch] ${job.jobName} ${state}; reconciled ${Object.keys(result.byJob).length} expected jobs.`);
     }
   }
 

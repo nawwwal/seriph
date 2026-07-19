@@ -33,7 +33,11 @@ export async function finalizeIngestsForFamily(familyId: string, providerRunId?:
   }
 }
 
-/** Apply one batch output row to its family: parse analysis, embed inline, write. */
+function matchesCurrent(data: Record<string, unknown>, providerRunId?: string, familyVersion?: number): boolean {
+  return !providerRunId || (data.enrichmentJobId === providerRunId && (familyVersion === undefined || data.enrichmentJobVersion === familyVersion));
+}
+
+/** Apply one complete batch output row without destroying an older usable replacement. */
 export async function applyOutputRow(row: BatchOutputRow): Promise<boolean> {
   const catalogKey = catalogKeyFromOutputRow(row);
   if (!catalogKey) {
@@ -75,12 +79,28 @@ export async function applyOutputRow(row: BatchOutputRow): Promise<boolean> {
   }
 
   const update = await buildEnrichmentUpdate(family, enrichment);
-  await ref.set({
+  if (update.searchIndexState === "retry") {
+    logger.warn("[batch] incomplete replacement kept prior enrichment", { familyId: key.familyId });
+    return false;
+  }
+  const payload = {
     ...update,
     enrichmentJobId: FieldValue.delete(),
     enrichmentJobVersion: FieldValue.delete(),
     enrichmentLeaseExpiresAt: FieldValue.delete(),
-  }, { merge: true });
+  };
+  let applied = false;
+  const transactional = db as unknown as { runTransaction?: (work: (tx: any) => Promise<void>) => Promise<void> };
+  if (typeof transactional.runTransaction === "function") {
+    await transactional.runTransaction(async (tx) => {
+      const current = await tx.get(ref);
+      if (!current.exists || !matchesCurrent(current.data() as Record<string, unknown>, providerRunId, familyVersion)) return;
+      tx.set(ref, payload, { merge: true }); applied = true;
+    });
+  } else {
+    await ref.set(payload, { merge: true }); applied = true;
+  }
+  if (!applied) return false;
   await finalizeIngestsForFamily(family.id, providerRunId, familyVersion);
   return true;
 }
