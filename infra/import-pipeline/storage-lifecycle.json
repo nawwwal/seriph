@@ -1,0 +1,18 @@
+{
+  "lifecycle": {
+    "rule": [
+      {
+        "action": { "type": "Delete" },
+        "condition": { "age": 7, "matchesPrefix": ["intake/"] }
+      },
+      {
+        "action": { "type": "Delete" },
+        "condition": { "age": 7, "matchesPrefix": ["import_staging/"] }
+      },
+      {
+        "action": { "type": "Delete" },
+        "condition": { "age": 7, "matchesPrefix": ["_batch/"] }
+      }
+    ]
+  }
+}

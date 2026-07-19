@@ -4,7 +4,7 @@ openapi: 3.1.0
 info:
   title: Seriph App API
   version: 1.0.0
-  description: Versioned REST API for the authenticated Seriph web app.
+  description: Canonical v1 REST API for the authenticated Seriph web app.
 servers:
   - url: /
 security:
@@ -52,6 +52,17 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiError'
+    TooManyRequests:
+      description: Request was rejected by a bounded rate or queue limit
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
     InternalError:
       description: Unexpected server failure
       content:
@@ -72,6 +83,45 @@ components:
             message:
               type: string
             details: {}
+    ImportError:
+      type: object
+      required: [code, message, phase, retryable]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        phase:
+          type: string
+          enum: [upload, discovery, planning, application, enrichment]
+        retryable:
+          type: boolean
+    ImportPhase:
+      type: object
+      required: [state, attempts, updatedAt]
+      properties:
+        state:
+          type: string
+        attempts:
+          type: integer
+          minimum: 0
+        updatedAt:
+          type: string
+          format: date-time
+        error:
+          $ref: '#/components/schemas/ImportError'
+    ImportBatchCounters:
+      type: object
+      required: [sources, discoveredItems, fonts, families, duplicates, review, warnings, failures]
+      properties:
+        sources: { type: integer, minimum: 0 }
+        discoveredItems: { type: integer, minimum: 0 }
+        fonts: { type: integer, minimum: 0 }
+        families: { type: integer, minimum: 0 }
+        duplicates: { type: integer, minimum: 0 }
+        review: { type: integer, minimum: 0 }
+        warnings: { type: integer, minimum: 0 }
+        failures: { type: integer, minimum: 0 }
     ShelfCoverFace:
       type: object
       required: [id, subfamily, weight, italic, isVariable]
@@ -478,9 +528,13 @@ components:
                 $ref: '#/components/schemas/FontFamilyDetail'
     ImportBatch:
       type: object
-      required: [batchId]
+      required: [batchId, schemaVersion, ownerId, label, sealed, expectedSourceCount, planVersion, phases, counters, outcome, createdAt, updatedAt]
       properties:
         batchId:
+          type: string
+        schemaVersion:
+          type: integer
+        ownerId:
           type: string
         label:
           type: string
@@ -492,13 +546,35 @@ components:
         outcome:
           type: string
           enum: [active, succeeded, partial, needs_review, failed, canceled]
-        counters:
-          type: object
-          additionalProperties: true
+        planVersion:
+          type: integer
+          minimum: 0
         phases:
           type: object
-          additionalProperties: true
-      additionalProperties: true
+          required: [upload, planning, enrichment]
+          properties:
+            upload: { $ref: '#/components/schemas/ImportPhase' }
+            planning: { $ref: '#/components/schemas/ImportPhase' }
+            enrichment: { $ref: '#/components/schemas/ImportPhase' }
+        counters:
+          $ref: '#/components/schemas/ImportBatchCounters'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        archiveBudget:
+          type: object
+          properties:
+            reservedBytes: { type: integer, minimum: 0 }
+            maxBytes: { type: integer, minimum: 0 }
+            reservations:
+              type: object
+              additionalProperties: { type: integer, minimum: 0 }
+        terminalSummary:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
     ImportBatchCreateRequest:
       type: object
       required: [label, expectedSourceCount]
@@ -546,13 +622,11 @@ components:
             familyPlans:
               type: array
               items:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/ImportFamilyPlan'
             reviewItems:
               type: array
               items:
-                type: object
-                additionalProperties: true
+                $ref: '#/components/schemas/ImportReviewItem'
             familyPlansCursor:
               type: [string, 'null']
             reviewItemsCursor:
@@ -584,10 +658,49 @@ components:
           type: boolean
         state:
           type: string
-          enum: [uploading, failed]
+          enum: [registered, uploading, uploaded, discovering, discovered, failed, canceled, timed_out]
         storagePath:
           type: string
         errorCode:
+          type: string
+        error:
+          $ref: '#/components/schemas/ImportError'
+    ImportFamilyPlan:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+        familyId:
+          type: string
+        familyName:
+          type: string
+        state:
+          type: string
+        retryable:
+          type: boolean
+        attempts:
+          type: integer
+          minimum: 0
+        error:
+          $ref: '#/components/schemas/ImportError'
+    ImportReviewItem:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+        itemId:
+          type: string
+        reason:
+          type: string
+        reasonCode:
+          type: string
+        state:
+          type: string
+        retryable:
+          type: boolean
+        detail:
           type: string
     ImportSourcesRequest:
       type: object
@@ -792,6 +905,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '409':
           $ref: '#/components/responses/Conflict'
         '500':
@@ -854,6 +969,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/import-batches/{batchId}/seal:
@@ -1186,6 +1303,11 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/search:
+    options:
+      summary: CORS preflight for search clients
+      responses:
+        '204':
+          description: Preflight accepted
     post:
       summary: Search owned families
       requestBody:
@@ -1206,11 +1328,7 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
         '429':
-          description: Search service rate limit
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiError'
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/search-index:

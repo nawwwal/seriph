@@ -345,3 +345,77 @@ Use Firebase Remote Config conditions to enable the AI pipeline for a subset of 
 - Admin/staging operations use the durable import batch records and deployed task
   worker; retired ad-hoc HTTP utilities are not part of the current surface.
 - Tests: Unit and integration tests available under `functions/tests/` (golden set at `tests/golden-set/fonts.json`).
+
+## Task28 durable import runbook
+
+Task28 adds local contract, canary, lifecycle, and operational evidence only.
+This task does not deploy, change production infrastructure, publish Remote
+Config, enable rollout flags, or apply migrations.
+
+### Durable import contract
+
+The durable import batch path is the only runtime path covered by this runbook.
+A rollback stops new registration or queue intake at the operator boundary,
+preserves already-created durable batches, and requires an explicit recovery
+decision before resuming.
+
+### Local gates
+
+Run only the local gates needed for the changed assets:
+
+```bash
+rtk npm test -- tests/openapi.test.ts
+rtk npm test --prefix functions -- tests/imports/durablePipelineCanary.test.ts
+rtk git diff --check
+rtk npm run lint:lines
+```
+
+The current line policy warns above 100 non-empty source lines and fails above
+150. Task28 TypeScript stays below the repository's stricter local checker.
+
+### Hard gate
+
+No live deploy or migration apply is part of Task28. Do not run production
+deploy, rollout, or migration commands from this task; the external commands
+below are review-only follow-up gates.
+
+### External gates, not run by Task28
+
+Run these only after review and explicit production approval, stopping on the
+first failed inspection:
+
+```bash
+rtk bash infra/import-pipeline/setup.sh --project seriph --dry-run
+rtk bash infra/import-pipeline/setup.sh --project seriph
+rtk firebase deploy --only firestore:rules,firestore:indexes,storage --project seriph
+rtk firebase deploy --only functions --project seriph
+rtk gcloud run services describe seriph-archive-worker --region asia-southeast1 --project seriph
+rtk gcloud tasks queues describe seriph-import --location asia-southeast1 --project seriph
+```
+
+Apply `infra/import-pipeline/storage-lifecycle.json` only with the reviewed
+storage change. Its seven-day rules are a safety net for private `intake/`,
+`import_staging/`, and `_batch/` objects. Workers remain responsible for
+verified cleanup after durable persistence.
+
+Before any staged observation, run the mixed-archive canary in an approved
+non-production environment and record expected families, variants, duplicate,
+private documentation/junk, review outcomes, stable replay IDs, and zero new
+public objects on replay. Do not enable rollout flags as part of this task.
+
+### Metrics and alerts
+
+Emit structured metrics for batch phase latency, queue age, retries, review and
+failure rates, archive-limit rejections, family-apply conflicts, AI missing,
+malformed, and stale rows, and stuck leases. Alert on scheduler non-2xx,
+oldest task age above 15 minutes, failed-batch ratio, and enrichment lease
+expiry. Capture the observation window before any staged traffic decision.
+
+### Recovery and migration gates
+
+Recovery and migration are later gates, not local verification. After canary
+approval, rerun the approved dry runs against the target environment,
+publish before/action/after counts, and obtain explicit approval before any
+`--apply`. Verify quarantine, terminal alias handling, requeue results, and a
+retryable or terminal reason for every active record. No migration or deploy is
+part of the Task28 commit.
