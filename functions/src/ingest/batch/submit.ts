@@ -8,6 +8,7 @@ import { RC_KEYS, RC_DEFAULTS } from "../../config/rcKeys";
 import { getConfigNumber } from "../../config/remoteConfig";
 import type { FontFamilyDoc } from "../../models/catalog.models";
 import { buildSubmissionCandidates, type RejectedFamily } from "../../enrichment/preflight";
+import type { EnrichmentJob } from "../../enrichment/jobs/jobTypes";
 export { buildSubmissionCandidates } from "../../enrichment/preflight";
 import { buildBatchCatalogKey } from "./key";
 import { tagIngestsForBatch } from "./ingestJob";
@@ -24,17 +25,21 @@ async function persistRejections(db: FirebaseFirestore.Firestore, rejected: Reje
   await writer.commit();
 }
 
-export async function submitPendingEnrichmentBatch(): Promise<{ selected: number; submitted: number; rejected: number; jobName?: string }> {
+export async function submitPendingEnrichmentBatch(selectedJobs?: readonly EnrichmentJob[]): Promise<{ selected: number; submitted: number; rejected: number; jobName?: string }> {
   if (!batchEnrichEnabled() || !isVertexEnabled()) {
     logger.info("[batch] enrichment disabled (kill-switch); skipping submit. selected 0, submitted 0, rejected 0.");
     return { selected: 0, submitted: 0, rejected: 0 };
   }
   const db = getFirestore();
   const max = getConfigNumber(RC_KEYS.enrichBatchMax, Number(RC_DEFAULTS[RC_KEYS.enrichBatchMax]));
-  const snap = await db.collection(FAMILIES_COLLECTION).where("status", "==", "ready").limit(max).get();
-  const families = snap.docs
-    .map((d) => ({ ...d.data(), id: d.id }) as FontFamilyDoc)
-    .filter((f) => !isEnrichedAtCurrentVersion(f));
+  const families = selectedJobs
+    ? (await Promise.all(selectedJobs.map(async (job) => {
+      const snap = await db.collection(FAMILIES_COLLECTION).doc(job.familyId).get();
+      return snap.exists ? ({ ...snap.data(), id: snap.id } as FontFamilyDoc) : undefined;
+    }))).filter((family): family is FontFamilyDoc => Boolean(family))
+    : (await db.collection(FAMILIES_COLLECTION).where("status", "==", "ready").limit(max).get()).docs
+      .map((d) => ({ ...d.data(), id: d.id }) as FontFamilyDoc)
+      .filter((f) => !isEnrichedAtCurrentVersion(f));
   if (!families.length) {
     logger.info("[batch] no pending families to enrich. selected 0, submitted 0, rejected 0.");
     return { selected: 0, submitted: 0, rejected: 0 };

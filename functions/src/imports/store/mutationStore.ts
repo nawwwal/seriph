@@ -7,6 +7,7 @@ import { assetClaimRef, leaseDate } from "./assetClaimStore";
 import type { ImportPlan, PlanFamily, PlanFace } from "../planning/buildPlan";
 import { importBatchRef } from "./paths";
 import type { WrittenPlannedAsset } from "../apply/writePlannedAssets";
+import { writeEnrichmentJob, type EnrichmentJobCommitInput } from "../../enrichment/jobs/jobStore";
 
 export type MutationCommitResult =
   | { kind: "committed"; familyVersion: number; mutationId: string }
@@ -15,6 +16,7 @@ export type MutationCommitResult =
 export interface MutationCommitInput {
   db: Firestore; plan: ImportPlan; familyId: string; expectedVersion: number; mutationId: string;
   assets: readonly WrittenPlannedAsset[]; claims: readonly WrittenPlannedAsset["source"][]; now: Date;
+  enrichmentJob: EnrichmentJobCommitInput;
 }
 
 const familyRef = (db: Firestore, ownerId: string, family: PlanFamily) =>
@@ -83,6 +85,7 @@ export async function commitFamilyMutation(input: MutationCommitInput): Promise<
     const nextFamily = mergeFamily(current.exists ? current.data() as FontFamilyDoc : undefined, family, input.plan.ownerId, familyDocId, input.assets, nextVersion, input.now);
     const applied = new Set<string>(planSnap.data()?.appliedFamilyIds ?? []); applied.add(input.familyId);
     const cleanIds = input.plan.families.filter((entry) => entry.clean).map((entry) => entry.familyId);
+    await writeEnrichmentJob(tx, input.db, { ...input.enrichmentJob, familyId: input.familyId, familyVersion: nextVersion, now: input.now });
     tx.set(familyDoc, nextFamily); tx.set(mutation, { mutationId: input.mutationId, familyId: input.familyId, familyVersion: nextVersion, planVersion: input.plan.planVersion, status: "applied", createdAt: input.now });
     input.claims.forEach((claim, index) => tx.set(claimRefs[index]!, { ...claimRecord(claim), status: "committed", updatedAt: input.now }));
     tx.set(task, { ...(taskSnap.exists ? taskSnap.data() : {}), status: "applied", result: { kind: "applied", familyVersion: nextVersion }, updatedAt: input.now });

@@ -13,6 +13,8 @@ export interface CreateEnrichmentJobInput extends EnrichmentJobKey {
   now?: Date;
 }
 
+export type EnrichmentJobCommitInput = Omit<CreateEnrichmentJobInput, "familyVersion" | "now">;
+
 export interface EnrichmentJobStore {
   create(input: CreateEnrichmentJobInput): Promise<EnrichmentJob>;
   updateState(jobId: string, state: EnrichmentJobState, details?: { code?: string; reasons?: string[] }): Promise<void>;

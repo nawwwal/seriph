@@ -9,15 +9,16 @@ class Ref {
   async get() { return { exists: this.db.docs.has(this.path), data: () => this.db.docs.get(this.path) }; }
 }
 class Tx {
+  writes: [string, Data][] = [];
   constructor(private readonly db: Db) {}
   get = (ref: Ref) => ref.get();
-  set = (ref: Ref, data: Data) => { this.db.docs.set(ref.path, { ...data }); this.db.writes.push([ref.path, data]); };
-  update = (ref: Ref, data: Data) => { this.db.docs.set(ref.path, { ...this.db.docs.get(ref.path), ...data }); this.db.writes.push([ref.path, data]); };
+  set = (ref: Ref, data: Data) => { this.db.docs.set(ref.path, { ...data }); this.writes.push([ref.path, data]); this.db.writes.push([ref.path, data]); };
+  update = (ref: Ref, data: Data) => { this.db.docs.set(ref.path, { ...this.db.docs.get(ref.path), ...data }); this.writes.push([ref.path, data]); this.db.writes.push([ref.path, data]); };
 }
 class Db {
-  docs = new Map<string, Data>(); writes: [string, Data][] = [];
+  docs = new Map<string, Data>(); writes: [string, Data][] = []; transactionWrites: [string, Data][][] = [];
   collection = (name: string) => ({ doc: (id: string) => new Ref(`${name}/${id}`, this) });
-  runTransaction = async <T>(fn: (tx: Tx) => Promise<T>) => fn(new Tx(this));
+  runTransaction = async <T>(fn: (tx: Tx) => Promise<T>) => { const tx = new Tx(this); const result = await fn(tx); this.transactionWrites.push(tx.writes); return result; };
 }
 const fontBytes = Buffer.from("verified font");
 const sha = createHash("sha256").update(fontBytes).digest("hex");
@@ -42,7 +43,11 @@ describe("applyFamilyPlan", () => {
     expect(db.docs.get(`users/owner-1/assetClaims/${sha}`)).toMatchObject({ status: "committed" });
     expect(db.docs.get(`users/owner-1/assetClaims/${sha}`)).not.toHaveProperty("bytes");
     expect(requests).toHaveLength(2);
-    expect([...db.docs.keys()].some((path) => path.includes("enrichmentJobs"))).toBe(false);
+    const jobPath = `enrichmentJobs/${(requests[0] as { jobId: string }).jobId}`;
+    expect(db.docs.get(jobPath)).toMatchObject({ familyId: "atlas", familyVersion: 4, state: "queued" });
+    expect(db.writes.filter(([path]) => path === jobPath)).toHaveLength(1);
+    expect(db.transactionWrites[0]?.map(([path]) => path)).toContain(jobPath);
+    expect(db.transactionWrites[0]?.map(([path]) => path)).toContain("fontfamilies/owner-1__atlas");
   });
 
   it("requires replanning when the catalogue version changed", async () => {

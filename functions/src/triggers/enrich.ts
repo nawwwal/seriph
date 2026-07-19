@@ -1,20 +1,19 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { initializeRemoteConfig } from "../config/remoteConfig";
-import { submitPendingEnrichmentBatch, pollEnrichmentBatches } from "../ingest/batchEnrich";
-import { BATCH_SUBMIT_OPTIONS, BATCH_POLL_OPTIONS } from "../options";
+import { collectPendingEnrichmentJobs, pollEnrichmentBatches } from "../ingest/batchEnrich";
+import { BATCH_POLL_OPTIONS, ENRICHMENT_COLLECTOR_OPTIONS } from "../options";
 
 /**
- * All-batch enrichment (submit). On a schedule, collect every `ready` family,
- * render specimens, and submit one Gemini Batch API job for the multimodal
- * analysis (50% of realtime price). See ingest/batchEnrich.ts.
+ * Versioned enrichment (submit). On a schedule, collect queued family jobs,
+ * validate them independently, and dispatch accepted jobs to the provider.
  */
-export const submitEnrichmentBatch = onSchedule(BATCH_SUBMIT_OPTIONS, async () => {
+export const submitEnrichmentBatch = onSchedule(ENRICHMENT_COLLECTOR_OPTIONS, async () => {
   try {
     await initializeRemoteConfig();
   } catch {
     // defaults
   }
-  await submitPendingEnrichmentBatch();
+  await collectPendingEnrichmentJobs();
 });
 
 /**

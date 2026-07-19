@@ -9,3 +9,4 @@
  */
 export { submitPendingEnrichmentBatch } from "./batch/submit";
 export { pollEnrichmentBatches } from "./batch/poll";
+export { collectPendingEnrichmentJobs } from "../enrichment/jobs/production";

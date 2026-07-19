@@ -20,6 +20,15 @@ export const BATCH_SUBMIT_OPTIONS = {
   schedule: "every 30 minutes",
 };
 
+export const ENRICHMENT_COLLECTOR_OPTIONS = {
+  region: "asia-southeast1",
+  memory: "1GiB" as const,
+  cpu: 2,
+  timeoutSeconds: 540,
+  maxInstances: 1,
+  schedule: "every 5 minutes",
+};
+
 export const BATCH_POLL_OPTIONS = {
   region: "asia-southeast1",
   memory: "512MiB" as const,

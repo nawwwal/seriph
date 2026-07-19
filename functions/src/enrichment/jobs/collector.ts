@@ -65,7 +65,10 @@ export async function collectEnrichmentJobs(
         await markTerminal(deps, job, preflight.kind === "rejected" ? preflight.code : "invalid_family", reasons);
         continue;
       }
-      try { await deps.render(family); }
+      try {
+        const rendered = await deps.render(family);
+        if (rendered == null) throw new Error("render_failed");
+      }
       catch (error) {
         rejected++;
         await markTerminal(deps, job, "render_failed", [error instanceof Error ? error.message : "render_failed"]);

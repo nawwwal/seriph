@@ -9,7 +9,7 @@ import { importBatchRef } from "../store/paths";
 import { assetClaimRef } from "../store/assetClaimStore";
 import { recordFamilyPlanReview } from "./planApplicationState";
 import { currentEnrichmentVersions } from "../../ai/enrich/parse";
-import { enrichmentJobId, type EnrichmentJobStore } from "../../enrichment/jobs/jobStore";
+import { enrichmentJobId, type EnrichmentJobCommitInput } from "../../enrichment/jobs/jobStore";
 
 export type ApplyFamilyResult =
   | { kind: "applied"; familyId: string; familyVersion: number; mutationId: string }
@@ -20,8 +20,6 @@ export type ApplyFamilyResult =
 export interface ApplyFamilyPlanInput { plan: ImportPlan; familyId: string; expectedVersion?: number; expectedFamilyVersion?: number; claims: readonly PlannedAssetClaim[]; mutationId?: string; }
 export interface ApplyFamilyPlanDependencies extends WritePlannedAssetsDependencies {
   db: Firestore; now?: () => Date; enqueueEnrichment?: (request: EnrichmentJobRequest) => Promise<unknown>;
-  enrichmentJobStore?: EnrichmentJobStore;
-  createEnrichmentJob?: (request: EnrichmentJobRequest) => Promise<unknown>;
   commitFamilyMutation?: typeof commitFamilyMutation;
 }
 export interface EnrichmentJobRequest {
@@ -36,9 +34,7 @@ export interface EnrichmentJobRequest {
   embeddingVersion: string;
 }
 export interface ApplyFamilyTaskDependencies {
-  db: Firestore; sourceBucket: Pick<Bucket, "file">; enqueueEnrichment: (request: EnrichmentJobRequest) => Promise<unknown>;
-  enrichmentJobStore?: EnrichmentJobStore;
-  createEnrichmentJob?: (request: EnrichmentJobRequest) => Promise<unknown>;
+  db: Firestore; sourceBucket: Pick<Bucket, "file">; enqueueEnrichment?: (request: EnrichmentJobRequest) => Promise<unknown>;
 }
 const mutationIdFor = (input: ApplyFamilyPlanInput): string => input.mutationId ?? `${input.plan.ownerId}:${input.plan.batchId}:${input.plan.planVersion}:${input.familyId}`;
 const errorCode = (error: unknown): string => error instanceof Error ? error.message.replace(/\s+/g, "_").toLowerCase() : "apply_failed";
@@ -51,27 +47,27 @@ async function review(input: ApplyFamilyPlanInput, deps: ApplyFamilyPlanDependen
   return { kind: "review", reasonCode };
 }
 
-async function createVersionedEnrichmentJob(
-  input: ApplyFamilyPlanInput,
-  familyVersion: number,
-  deps: ApplyFamilyPlanDependencies,
-): Promise<EnrichmentJobRequest> {
+function enrichmentJobFor(input: ApplyFamilyPlanInput): EnrichmentJobCommitInput {
   const versions = currentEnrichmentVersions();
-  const request: EnrichmentJobRequest = {
-    jobId: enrichmentJobId({ familyId: input.familyId, familyVersion, promptVersion: versions.promptVersion,
-      analysisModel: versions.analysisModel, embeddingVersion: versions.embedVersion }),
+  return {
     ownerId: input.plan.ownerId,
     batchId: input.plan.batchId,
     familyId: input.familyId,
-    familyVersion,
     planVersion: input.plan.planVersion,
     promptVersion: versions.promptVersion,
     analysisModel: versions.analysisModel,
     embeddingVersion: versions.embedVersion,
   };
-  if (deps.enrichmentJobStore) await deps.enrichmentJobStore.create(request);
-  if (deps.createEnrichmentJob) await deps.createEnrichmentJob(request);
-  return request;
+}
+
+function enrichmentJobRequest(input: ApplyFamilyPlanInput, familyVersion: number): EnrichmentJobRequest {
+  const job = enrichmentJobFor(input);
+  return {
+    ...job,
+    familyVersion,
+    jobId: enrichmentJobId({ familyId: job.familyId, familyVersion, promptVersion: job.promptVersion,
+      analysisModel: job.analysisModel, embeddingVersion: job.embeddingVersion }),
+  };
 }
 
 export async function applyFamilyPlan(input: ApplyFamilyPlanInput, deps: ApplyFamilyPlanDependencies): Promise<ApplyFamilyResult> {
@@ -86,11 +82,10 @@ export async function applyFamilyPlan(input: ApplyFamilyPlanInput, deps: ApplyFa
   const mutationId = mutationIdFor(input);
   try {
     const written = await writePlannedAssets({ ownerId: plan.ownerId, familyId: input.familyId, familySlug: family.familySlug, assets, claims: input.claims }, deps);
-    const commit = await (deps.commitFamilyMutation ?? commitFamilyMutation)({ db: deps.db, plan, familyId: input.familyId, expectedVersion: expectedVersion as number, mutationId, assets: written, claims: written.map((asset) => asset.source), now: (deps.now ?? (() => new Date()))() });
+    const commit = await (deps.commitFamilyMutation ?? commitFamilyMutation)({ db: deps.db, plan, familyId: input.familyId, expectedVersion: expectedVersion as number, mutationId, assets: written, claims: written.map((asset) => asset.source), now: (deps.now ?? (() => new Date()))(), enrichmentJob: enrichmentJobFor(input) });
     const result = resultFor(input.familyId, commit);
     if (result.kind === "applied" || result.kind === "already_applied") {
-      const request = await createVersionedEnrichmentJob(input, result.familyVersion, deps);
-      if (deps.enqueueEnrichment) await deps.enqueueEnrichment(request);
+      if (deps.enqueueEnrichment) await deps.enqueueEnrichment(enrichmentJobRequest(input, result.familyVersion));
     }
     return result;
   } catch (error) { return { kind: "failed", retryable: true, errorCode: errorCode(error) }; }
@@ -112,6 +107,6 @@ export async function applyFamilyTask(payload: ImportTaskPayload, deps: ApplyFam
     const [claimSnap, itemSnap] = await Promise.all([assetClaimRef(deps.db, payload.ownerId, asset.sha256).get(), batch.collection("items").doc(asset.itemId).get()]);
     return { ...(claimSnap.data() as PlannedAssetClaim), sourcePath: itemSnap.data()?.stagingPath };
   }));
-  return applyFamilyPlan({ plan, familyId: payload.resourceId, expectedVersion: planned as number, claims }, { db: deps.db, enqueueEnrichment: deps.enqueueEnrichment, enrichmentJobStore: deps.enrichmentJobStore, createEnrichmentJob: deps.createEnrichmentJob,
+  return applyFamilyPlan({ plan, familyId: payload.resourceId, expectedVersion: planned as number, claims }, { db: deps.db, enqueueEnrichment: deps.enqueueEnrichment,
     read: async (claim) => { if (!claim.sourcePath) throw new Error("staging path missing"); return (await deps.sourceBucket.file(claim.sourcePath).download())[0]; } });
 }
