@@ -8,6 +8,7 @@ import { importBatchRef } from "../store/paths";
 import { getImportConfig } from "../config/importConfig";
 import { discoverItemTask, discoverSourceTask, type DiscoveryRuntime } from "../discovery/archiveStages";
 import { applyFamilyImportStage } from "../apply/applyFamilyStage";
+import { reconcileBatchTask } from "../reconcile/reconcileBatch";
 
 export interface TaskHttpRequest {
   body: unknown;
@@ -55,6 +56,7 @@ export function registerDefaultImportStages(runtime: () => DiscoveryRuntime = pr
     discover_source: (payload) => discoverSourceTask(payload, runtime()),
     discover_item: (payload) => discoverItemTask(payload, runtime()),
     apply_family: applyFamilyImportStage,
+    reconcile_batch: (payload) => reconcileBatchTask(payload, getFirestore()),
   };
   Object.assign(importTaskStages, stages);
   return stages;

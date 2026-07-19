@@ -41,7 +41,16 @@ function revision(value: unknown): number {
   return isRecord(value) && typeof value.libraryRevision === 'number' ? value.libraryRevision + 1 : 1;
 }
 
-export async function rebuildCatalogSummary(db: Firestore, ownerId: string): Promise<void> {
+const pendingSummaryRebuilds = new Map<string, Promise<void>>();
+
+export function catalogSummaryTaskKey(ownerId: string, batchId?: string): string {
+  return batchId ? `import-batch:${ownerId}:${batchId}` : ownerId;
+}
+
+export async function rebuildCatalogSummary(db: Firestore, ownerId: string, taskKey = catalogSummaryTaskKey(ownerId)): Promise<void> {
+  const pending = pendingSummaryRebuilds.get(taskKey);
+  if (pending) return pending;
+  const work = (async () => {
   const ref = db.collection(SUMMARY_COLLECTION).doc(ownerId);
   const [families, current] = await Promise.all([
     db.collection(FAMILY_COLLECTION).where('ownerId', '==', ownerId).select('name', 'styleCount', 'faces', 'createdAt', 'hidden').get(),
@@ -50,4 +59,7 @@ export async function rebuildCatalogSummary(db: Firestore, ownerId: string): Pro
   await ref.set(summarizeCatalogFamilyRecords(
     families.docs.map((doc) => doc.data()), new Date().toISOString(), revision(current.data())
   ));
+  })();
+  pendingSummaryRebuilds.set(taskKey, work);
+  try { await work; } finally { if (pendingSummaryRebuilds.get(taskKey) === work) pendingSummaryRebuilds.delete(taskKey); }
 }
