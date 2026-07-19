@@ -52,10 +52,10 @@ directory. Read the relevant doc before changing its area.
 
 ## Code Organization Rules
 
-- `npm run lint:lines` enforces a hard limit of **100 non-empty source lines per
-  code file** across TS/TSX/JS/JSX/MJS/CJS/CSS, excluding generated/vendor output.
+- `npm run lint:lines` warns above **100** and fails above **150 non-empty source
+  lines per code file** across TS/TSX/JS/JSX/MJS/CJS/CSS, excluding generated/vendor output.
   `npm run lint` runs this before web and Functions lint.
-- Treat the 100-line limit as modularity pressure, not code golf. Split by real
+- Treat the 100-line warning threshold as modularity pressure, not code golf. Split by real
   responsibility: route handlers into auth/parsing/storage helpers, components
   into controller/state/presentation pieces, hooks into state/request/cache
   helpers, tests by behavior family, and CSS by utility family.

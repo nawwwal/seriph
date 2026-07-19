@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  checkLineCounts,
   collectCodeFiles,
   countCodeLines,
+  findLineCountWarnings,
   findLineCountViolations,
   isCodeFile,
 } from '@/scripts/check-line-count.mjs';
@@ -57,5 +59,28 @@ describe('line-count lint helpers', () => {
     expect(findLineCountViolations(root, 2)).toEqual([
       { file: 'lib/large.ts', lineCount: 3, maxLines: 2 },
     ]);
+  });
+
+  it('warns above one hundred lines and fails only above one hundred fifty', () => {
+    const root = makeTempRepo();
+    writeFile(root, 'lib/warning.ts', Array.from({ length: 101 }, (_, index) => `line${index}`).join('\n'));
+    writeFile(root, 'lib/failure.ts', Array.from({ length: 151 }, (_, index) => `line${index}`).join('\n'));
+
+    expect(findLineCountWarnings(root)).toEqual([
+      { file: 'lib/warning.ts', lineCount: 101, warningLines: 100, maxLines: 150 },
+    ]);
+    expect(findLineCountViolations(root)).toEqual([
+      { file: 'lib/failure.ts', lineCount: 151, maxLines: 150 },
+    ]);
+
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(checkLineCounts(root)).toEqual([{ file: 'lib/failure.ts', lineCount: 151, maxLines: 150 }]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('warnings'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('lib/warning.ts: 101 source lines (warning threshold 100)'));
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('failed'));
+    expect(error).toHaveBeenCalledWith(expect.stringContaining('lib/failure.ts: 151 source lines'));
+    warn.mockRestore();
+    error.mockRestore();
   });
 });

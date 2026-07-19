@@ -23,8 +23,9 @@ Live endpoints:
 ## Code modularity lint (local, 2026-07-01)
 
 - Root `package.json` now has `npm run lint:lines`, and `npm run lint` runs it
-  before web and Functions lint. The checker fails any TS/TSX/JS/JSX/MJS/CJS/CSS
-  source file over 100 non-empty lines, excluding generated/vendor output.
+  before web and Functions lint. The checker warns for TS/TSX/JS/JSX/MJS/CJS/CSS
+  source files over 100 non-empty lines and fails files over 150, excluding
+  generated/vendor output.
 - Existing over-limit files were split by responsibility: shelf rendering,
   infinite-family loading, shelf page parsing/cache helpers, family merge face
   merging, Remote Config setup data/template helpers, CSS utility families, and
@@ -418,8 +419,9 @@ currently using code defaults (`seriph-fonts`, `gemini-2.5-flash`,
   inject `ownerId` server-side. The import batch handlers expose bounded reads,
   source registration, sealing, terminal source failure, retry, and cancellation;
   private intake uploads do not require public object reads.
-- **<100-line refactor**: split large files into focused modules across `functions/src`
-  and the web app; **~44 files over 100 → 4 documented exemptions** (pure type files
+- **Modularity refactor**: split large files into focused modules across `functions/src`
+  and the web app; the checker warns above 100 and fails above 150 (with four
+  documented exemptions for pure type files
   `models/font.models.ts` ×2 / `catalog.models.ts`, config registry `rcKeys.ts`,
   and the single-concern `lib/firebase/admin.ts`). Behavior preserved (web typecheck/
   lint/test + functions build/lint/31 tests green).
