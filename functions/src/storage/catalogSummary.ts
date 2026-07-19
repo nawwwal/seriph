@@ -55,6 +55,13 @@ function revision(value: unknown): number {
   return (current as number) + 1;
 }
 
+function processedTokens(value: unknown): string[] {
+  if (!isRecord(value)) return [];
+  const stored = Array.isArray(value.catalogSummaryInvalidationTokens) ? value.catalogSummaryInvalidationTokens : [];
+  const legacy = typeof value.lastInvalidationToken === 'string' ? [value.lastInvalidationToken] : [];
+  return [...new Set([...stored, ...legacy].filter((token): token is string => typeof token === 'string'))];
+}
+
 const pendingSummaryRebuilds = new Map<string, Promise<void>>();
 
 export function catalogSummaryTaskKey(ownerId: string, batchId?: string): string {
@@ -71,9 +78,10 @@ export async function rebuildCatalogSummary(db: Firestore, ownerId: string, task
   const invalidationToken = taskKey.startsWith('import-batch:') ? taskKey : undefined;
   await db.runTransaction(async (tx) => {
     const current = await tx.get(ref); const data = current.data();
-    if (invalidationToken && data?.lastInvalidationToken === invalidationToken) return;
+    const tokens = processedTokens(data);
+    if (invalidationToken && tokens.includes(invalidationToken)) return;
     const summary = summarizeCatalogFamilyRecords(families.map((doc) => doc.data()), new Date().toISOString(), revision(data));
-    tx.set(ref, { ...summary, ...(invalidationToken ? { lastInvalidationToken: invalidationToken } : data?.lastInvalidationToken ? { lastInvalidationToken: data.lastInvalidationToken } : {}) });
+    tx.set(ref, { ...summary, ...(invalidationToken ? { lastInvalidationToken: invalidationToken, catalogSummaryInvalidationTokens: [...tokens, invalidationToken] } : data?.lastInvalidationToken ? { lastInvalidationToken: data.lastInvalidationToken } : {}) });
   });
   })();
   pendingSummaryRebuilds.set(taskKey, work);

@@ -61,6 +61,20 @@ describe('catalog summary storage', () => {
     expect(db.summary).toMatchObject({ libraryRevision: 2, lastInvalidationToken: 'import-batch:owner-1:batch-2' });
   });
 
+  it('does not advance the revision when an earlier batch is replayed after a later batch', async () => {
+    const db = new FakeDb([{ name: 'Family', styleCount: 1 }]);
+    await rebuildCatalogSummary(db as never, 'owner-1', 'import-batch:owner-1:batch-a');
+    await rebuildCatalogSummary(db as never, 'owner-1', 'import-batch:owner-1:batch-b');
+    await rebuildCatalogSummary(db as never, 'owner-1', 'import-batch:owner-1:batch-a');
+    expect(db.summary).toMatchObject({
+      libraryRevision: 2,
+      catalogSummaryInvalidationTokens: [
+        'import-batch:owner-1:batch-a',
+        'import-batch:owner-1:batch-b',
+      ],
+    });
+  });
+
   it('rejects a summary count that would overflow safe integer arithmetic', () => {
     expect(() => summarizeCatalogFamilyRecords([
       { name: 'A', styleCount: Number.MAX_SAFE_INTEGER }, { name: 'B', styleCount: 1 },
