@@ -1,4 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
+import { createHash } from "crypto";
+import { firestore, seedApplyFamily, sourceBytes } from "./workerIntegrationHarness";
+
+vi.mock("firebase-admin/firestore", async (importOriginal) => {
+  const actual = await importOriginal(); const harness = await import("./workerIntegrationHarness");
+  return { ...actual, getFirestore: () => harness.firestore };
+});
+vi.mock("firebase-admin/storage", async (importOriginal) => {
+  const actual = await importOriginal(); const harness = await import("./workerIntegrationHarness");
+  return { ...actual, getStorage: () => ({ bucket: () => harness.bucket }) };
+});
+vi.mock("../../src/bootstrap/adminApp", async () => {
+  const harness = await import("./workerIntegrationHarness");
+  return { db: harness.firestore, storage: { bucket: () => harness.bucket } };
+});
+vi.mock("../../src/config/remoteConfig", () => ({ getConfigValue: (_key: string, fallback: string) => fallback }));
+vi.mock("../../src/ingest/batchEnrich", () => ({ submitPendingEnrichmentBatch: vi.fn(async () => undefined) }));
+
 import { dispatchImportTask, type ImportStageRegistry, importTaskLeaseId, productionImportStages } from "../../src/imports/tasks/dispatch";
 import { buildHttpTask } from "../../src/imports/tasks/enqueue";
 import { importTaskWorker } from "../../src/triggers/imports";
@@ -7,6 +25,12 @@ import { IMPORT_TASK_WORKER_OPTIONS } from "../../src/options";
 const payload = { kind: "discover_item" as const, ownerId: "owner-1", batchId: "batch-1", resourceId: "item-1" };
 const request = { body: JSON.stringify(payload), cloudTaskName: "projects/test/tasks/task-1" };
 const applyPayload = { kind: "apply_family" as const, ownerId: "owner-1", batchId: "batch-1", resourceId: "atlas", planVersion: 2 };
+const sha = createHash("sha256").update(sourceBytes).digest("hex");
+
+const response = () => {
+  const statuses: number[] = [];
+  return { statuses, res: { status: (code: number) => ({ send: () => statuses.push(code) }) } };
+};
 
 describe("authenticated durable import dispatcher", () => {
   it("never claims malformed or unknown payloads", async () => {
@@ -33,20 +57,29 @@ describe("authenticated durable import dispatcher", () => {
     expect(importTaskLeaseId(request.cloudTaskName)).not.toBe(importTaskLeaseId("task-2"));
   });
 
-  it("redelivers the canonical apply_family task through the production registry", async () => {
+  it("executes and redelivers a canonical apply_family task through the worker", async () => {
     expect(productionImportStages.apply_family).toBeTypeOf("function");
     vi.stubEnv("GOOGLE_CLOUD_PROJECT", "test-project");
     vi.stubEnv("FUNCTIONS_REGION", "asia-southeast1");
     vi.stubEnv("IMPORT_TASKS_QUEUE", "seriph-import");
     vi.stubEnv("IMPORT_WORKER_URL", "https://asia-southeast1-test-project.cloudfunctions.net/importTaskWorker");
     vi.stubEnv("IMPORT_WORKER_ALLOWED_HOSTS", "asia-southeast1-test-project.cloudfunctions.net");
+    seedApplyFamily(sha);
     const task = buildHttpTask(applyPayload);
-    const stages: ImportStageRegistry = productionImportStages;
-    const claimLease = vi.fn().mockResolvedValue({ kind: "busy" });
-    const taskRequest = { body: Buffer.from(task.httpRequest!.body!, "base64"), cloudTaskName: task.name };
-    await expect(dispatchImportTask(taskRequest, { claimLease, stages })).resolves.toEqual({ status: 204 });
-    await expect(dispatchImportTask(taskRequest, { claimLease, stages })).resolves.toEqual({ status: 204 });
-    expect(claimLease).toHaveBeenCalledTimes(2);
+    const headers = { authorization: "Bearer integration-test-token", "x-cloudtasks-taskname": task.name };
+    const taskRequest = { body: Buffer.from(task.httpRequest!.body!, "base64"), headers, get: (name: string) => headers[name.toLowerCase()] };
+    const first = response();
+    await importTaskWorker(taskRequest as any, first.res as any);
+    const second = response();
+    await importTaskWorker(taskRequest as any, second.res as any);
+    expect(task.httpRequest?.oidcToken).toMatchObject({ serviceAccountEmail: "test-project@appspot.gserviceaccount.com", audience: task.httpRequest?.url });
+    expect(first.statuses).toEqual([204]);
+    expect(second.statuses).toEqual([204]);
+    expect([...first.statuses, ...second.statuses]).not.toContain(503);
+    expect(firestore.docs.get("fontfamilies/owner-1__atlas")).toMatchObject({ version: 1, status: "ready", styleCount: 1 });
+    expect(firestore.docs.get(`users/owner-1/assetClaims/${sha}`)).toMatchObject({ status: "committed" });
+    expect(firestore.docs.get(`users/owner-1/importBatches/batch-1/tasks/${importTaskLeaseId(task.name)}`)).toMatchObject({ state: "leased", attempt: 1 });
+    expect(firestore.writes.filter((path) => path === "fontfamilies/owner-1__atlas")).toHaveLength(1);
   });
 
   it("publishes the private worker with the required contract", async () => {
