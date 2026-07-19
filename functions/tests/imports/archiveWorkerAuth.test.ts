@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { handleArchive, OVERSIZED_ARCHIVE_MAX_BYTES, OVERSIZED_ARCHIVE_MIN_BYTES } from "../../src/imports/archiveWorker/handleArchive";
 import { archiveHeaders, archivePayload, testDependencies, testSource } from "./archiveWorkerSupport";
 
@@ -18,10 +18,5 @@ describe("archive worker request validation", () => {
     const deps = testDependencies(testSource({ declaredSize }), { oversizedMinBytes: OVERSIZED_ARCHIVE_MIN_BYTES, oversizedMaxBytes: OVERSIZED_ARCHIVE_MAX_BYTES });
     await expect(handleArchive({ body: archivePayload, headers: archiveHeaders }, deps)).resolves.toMatchObject({ status: 400 });
     expect(deps.lease.claim).not.toHaveBeenCalled();
-  });
-  it("reads an eligible source through createReadStream only", async () => {
-    const deps = testDependencies(); const source = await deps.source.get("owner-1", "batch-1", "source-1");
-    await expect(handleArchive({ body: archivePayload, headers: archiveHeaders }, deps)).resolves.toMatchObject({ status: 204 });
-    expect(source?.createReadStream).toHaveBeenCalledTimes(2); expect(deps.persistence.persistChild).toHaveBeenCalledOnce();
   });
 });

@@ -58,5 +58,7 @@ describe("archive worker streaming policy", () => {
     const source = testSource({ declaredSize: bytes.byteLength, createReadStream: vi.fn(() => Readable.from([bytes])) });
     const deps = testDependencies(source, { parser: undefined, limits: { ...archiveLimits, maxEntries: 10, maxExpandedBatchBytes: 100 } });
     await expect(handleArchive({ body: archivePayload, headers: archiveHeaders }, deps)).resolves.toMatchObject({ status: 204 });
+    expect(source.createReadStream).toHaveBeenCalledTimes(2);
+    expect(deps.persistence.persistChild).toHaveBeenCalledOnce();
   });
 });
