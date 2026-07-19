@@ -31,7 +31,7 @@ function parsedJson(row: BatchOutputRow): boolean {
   if (!text) return false;
   try { const value = JSON.parse(text.replace(/^```json\n?/, "").replace(/\n?```$/, "").trim()); return Boolean(value && typeof value === "object" && !Array.isArray(value)); } catch { return false; }
 }
-function stale(job: ExpectedOutputJob, key: ReturnType<typeof parseBatchCatalogKey>, run: ProviderOutputRun, family?: FontFamilyDoc): boolean {
+function stale(job: ExpectedOutputJob, key: NonNullable<ReturnType<typeof parseBatchCatalogKey>>, run: ProviderOutputRun, family?: FontFamilyDoc): boolean {
   const id = runId(run);
   return Boolean((id && key.providerRunId && key.providerRunId !== id) || (job.familyId && key.familyId !== job.familyId)
     || (job.familyVersion !== undefined && key.familyVersion !== job.familyVersion)
@@ -75,6 +75,7 @@ export async function reconcileProviderOutput(
     const raw = catalogKeyFromOutputRow(row);
     if (isMalformedJsonlRow(row) || !raw) { malformedRows.push(row); continue; }
     const key = parseBatchCatalogKey(raw);
+    if (!key) { malformedRows.push(row); continue; }
     if (key.jobId) byRow.set(key.jobId, [...(byRow.get(key.jobId) ?? []), row]);
     else malformedRows.push(row);
   }
@@ -88,7 +89,8 @@ export async function reconcileProviderOutput(
     if (!candidates.length && malformedRows.length) { malformedRows.shift(); disposition = "malformed"; }
     else if (!candidates.length) disposition = "missing";
     else if (candidates.length > 1) disposition = "duplicate";
-    else if (!key || key.jobId !== job.jobId || !parsedJson(candidates[0])) disposition = "malformed";
+    else if (!key) disposition = "malformed";
+    else if (key.jobId !== job.jobId || !parsedJson(candidates[0])) disposition = "malformed";
     else if (stale(job, key, run, family)) disposition = "stale";
     else if (family && (family.hidden === true || family.status === "merged" || family.mergedInto || family.aliasOf)) disposition = "hidden";
     else {
