@@ -223,43 +223,8 @@ firebase deploy --only functions
 
 **Verify:**
 ```bash
-firebase functions:log --only processUploadedFontStorage
+firebase functions:log --only confirmFinalizedImportSource,importTaskWorker
 ```
-
-### Test/Utility HTTP Functions
-
-These are intended for staging and admin-only usage.
-
-- `testFontPipeline` (POST): Run the AI pipeline on an ad-hoc font payload.
-
-Request body:
-```json
-{
-  "base64": "AA...==",
-  "filename": "MyFont.ttf"
-}
-```
-or
-```json
-{
-  "url": "https://example.com/path/to/font.ttf",
-  "filename": "font.ttf"
-}
-```
-
-- `batchReprocessFonts` (POST): Re-run pipeline for existing families.
-
-Request body:
-```json
-{
-  "ownerId": "user_uid",          // optional
-  "familyIds": ["family-id-1"],   // optional
-  "limit": 10,                    // optional, default 10, max 50
-  "force": false                  // optional
-}
-```
-
-Secure access via IAM and keep enabled only in staging environments.
 
 ---
 
@@ -298,7 +263,7 @@ npm install && npm run build
 
 **View logs:**
 ```bash
-firebase functions:log --only processUploadedFontStorage
+firebase functions:log --only confirmFinalizedImportSource,importTaskWorker
 ```
 
 **Check metrics:**
@@ -373,8 +338,10 @@ Use Firebase Remote Config conditions to enable the AI pipeline for a subset of 
 
 ## Current Status (v1)
 
-- Pipeline stages implemented: extraction, visual metrics, AI visual analysis, optional web enrichment, enriched analysis, summary generation, validation, and persistence.
+- Pipeline stages implemented: durable source finalization, archive/discovery,
+  planning, family application, enrichment, validation, and persistence.
 - Remote Config kill switch: `is_vertex_enabled` defaults to `false` in production.
 - Web enrichment caching: enabled via Firestore with TTL (`web_enrichment_cache_ttl_days`).
-- Admin/staging utilities: `testFontPipeline`, `batchReprocessFonts` HTTP functions.
+- Admin/staging operations use the durable import batch records and deployed task
+  worker; retired ad-hoc HTTP utilities are not part of the current surface.
 - Tests: Unit and integration tests available under `functions/tests/` (golden set at `tests/golden-set/fonts.json`).

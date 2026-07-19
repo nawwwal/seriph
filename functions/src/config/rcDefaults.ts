@@ -51,7 +51,7 @@ export const RC_DEFAULTS = {
   [RC_KEYS.batchIoBucket]: "",
   [RC_KEYS.searchTopK]: "24",
   [RC_KEYS.searchImageWeight]: "0.35",
-  [RC_KEYS.durableImportEnabled]: "false",
+  [RC_KEYS.durableImportEnabled]: "true",
   [RC_KEYS.importSourceTimeoutMinutes]: "1440",
   [RC_KEYS.importArchiveMaxDepth]: "4",
   [RC_KEYS.importArchiveMaxEntries]: "10000",

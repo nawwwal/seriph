@@ -124,23 +124,18 @@ Live endpoints:
   --check`, and in-app browser CSS checks on `http://localhost:3000` confirming
   the splash keyframes, transform rise, and reduced-motion rule are loaded.
 
-## Upload status polling hardening (local, 2026-07-01)
+## Durable import cutover (local, 2026-07-19)
 
-- Root cause for the console error `Failed to fetch active uploads`: the
-  authenticated `/api/v1/uploads/active` route hit Firestore
-  `FAILED_PRECONDITION` because the `ingests.analysisState + updatedAt`
-  composite index existed in source but was not usable in the live `seriph`
-  database. `firebase deploy --only firestore:indexes --project seriph` was run;
-  immediately after deploy, the exact indexed query reported the index was still
-  building.
-- The route now falls back to a bounded recent-ingests query while the active
-  composite index is missing/building, then filters through the same terminal
-  state rules. The client poller parses the API envelope defensively and treats
-  non-OK upload-status responses as temporarily unavailable instead of throwing
-  a red console error from a background effect.
-- Verification: focused upload tests pass; in-app browser reload at
-  `http://localhost:3000` returned `/api/v1/uploads/active` HTTP 200 with
-  `{"ingests":[]}` and emitted no new console errors. `npm run build` passed.
+- The upload journey now creates owner-scoped durable batches, registers source
+  inventory, seals the source set, and uploads to private intake storage. The
+  canonical HTTP surface is `/api/v1/import-batches/**`; the global Upload Center
+  reads the same batch/source/item/family-plan feed.
+- Remote Config defaults `durable_import_enabled` to on. If the browser cannot
+  fetch Remote Config, the client keeps the durable path available and the import
+  workspace reports setup or post-start failures instead of silently dropping a
+  selected file.
+- Verification: focused durable import, route-boundary, and OpenAPI tests cover
+  the canonical route tree and the visible failure boundary.
 
 ## OpenType family metadata repair (local/live data, 2026-07-01)
 
@@ -281,10 +276,10 @@ Live endpoints:
 - `serve/handlers.ts` — `/css2`, `/s/**`, `/d/**` (download) handlers.
 - `config/catalogConfig.ts` + extended `config/rcKeys.ts` — CDN base, public
   bucket, path builders, new RC keys.
-- `index.ts` — rewritten. Exports: `expandArchive` (intake trigger),
-  `processUploadedFontStorage` (ingest trigger), `submitEnrichmentBatch` +
-  `pollEnrichmentBatch` (scheduled all-batch enrichment), `searchFontsHttp`,
-  `css2`, `serveFont`.
+- `index.ts` — exports `confirmFinalizedImportSource` (intake finalization),
+  `importTaskWorker`, `timeoutAbandonedImportSources`,
+  `submitEnrichmentBatch`, `pollEnrichmentBatch`, `searchFontsHttpUs`, `css2`,
+  and `serveFont`.
 - `ingest/batchEnrich.ts` — **all-batch enrichment lane.** Replaced the realtime
   `enrichFontOnReady` Firestore trigger (removed). On a schedule, collect `ready`
   families → render specimens → one GCS JSONL → Vertex **Batch API** job for the
@@ -298,9 +293,9 @@ Live endpoints:
   UI shape (CDN urls surfaced on `metadata.cdnUrl` / `downloadUrl`).
 - `lib/db/firestoreUtils.ts` — reads top-level `fontfamilies` (by `ownerId`) via adapter.
 - `lib/hooks/useRegisterFamilyFonts.ts` + `components/font/VariableFontPlayground.tsx`
-  — load fonts from CDN urls (fallback to the legacy proxy).
+  — load fonts from immutable CDN URLs.
 - `components/font/UseFontPanel.tsx` — copy CSS `<link>`, copy woff2 URL, download.
-- `app/(main)/search/page.tsx` + nav link — semantic search UI → `/api/search`.
+- `app/(main)/search/page.tsx` + nav link — semantic search UI → `/api/v1/search`.
 
 ### Infra-as-code
 - `firebase.json` — Hosting rewrites `/s/**`, `/d/**`, `/css2` → functions; CORS headers.
@@ -310,12 +305,9 @@ Live endpoints:
 - `hosting/index.html`, updated [deployment.md](deployment.md).
 
 ### Retired (deleted)
-`functions/src/ai/pipeline/*` (visual/web/enriched analysis, summary,
-`searchOrchestrator`, `indexFontsToFileSearch`), `ai/prompts/*`, `ai/schemas/*`,
-`db/firestoreUtils.admin.ts`, `models/search.models.ts`, `tests/integration/*`,
-and the old `hybridFontSearch` / `testFontPipeline` / `batchReprocessFonts` /
-`createOrUpdateEnrichedPrompt` functions. Vertex File Search is no longer used.
-(`/api/font/gcs` proxy is kept as a deprecated fallback.)
+The earlier multi-stage AI and proxy-upload surfaces were removed. Current
+enrichment runs through the durable import task pipeline and current web API
+routes are versioned under `/api/v1/**`. Vertex File Search is no longer used.
 
 ## As-built data model
 
@@ -350,9 +342,9 @@ immutable, cache-bustable.
 Completed on 2026-06-28:
 1. `bash scripts/setup-catalog.sh seriph` created `gs://seriph-fonts`, made it
    public-read, granted the functions service account write access, and set CORS.
-2. Functions + Firebase Hosting deployed. The old `hybridFontSearch`,
-   `testFontPipeline`, `batchReprocessFonts`, and `createOrUpdateEnrichedPrompt`
-   functions were removed by the cutover.
+2. Functions + Firebase Hosting deployed. The current deployed import functions
+   are `confirmFinalizedImportSource`, `importTaskWorker`, and
+   `timeoutAbandonedImportSources`.
 3. Firestore indexes deployed. The vector index config needed one correction:
    `text_vec` vector indexes live in top-level `indexes`, not `fieldOverrides`.
 4. `SEARCH_FUNCTION_URL` was set in Vercel for production, preview, and development.
@@ -364,7 +356,7 @@ Live smoke evidence:
   - `https://seriph.web.app/s/letters-home/e58b23bb/LettersHome.woff2`
   - `https://seriph.web.app/d/letters-home/e58b23bb/LettersHome.otf`
 - `https://seriph.web.app/css2?family=Letters%20Home` returns `@font-face`.
-- `POST https://seriph.naw.al/api/search` finds `letters-home` with an embedding
+- `POST https://seriph.naw.al/api/v1/search` finds `letters-home` with an embedding
   score and enrichment summary/moods.
 
 Current RC note: `is_vertex_enabled` is already `true` in the existing `Server`
@@ -374,14 +366,10 @@ currently using code defaults (`seriph-fonts`, `gemini-2.5-flash`,
 `gemini-embedding-001`, `1536`) unless explicitly added.
 
 ## Ingestion + upload status + detail UI pass (2026-06-28)
-- **Scalable ingestion (code-complete, needs deploy):** drop folders/zips/nested.
-  Client walks the tree + resumable-uploads to `intake/**`; new `expandArchive`
-  Storage trigger normalizes fonts → `unprocessed_fonts/**` and recurses zips.
-  Content-hash dedup + per-batch ledger. RC key `intake_bucket_path`. **Phase 3
-  (Cloud Run job for >150MB zips + Cloud Tasks backpressure) not built** —
-  oversized zips are skipped + ledgered. See [ingestion-at-scale.md](./ingestion-at-scale.md).
-  Deploy needs: `expandArchive` function, Storage rules for `intake/**`,
-  collection-group index on `ingests.familyId`.
+- **Durable ingestion:** the browser registers batches and source inventory under
+  `/api/v1/import-batches/**`, uploads to `intake/**`, and the finalized-source
+  trigger dispatches archive, parse, plan, apply, and enrichment tasks. See
+  [ingestion-at-scale.md](./ingestion-at-scale.md).
 - **Upload status overhaul:** single two-lane state machine; server now emits
   `analyzing`/`enriching`; global Upload Center modal (nav "Uploads" button)
   replaces scattered status; `BatchHUD` is now a shortcut. Legacy `status` no
@@ -426,11 +414,10 @@ currently using code defaults (`seriph-fonts`, `gemini-2.5-flash`,
   users may write only their own `intake/{batchId}/**`; processing prefixes are
   admin-only; default deny. The public CDN is the separate `seriph-fonts` bucket
   (IAM-based), unaffected. Deployed.
-- **API routes**: `/api/share` and `/api/search` now require a verified token and
-  inject `ownerId` server-side (search no longer trusts a client owner filter);
-  `/api/font/gcs` requires auth and is restricted to public asset prefixes
-  (`s/`, `d/`, `processed_fonts/`). `resumableUpload` dropped the unused
-  `getDownloadURL` so completion doesn't need read access to private intake objects.
+- **API routes**: versioned `/api/v1/**` handlers require a verified token and
+  inject `ownerId` server-side. The import batch handlers expose bounded reads,
+  source registration, sealing, terminal source failure, retry, and cancellation;
+  private intake uploads do not require public object reads.
 - **<100-line refactor**: split large files into focused modules across `functions/src`
   and the web app; **~44 files over 100 → 4 documented exemptions** (pure type files
   `models/font.models.ts` ×2 / `catalog.models.ts`, config registry `rcKeys.ts`,

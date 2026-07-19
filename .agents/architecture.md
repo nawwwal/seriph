@@ -110,14 +110,11 @@ stages**, not one synchronous call.
 
 ## What we collapse or retire
 
-- The legacy multi-stage AI chain in `functions/src/ai/pipeline/`
-  (`visualAnalysis` → `webEnricher` → `enrichedAnalysis` → summary) collapses into
-  a single structured multimodal analysis + embedding step.
+- The earlier multi-stage AI chain collapsed into a single structured multimodal
+  analysis + embedding step.
 - Heavy web-scraping enrichment becomes optional grounding, not a core stage.
-- Vertex File Search–based "hybrid font search" (`searchOrchestrator`,
-  `indexFontsToFileSearch`) is re-evaluated against native Firestore vector search;
-  keep whichever wins on simplicity for the collection size (see
-  search-and-agents.md). Default lean: **Firestore-native vector search**.
+- Vertex File Search–based hybrid search is retired in favor of native Firestore
+  vector search, which is the current default (see search-and-agents.md).
 
 ## Deployment & environments
 

@@ -1,9 +1,9 @@
 # Seriph Pipeline Recovery Plan
 
 ## 1. Context Recap
-- **Product focus**: Next.js 15 app (app router) for managing font families, backed by Firebase Auth, Firestore, and Storage. Uploads go through `app/api/upload/route.ts` and Cloud Functions in `functions/src`.
+- **Product focus**: Next.js app (app router) for managing font families, backed by Firebase Auth, Firestore, and Storage. Uploads go through the durable `/api/v1/import-batches/**` contract and Cloud Functions in `functions/src`.
 - **Current toolchain**: Node 22, TypeScript, Tailwind. No automated tests, linting fails, and there is no CI/CD automation in the repo.
-- **Consequences of lost commits**: Critical API routes referenced by generated `.next` types (`app/api/families/...`, `app/api/share/...`) are missing; the README reverted to the default scaffold; workflows/config that previously enforced quality have disappeared.
+- **Historical note**: This recovery plan predates the current versioned API and durable import pipeline. Use `.agents/implementation-status.md` and `.agents/ingestion-at-scale.md` for the as-built system.
 
 ## 2. Observed Issues (from code + command review)
 - `npm run lint` fails immediately (`next lint` believes `lint` is a directory) because ESLint packages/config were removed. Pipelines cannot gate on linting until this is restored.

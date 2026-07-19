@@ -32,7 +32,7 @@ enrichment runs once **per family**, not per face, so family count drives AI cos
 | Embedding tokens / family | **~150** | enrichment text, inline (not batched) |
 | Specimen image | 1024×576 PNG | → `ceil(1024/768)·ceil(576/768)·258 = 2·1·258 = 516` tokens |
 | Font file size | 0.30 MB original + 0.15 MB woff2 | 0.45 MB stored per face |
-| Ingest compute | expandArchive ~1.5 s, processUpload ~3.5 s | 1 GiB, **cpu 2** |
+| Ingest compute | confirmFinalizedImportSource + importTaskWorker | 1 GiB, **cpu 2** |
 | Enrich compute | submit ~0.5 s/family, poll ~1 s/family | scheduled; `minInstances=0` |
 | Schedulers | poll /10 min, submit /30 min | fixed idle invocations |
 

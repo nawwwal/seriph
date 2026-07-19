@@ -90,7 +90,7 @@ describe('import route boundary', () => {
       'app/api/v1/uploads/active/route.ts',
       'app/api/v1/uploads/[ingestId]/route.ts',
     ]) expect(fs.existsSync(path.join(repoRoot, route))).toBe(false);
-    expect(fs.existsSync(path.join(repoRoot, 'app/api/v1/import-batches/route.ts'))).toBe(true);
+    for (const route of ['app/api/v1/import-batches/route.ts', 'app/api/v1/import-batches/[batchId]/route.ts', 'app/api/v1/import-batches/[batchId]/sources/route.ts', 'app/api/v1/import-batches/[batchId]/seal/route.ts', 'app/api/v1/import-batches/[batchId]/sources/[sourceId]/failure/route.ts', 'app/api/v1/import-batches/[batchId]/actions/retry/route.ts', 'app/api/v1/import-batches/[batchId]/actions/cancel/route.ts']) expect(fs.existsSync(path.join(repoRoot, route))).toBe(true);
   });
 
   it('keeps the import frame rendered while the pending-file workspace chunk loads', () => {

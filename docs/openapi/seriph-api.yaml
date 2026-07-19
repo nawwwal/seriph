@@ -22,6 +22,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: Command conflicts with the current resource state
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
     Unauthorized:
       description: Missing or invalid Firebase bearer token
       content:
@@ -470,7 +476,518 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/FontFamilyDetail'
+    ImportBatch:
+      type: object
+      required: [batchId]
+      properties:
+        batchId:
+          type: string
+        label:
+          type: string
+        expectedSourceCount:
+          type: integer
+          minimum: 0
+        sealed:
+          type: boolean
+        outcome:
+          type: string
+          enum: [active, succeeded, partial, needs_review, failed, canceled]
+        counters:
+          type: object
+          additionalProperties: true
+        phases:
+          type: object
+          additionalProperties: true
+      additionalProperties: true
+    ImportBatchCreateRequest:
+      type: object
+      required: [label, expectedSourceCount]
+      additionalProperties: false
+      properties:
+        label:
+          type: string
+        expectedSourceCount:
+          type: integer
+          minimum: 0
+    ImportBatchCreateEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [batchId]
+          properties:
+            batchId:
+              type: string
+    ImportBatchListEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [batches, nextCursor]
+          properties:
+            batches:
+              type: array
+              items:
+                $ref: '#/components/schemas/ImportBatch'
+            nextCursor:
+              type: [string, 'null']
+    ImportBatchDetailEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [batch, familyPlans, reviewItems, familyPlansCursor, reviewItemsCursor]
+          properties:
+            batch:
+              $ref: '#/components/schemas/ImportBatch'
+            familyPlans:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            reviewItems:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+            familyPlansCursor:
+              type: [string, 'null']
+            reviewItemsCursor:
+              type: [string, 'null']
+    ImportSourceRequest:
+      type: object
+      required: [sourceId, originalName, relativePath, size]
+      additionalProperties: false
+      properties:
+        sourceId:
+          type: string
+          format: uuid
+        originalName:
+          type: string
+        relativePath:
+          type: string
+        size:
+          type: integer
+          minimum: 0
+        declaredContentType:
+          type: string
+    ImportSource:
+      type: object
+      required: [sourceId, accepted, state]
+      properties:
+        sourceId:
+          type: string
+        accepted:
+          type: boolean
+        state:
+          type: string
+          enum: [uploading, failed]
+        storagePath:
+          type: string
+        errorCode:
+          type: string
+    ImportSourcesRequest:
+      type: object
+      required: [sources]
+      additionalProperties: false
+      properties:
+        sources:
+          type: array
+          maxItems: 200
+          items:
+            $ref: '#/components/schemas/ImportSourceRequest'
+    ImportSourcesEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [kind]
+          properties:
+            kind:
+              type: string
+              enum: [registered, batch_missing, batch_sealed]
+            sources:
+              type: array
+              items:
+                $ref: '#/components/schemas/ImportSource'
+    ImportSealEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [kind]
+          properties:
+            kind:
+              type: string
+              enum: [sealed, existing, batch_missing, count_mismatch]
+            expected:
+              type: integer
+            registered:
+              type: integer
+    ImportSourceFailureRequest:
+      type: object
+      required: [state, detail]
+      additionalProperties: false
+      properties:
+        state:
+          type: string
+          enum: [upload_failed, canceled]
+        detail:
+          type: string
+    ImportSourceFailureEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [kind]
+          properties:
+            kind:
+              type: string
+              enum: [failed, existing, not_found, invalid_failure, invalid_source_id]
+    ImportRetryTarget:
+      oneOf:
+        - type: object
+          required: [kind, sourceId]
+          additionalProperties: false
+          properties:
+            kind:
+              const: source
+            sourceId:
+              type: string
+        - type: object
+          required: [kind, itemId]
+          additionalProperties: false
+          properties:
+            kind:
+              const: item
+            itemId:
+              type: string
+        - type: object
+          required: [kind, familyPlanId]
+          additionalProperties: false
+          properties:
+            kind:
+              const: family
+            familyPlanId:
+              type: string
+        - type: object
+          required: [kind, jobId]
+          additionalProperties: false
+          properties:
+            kind:
+              const: enrichment
+            jobId:
+              type: string
+    ImportRetryRequest:
+      type: object
+      required: [target]
+      additionalProperties: false
+      properties:
+        target:
+          $ref: '#/components/schemas/ImportRetryTarget'
+    ImportRetryEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [kind, task]
+          properties:
+            kind:
+              type: string
+              enum: [queued, existing, conflict]
+            task:
+              type: object
+              required: [taskId, payload]
+              properties:
+                taskId:
+                  type: string
+                payload:
+                  type: object
+                  additionalProperties: true
+    ImportCancelEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [kind, appliedFamilyIds]
+          properties:
+            kind:
+              type: string
+              enum: [canceled, existing, conflict]
+            appliedFamilyIds:
+              type: array
+              items:
+                type: string
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 1
 paths:
+  /api/v1/import-batches:
+    get:
+      summary: List recent owner-scoped import batches
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 30
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: outcome
+          in: query
+          schema:
+            type: string
+            enum: [active, succeeded, partial, needs_review, failed, canceled]
+      responses:
+        '200':
+          description: Recent import batches
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportBatchListEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      summary: Create or recover an import batch
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportBatchCreateRequest'
+      responses:
+        '201':
+          description: Import batch created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportBatchCreateEnvelope'
+        '200':
+          description: Existing idempotent import batch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportBatchCreateEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/import-batches/{batchId}:
+    get:
+      summary: Read an owner-scoped import batch and bounded detail
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: familyPlansCursor
+          in: query
+          schema:
+            type: string
+        - name: reviewItemsCursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Import batch detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportBatchDetailEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/import-batches/{batchId}/sources:
+    post:
+      summary: Register source files for an import batch
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportSourcesRequest'
+      responses:
+        '200':
+          description: Source registration results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSourcesEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/import-batches/{batchId}/seal:
+    post:
+      summary: Seal an import batch after source registration
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Batch sealed or already sealed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSealEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/import-batches/{batchId}/sources/{sourceId}/failure:
+    post:
+      summary: Record a terminal client upload failure or cancellation
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: sourceId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportSourceFailureRequest'
+      responses:
+        '200':
+          description: Failure recorded or already terminal
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportSourceFailureEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/import-batches/{batchId}/actions/retry:
+    post:
+      summary: Retry one failed import stage or target
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportRetryRequest'
+      responses:
+        '200':
+          description: Existing retry task
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRetryEnvelope'
+        '202':
+          description: Retry task queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportRetryEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/import-batches/{batchId}/actions/cancel:
+    post:
+      summary: Cancel import work that has not been committed
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Existing cancellation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportCancelEnvelope'
+        '202':
+          description: Cancellation applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportCancelEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/families:
     get:
       summary: List paginated shelf families

@@ -88,11 +88,11 @@ describe('durable batch upload', () => {
     expect(laterCalls).not.toContain('resume:b1:key-1');
   });
 
-  it('fails closed for Remote Config and sets the signal before fetch and activate', async () => {
+  it('defaults on when Remote Config is unavailable and sets the signal before fetch and activate', async () => {
     const calls: string[] = []; const remote = { isSupported: async () => true, get: () => ({}), signal: async (_: unknown, value: Record<string, string>) => { calls.push(`signal:${value.seriph_user_id}`); }, activate: async () => { calls.push('activate'); }, value: () => ({ asBoolean: () => true }) };
     await expect(readDurableEnabled('u1', remote)).resolves.toBe(true); expect(calls).toEqual(['signal:u1', 'activate']);
-    await expect(readDurableEnabled('u1', { ...remote, isSupported: async () => false })).resolves.toBe(false);
-    await expect(readDurableEnabled('u1', { ...remote, signal: async () => { throw new Error('offline'); } })).resolves.toBe(false);
+    await expect(readDurableEnabled('u1', { ...remote, isSupported: async () => false })).resolves.toBe(true);
+    await expect(readDurableEnabled('u1', { ...remote, signal: async () => { throw new Error('offline'); } })).resolves.toBe(true);
   });
 
 });

@@ -16,7 +16,7 @@ const SAFE_LIMITS = {
 describe("import configuration", () => {
   it("returns the approved limits and clamps invalid remote values", () => {
     expect(getImportConfig(() => undefined)).toMatchObject({
-      enabled: false,
+      enabled: true,
       sourceTimeoutMinutes: 1440,
       archiveMaxDepth: 4,
       archiveMaxEntries: 10000,

@@ -26,6 +26,13 @@ describe('OpenAPI contract', () => {
       '/api/v1/search',
       '/api/v1/search-index',
       '/api/v1/shares',
+      '/api/v1/import-batches',
+      '/api/v1/import-batches/{batchId}',
+      '/api/v1/import-batches/{batchId}/sources',
+      '/api/v1/import-batches/{batchId}/seal',
+      '/api/v1/import-batches/{batchId}/sources/{sourceId}/failure',
+      '/api/v1/import-batches/{batchId}/actions/retry',
+      '/api/v1/import-batches/{batchId}/actions/cancel',
     ];
 
     expect(spec).toContain('openapi: 3.1.0');
@@ -37,10 +44,10 @@ describe('OpenAPI contract', () => {
 
   it('defines JSON envelopes and shared error refs for every operation', () => {
     const spec = readFileSync(specPath, 'utf8');
-    for (const response of ['BadRequest', 'Unauthorized', 'Forbidden', 'NotFound', 'PayloadTooLarge', 'InternalError']) {
+    for (const response of ['BadRequest', 'Conflict', 'Unauthorized', 'Forbidden', 'NotFound', 'PayloadTooLarge', 'InternalError']) {
       expect(spec).toContain(`${response}:`);
     }
-    for (const path of ['/api/v1/families', '/api/v1/families/stats', '/api/v1/families/{familyId}', '/api/v1/families/bulk-delete', '/api/v1/family-merges', '/api/v1/search', '/api/v1/search-index', '/api/v1/shares']) {
+    for (const path of ['/api/v1/families', '/api/v1/families/stats', '/api/v1/families/{familyId}', '/api/v1/families/bulk-delete', '/api/v1/family-merges', '/api/v1/search', '/api/v1/search-index', '/api/v1/shares', '/api/v1/import-batches', '/api/v1/import-batches/{batchId}', '/api/v1/import-batches/{batchId}/sources', '/api/v1/import-batches/{batchId}/seal', '/api/v1/import-batches/{batchId}/sources/{sourceId}/failure', '/api/v1/import-batches/{batchId}/actions/retry', '/api/v1/import-batches/{batchId}/actions/cancel']) {
       const block = pathBlock(spec, path);
       expect(block).toContain("application/json");
       expect(block).toContain("$ref: '#/components/responses/Unauthorized'");
@@ -76,5 +83,14 @@ describe('OpenAPI contract', () => {
     for (const path of ['/api/v1/uploads/registrations', '/api/v1/uploads/direct-submissions', '/api/v1/uploads/active', '/api/v1/uploads/{ingestId}']) {
       expect(spec).not.toContain(path);
     }
+  });
+
+  it('documents the durable import request and response schemas', () => {
+    const spec = readFileSync(specPath, 'utf8');
+    for (const schema of ['ImportBatchCreateRequest', 'ImportBatchListEnvelope', 'ImportBatchDetailEnvelope', 'ImportSourcesRequest', 'ImportSourceFailureRequest', 'ImportRetryRequest', 'ImportCancelEnvelope']) {
+      expect(spec).toContain(`${schema}:`);
+    }
+    expect(pathBlock(spec, '/api/v1/import-batches')).toContain("$ref: '#/components/parameters/IdempotencyKey'");
+    expect(pathBlock(spec, '/api/v1/import-batches/{batchId}/actions/retry')).toContain('ImportRetryRequest');
   });
 });

@@ -83,8 +83,9 @@ export const prepareDurableSources = (walked: Pick<WalkedFile, 'file' | 'relativ
   return sourceIds.every((sourceId): sourceId is string => sourceId !== null) && unique(sourceIds) ? walked.map((file, index) => ({ file: file.file, relativePath: file.relativePath, sourceId: sourceIds[index]! })) : freshSources(walked);
 };
 export function useDurableBatchUpload() {
-  const { user } = useAuth(); const { open, setSourceProgress } = useUploads(); const [enabled, setEnabled] = useState(false); const [isUploading, setIsUploading] = useState(false); const [progressBySource, setProgressBySource] = useState<Record<string, number>>({});
-  useEffect(() => { let active = true; setEnabled(false); if (user) void readDurableEnabled(user.uid).then((value) => { if (active) setEnabled(value); }); return () => { active = false; }; }, [user]);
+  const { user } = useAuth(); const { open, setSourceProgress } = useUploads(); const [remoteConfig, setRemoteConfig] = useState<{ ownerId: string; enabled: boolean } | null>(null); const [isUploading, setIsUploading] = useState(false); const [progressBySource, setProgressBySource] = useState<Record<string, number>>({});
+  const enabled = Boolean(user) && (remoteConfig?.ownerId !== user?.uid || remoteConfig?.enabled === true);
+  useEffect(() => { let active = true; if (user) void readDurableEnabled(user.uid).then((value) => { if (active) setRemoteConfig({ ownerId: user.uid, enabled: value }); }); return () => { active = false; }; }, [user]);
   const publishLocalProgress = useCallback((sourceId: string, percent: number | null) => {
     setProgressBySource((map) => { if (percent === null) { if (!(sourceId in map)) return map; const next = { ...map }; delete next[sourceId]; return next; } return { ...map, [sourceId]: percent }; });
   }, []);
@@ -96,7 +97,7 @@ export function useDurableBatchUpload() {
     try {
       const token = await user.getIdToken(); const api = importBatchApi(token);
       return await runDurableUpload(sources, { ...api, resume: async (session, rows) => rows.map((row) => ({ ...row, accepted: true, storagePath: `intake/${user.uid}/${session.batchId}/${row.sourceId}/${filename(row.originalName)}` })), persist: (session) => sessionStorage.setItem(KEY, JSON.stringify(session)), clearPersisted: () => sessionStorage.removeItem(KEY), progress: publishProgress, clearProgress: (sourceId) => publishProgress(sourceId, null), upload: (source, file, progress) => new Promise((resolve, reject) => { const task = uploadBytesResumable(ref(storage, source.storagePath!), file); task.on('state_changed', (snap) => progress(snap.totalBytes ? Math.round(snap.bytesTransferred / snap.totalBytes * 100) : 0), reject, () => { progress(100); resolve(); }); }) }, recovery, user.uid);
-    } catch (error) { setEnabled(false); return { ok: false, phase: 'setup', mutationStarted: false, error }; } finally { setIsUploading(false); }
+    } catch (error) { setRemoteConfig({ ownerId: user.uid, enabled: false }); return { ok: false, phase: 'setup', mutationStarted: false, error }; } finally { setIsUploading(false); }
   }, [enabled, open, publishProgress, user]);
   return { upload, isUploading, enabled, recovery: saved(user?.uid), progressBySource };
 }

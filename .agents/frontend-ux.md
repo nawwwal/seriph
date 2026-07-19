@@ -10,7 +10,7 @@ front-end surface. The existing editorial feel is the fixed point.
 | `/` (logged out) | `components/home/LandingPage.tsx` | Marketing landing: hero wordmark, tagline, live specimen showcase, value props, email/password sign-in CTA. No catalogue, no Firestore reads. |
 | `/login` | `app/login/page.tsx` | Email/password auth form with sign-in, create-account, and password-reset modes. Redirects signed-in users home. |
 | `/` (logged in) | `app/page.tsx` → `WelcomeState` / `ShelfState` | The shelf/catalogue. `WelcomeState` when empty, `ShelfState` grid otherwise. |
-| `/import` | `app/(main)/import/page.tsx` | Upload journey. Hard auth gate. Consumes pending fonts from `utils/pendingFonts`, posts to `/api/upload`. |
+| `/import` | `app/(main)/import/page.tsx` | Upload journey. Hard auth gate. Consumes pending fonts from `utils/pendingFonts`, registers durable import batches, and uploads to private intake storage. |
 | `/search` | `app/(main)/search/page.tsx` → `SearchWorkspace` | Full search workspace. Auth-gated. Reads committed `?q=` plus filter params and owns result refinement. |
 | `/family/[familyId]` | `app/(main)/family/[familyId]/page.tsx` | Family detail: specimen, use-font panel, styles, type tester, character set. Auth-gated. |
 
@@ -103,7 +103,7 @@ The catalogue and everything behind it are only shown after Firebase email/passw
 - `/login` handles sign-in, account creation, and Firebase password reset email.
 - `/search` and `/family/[familyId]` each render a sign-in prompt (link home)
   when `!user`, and skip their fetches.
-- Public CDN routes (`/s`, `/d`, `/css2`) and `/api/share` stay public on purpose.
+- Public CDN routes (`/s`, `/d`, `/css2`) stay public on purpose. Import and share APIs remain Firebase-authenticated under `/api/v1/**`.
 
 ## NavBar (`components/layout/NavBar.tsx`)
 
