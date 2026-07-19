@@ -2,7 +2,7 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { FontFamilyDoc } from "../../models/catalog.models";
 import { applyOutputRow } from "../../ingest/batch/output";
 import { parseBatchCatalogKey } from "../../ingest/batch/key";
-import { catalogKeyFromOutputRow, textFromOutputRow, type BatchOutputRow } from "../../ingest/batch/outputRows";
+import { catalogKeyFromOutputRow, isMalformedJsonlRow, textFromOutputRow, type BatchOutputRow } from "../../ingest/batch/outputRows";
 import { retryState } from "../jobs/retryPolicy";
 
 export type OutputDisposition = "complete" | "missing" | "malformed" | "duplicate" | "stale" | "hidden" | "failed";
@@ -70,9 +70,13 @@ export async function reconcileProviderOutput(
   run: ProviderOutputRun, rows: readonly BatchOutputRow[], deps: ReconcileOutputDependencies = {},
 ): Promise<{ byJob: Record<string, OutputDisposition> }> {
   const byRow = new Map<string, BatchOutputRow[]>();
+  const malformedRows: BatchOutputRow[] = [];
   for (const row of rows) {
-    const raw = catalogKeyFromOutputRow(row); if (!raw) continue;
-    const key = parseBatchCatalogKey(raw); if (key.jobId) byRow.set(key.jobId, [...(byRow.get(key.jobId) ?? []), row]);
+    const raw = catalogKeyFromOutputRow(row);
+    if (isMalformedJsonlRow(row) || !raw) { malformedRows.push(row); continue; }
+    const key = parseBatchCatalogKey(raw);
+    if (key.jobId) byRow.set(key.jobId, [...(byRow.get(key.jobId) ?? []), row]);
+    else malformedRows.push(row);
   }
   const result: Record<string, OutputDisposition> = {};
   for (const originalJob of jobsFor(run)) {
@@ -81,7 +85,8 @@ export async function reconcileProviderOutput(
     const raw = candidates[0] && catalogKeyFromOutputRow(candidates[0]);
     const key = raw ? parseBatchCatalogKey(raw) : undefined;
     const family = key ? await familyFor(job, deps) : undefined;
-    if (!candidates.length) disposition = "missing";
+    if (!candidates.length && malformedRows.length) { malformedRows.shift(); disposition = "malformed"; }
+    else if (!candidates.length) disposition = "missing";
     else if (candidates.length > 1) disposition = "duplicate";
     else if (!key || key.jobId !== job.jobId || !parsedJson(candidates[0])) disposition = "malformed";
     else if (stale(job, key, run, family)) disposition = "stale";

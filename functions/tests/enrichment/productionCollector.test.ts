@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { collectPendingEnrichmentJobs } from "../../src/enrichment/jobs/production";
 import { enrichmentJobId, type EnrichmentJob } from "../../src/enrichment/jobs/jobTypes";
 import type { FontFamilyDoc } from "../../src/models/catalog.models";
-import { ENRICHMENT_COLLECTOR_OPTIONS } from "../../src/options";
+import { BATCH_POLL_OPTIONS, ENRICHMENT_COLLECTOR_OPTIONS, ENRICHMENT_LEASE_WATCHDOG_OPTIONS } from "../../src/options";
 
 const job: EnrichmentJob = {
   familyId: "owner__atlas",
@@ -22,6 +22,8 @@ const family = { ownerId: "owner", faces: [{ id: "regular", preferredAssetId: "a
 describe("production enrichment collection", () => {
   it("runs on the five-minute production collector cadence", () => {
     expect(ENRICHMENT_COLLECTOR_OPTIONS.schedule).toBe("every 5 minutes");
+    expect(BATCH_POLL_OPTIONS.schedule).toBe("every 2 minutes");
+    expect(ENRICHMENT_LEASE_WATCHDOG_OPTIONS.schedule).toBe("every 5 minutes");
   });
 
   it("dispatches the queued jobs selected by the collector", async () => {

@@ -22,26 +22,35 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function timestampMs(value: unknown): number | undefined { if (value instanceof Date) return value.getTime(); if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") return timestampMs(value.toDate()); const parsed = typeof value === "string" || typeof value === "number" ? new Date(value).getTime() : NaN; return Number.isFinite(parsed) ? parsed : undefined; }
+
 /** Return expired provider leases to the bounded job retry lane. */
 export async function watchExpiredEnrichmentLeases(now = new Date()): Promise<number> {
   const db = getFirestore();
   const snap = await db.collection("enrichmentJobs").where("state", "in", ["submitted", "analyzing", "embedding"])
     .where("leaseExpiresAt", "<=", now).get();
+  let reclaimed = 0;
   for (const doc of snap.docs) {
     const data = doc.data() as Record<string, unknown>;
     const attempt = Number(data.attempt ?? 0); const plan = retryState(attempt);
-    const batch = db.batch();
-    batch.set(doc.ref, {
-      state: plan.state, attempt: plan.attempt, failureCode: "lease_expired",
-      ...(plan.delayMs === null ? { failedAt: FieldValue.serverTimestamp() } : { retryAt: new Date(now.getTime() + plan.delayMs) }),
-      leaseExpiresAt: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-    if (typeof data.providerRunId === "string") batch.set(db.collection(JOBS_COLLECTION).doc(data.providerRunId), {
-      reconciliationRequestedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
-    }, { merge: true });
-    await batch.commit();
+    const leaseExpiresAt = timestampMs(data.leaseExpiresAt);
+    await db.runTransaction(async (tx) => {
+      const current = await tx.get(doc.ref);
+      const currentData = current.exists ? current.data() as Record<string, unknown> : undefined;
+      if (!currentData || currentData.state !== data.state || timestampMs(currentData.leaseExpiresAt) !== leaseExpiresAt
+        || leaseExpiresAt === undefined || leaseExpiresAt > now.getTime()) return;
+      tx.set(doc.ref, {
+        state: plan.state, attempt: plan.attempt, failureCode: "lease_expired",
+        ...(plan.delayMs === null ? { failedAt: FieldValue.serverTimestamp() } : { retryAt: new Date(now.getTime() + plan.delayMs) }),
+        leaseExpiresAt: FieldValue.delete(), updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      if (typeof data.providerRunId === "string") tx.set(db.collection(JOBS_COLLECTION).doc(data.providerRunId), {
+        reconciliationRequestedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      reclaimed++;
+    });
   }
-  return snap.size;
+  return reclaimed;
 }
 
 /**
@@ -50,9 +59,6 @@ export async function watchExpiredEnrichmentLeases(now = new Date()): Promise<nu
  */
 export async function pollEnrichmentBatches(): Promise<{ checked: number; completed: number }> {
   const db = getFirestore();
-  try { await watchExpiredEnrichmentLeases(); } catch (error) {
-    logger.warn("[batch] enrichment lease watchdog failed", { message: errorMessage(error) });
-  }
   const snap = await db.collection(JOBS_COLLECTION).where("state", "in", ACTIVE_STATES).get();
   if (snap.empty) return { checked: 0, completed: 0 };
 

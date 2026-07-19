@@ -1,7 +1,8 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { initializeRemoteConfig } from "../config/remoteConfig";
 import { collectPendingEnrichmentJobs, pollEnrichmentBatches } from "../ingest/batchEnrich";
-import { BATCH_POLL_OPTIONS, ENRICHMENT_COLLECTOR_OPTIONS } from "../options";
+import { watchExpiredEnrichmentLeases } from "../ingest/batch/poll";
+import { BATCH_POLL_OPTIONS, ENRICHMENT_COLLECTOR_OPTIONS, ENRICHMENT_LEASE_WATCHDOG_OPTIONS } from "../options";
 
 /**
  * Versioned enrichment (submit). On a schedule, collect queued family jobs,
@@ -28,4 +29,14 @@ export const pollEnrichmentBatch = onSchedule(BATCH_POLL_OPTIONS, async () => {
     // defaults
   }
   await pollEnrichmentBatches();
+});
+
+/** Reclaim expired provider leases independently of provider-output polling. */
+export const watchdogEnrichmentLeases = onSchedule(ENRICHMENT_LEASE_WATCHDOG_OPTIONS, async () => {
+  try {
+    await initializeRemoteConfig();
+  } catch {
+    // defaults
+  }
+  await watchExpiredEnrichmentLeases();
 });

@@ -41,4 +41,12 @@ describe("provider output reconciliation", () => {
 
     expect(state.docs.get("fontfamilies/family-a")?.text_vec).toEqual(previousVector);
   });
+
+  it("classifies null-key and preserved malformed JSONL rows without losing the job", async () => {
+    const { reconcileProviderOutput } = await import("../../src/enrichment/provider/reconcileOutput");
+    const result = await reconcileProviderOutput({ id: "run-1", expectedJobIds: ["a", "b"], expectedJobs: expected.slice(0, 2) },
+      [{ key: null }, { __malformedJsonl: true }], { apply: async () => true });
+
+    expect(result.byJob).toEqual({ a: "malformed", b: "malformed" });
+  });
 });

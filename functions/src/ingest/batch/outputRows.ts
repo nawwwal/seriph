@@ -2,6 +2,11 @@ import { getStorage } from "firebase-admin/storage";
 import { CATALOG_KEY_PREFIX } from "../../ai/enrichFont";
 
 export type BatchOutputRow = Record<string, unknown>;
+export const MALFORMED_JSONL_ROW = "__malformedJsonl";
+
+export function isMalformedJsonlRow(row: BatchOutputRow): boolean {
+  return row[MALFORMED_JSONL_ROW] === true;
+}
 
 function asRecord(value: unknown): BatchOutputRow | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -49,9 +54,9 @@ export async function readOutputLines(bucket: string, outputPrefix: string): Pro
       if (!trimmed) continue;
       try {
         const parsed = asRecord(JSON.parse(trimmed));
-        if (parsed) rows.push(parsed);
+        rows.push(parsed ?? { [MALFORMED_JSONL_ROW]: true });
       } catch {
-        // Ignore malformed output rows; batch polling can continue with valid rows.
+        rows.push({ [MALFORMED_JSONL_ROW]: true });
       }
     }
   }

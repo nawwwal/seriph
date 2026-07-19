@@ -34,7 +34,15 @@ export const BATCH_POLL_OPTIONS = {
   memory: "512MiB" as const,
   timeoutSeconds: 540,
   maxInstances: 1,
-  schedule: "every 10 minutes",
+  schedule: "every 2 minutes",
+};
+
+export const ENRICHMENT_LEASE_WATCHDOG_OPTIONS = {
+  region: "asia-southeast1",
+  memory: "512MiB" as const,
+  timeoutSeconds: 540,
+  maxInstances: 1,
+  schedule: "every 5 minutes",
 };
 
 export const SEARCH_FUNCTION_OPTIONS = {
