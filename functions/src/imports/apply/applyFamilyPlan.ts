@@ -96,7 +96,13 @@ export async function applyFamilyTask(payload: ImportTaskPayload, deps: ApplyFam
   const batch = importBatchRef(deps.db, payload.ownerId, payload.batchId);
   const planSnap = await batch.collection("plans").doc(String(payload.planVersion)).get();
   if (!planSnap.exists) return { kind: "failed", retryable: true, errorCode: "plan_missing" };
-  const plan = planSnap.data() as ImportPlan;
+  const stored = planSnap.data() as ImportPlan;
+  // The plan document carries operational fields such as expectedFamilyVersions.
+  // They are not part of its content-addressed payload.
+  const plan: ImportPlan = {
+    ownerId: stored.ownerId, batchId: stored.batchId, planVersion: stored.planVersion, state: stored.state,
+    items: stored.items, families: stored.families, reviewItems: stored.reviewItems, contentHash: stored.contentHash,
+  };
   const family = plan.families.find((entry) => entry.familyId === payload.resourceId);
   if (!family) return review({ plan, familyId: payload.resourceId, claims: [] }, { db: deps.db }, "family_missing");
   const taskSnap = await batch.collection("plans").doc(String(payload.planVersion)).collection("applyTasks").doc(payload.resourceId).get();
