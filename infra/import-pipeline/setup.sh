@@ -10,6 +10,8 @@ SERVICE="seriph-archive-worker"
 REPOSITORY="seriph"
 TASK_SERVICE_ACCOUNT_NAME="import-task-service-account"
 WORKER_SERVICE_ACCOUNT_NAME="archive-worker-service-account"
+STORAGE_ROLE_ID="archiveWorkerStorage"
+STORAGE_ROLE_PERMISSIONS="storage.objects.get,storage.objects.list,storage.objects.create,storage.objects.update"
 
 usage() {
   printf 'Usage: %s --project PROJECT [--bucket STORAGE_BUCKET] [--dry-run]\n' "$0"
@@ -66,6 +68,7 @@ if ((DRY_RUN == 1)); then
   run gcloud artifacts repositories create "$REPOSITORY" --location "$REGION" --repository-format docker --project "$PROJECT"
   run gcloud iam service-accounts create "$TASK_SERVICE_ACCOUNT_NAME" --display-name "Seriph import task service account" --project "$PROJECT"
   run gcloud iam service-accounts create "$WORKER_SERVICE_ACCOUNT_NAME" --display-name "Seriph archive worker service account" --project "$PROJECT"
+  run gcloud iam roles create "$STORAGE_ROLE_ID" --project "$PROJECT" --title "Seriph archive worker storage" --description "Non-destructive object access for the archive worker" --permissions "$STORAGE_ROLE_PERMISSIONS" --stage GA
 else
   run gcloud services enable cloudtasks.googleapis.com run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com --project "$PROJECT"
   if ! gcloud tasks queues describe "$QUEUE" --location "$REGION" --project "$PROJECT" >/dev/null 2>&1; then
@@ -82,10 +85,15 @@ else
   if ! gcloud iam service-accounts describe "$WORKER_SERVICE_ACCOUNT" --project "$PROJECT" >/dev/null 2>&1; then
     run gcloud iam service-accounts create "$WORKER_SERVICE_ACCOUNT_NAME" --display-name "Seriph archive worker service account" --project "$PROJECT"
   fi
+  if gcloud iam roles describe "$STORAGE_ROLE_ID" --project "$PROJECT" >/dev/null 2>&1; then
+    run gcloud iam roles update "$STORAGE_ROLE_ID" --project "$PROJECT" --title "Seriph archive worker storage" --description "Non-destructive object access for the archive worker" --permissions "$STORAGE_ROLE_PERMISSIONS" --stage GA
+  else
+    run gcloud iam roles create "$STORAGE_ROLE_ID" --project "$PROJECT" --title "Seriph archive worker storage" --description "Non-destructive object access for the archive worker" --permissions "$STORAGE_ROLE_PERMISSIONS" --stage GA
+  fi
 fi
 
 run gcloud projects add-iam-policy-binding "$PROJECT" --member "serviceAccount:${WORKER_SERVICE_ACCOUNT}" --role roles/datastore.user
-run gcloud storage buckets add-iam-policy-binding "gs://${STORAGE_BUCKET}" --member "serviceAccount:${WORKER_SERVICE_ACCOUNT}" --role roles/storage.objectUser --project "$PROJECT"
+run gcloud storage buckets add-iam-policy-binding "gs://${STORAGE_BUCKET}" --member "serviceAccount:${WORKER_SERVICE_ACCOUNT}" --role "projects/${PROJECT}/roles/${STORAGE_ROLE_ID}" --project "$PROJECT"
 run gcloud tasks queues add-iam-policy-binding "$QUEUE" --location "$REGION" --member "serviceAccount:${WORKER_SERVICE_ACCOUNT}" --role roles/cloudtasks.enqueuer --project "$PROJECT"
 
 run gcloud builds submit "${ROOT_DIR}/functions" --file Dockerfile.archive-worker --tag "$IMAGE" --project "$PROJECT"

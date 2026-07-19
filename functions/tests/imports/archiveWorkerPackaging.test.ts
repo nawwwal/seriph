@@ -15,11 +15,14 @@ describe("archive worker packaging", () => {
   it("scopes runtime Storage and task roles to the configured bucket and queue", () => {
     const script = resolve(__dirname, "../../../infra/import-pipeline/setup.sh"); const output = execFileSync("bash", [script, "--project", "seriph", "--bucket", "seriph-imports", "--dry-run"], { encoding: "utf8" });
     const worker = "serviceAccount:archive-worker-service-account@seriph.iam.gserviceaccount.com";
+    const storageRole = "projects/seriph/roles/archiveWorkerStorage";
     expect(output).toContain(`gcloud projects add-iam-policy-binding seriph --member ${worker} --role roles/datastore.user`);
-    expect(output).toContain(`gcloud storage buckets add-iam-policy-binding gs://seriph-imports --member ${worker} --role roles/storage.objectUser --project seriph`);
+    expect(output).toContain("gcloud iam roles create archiveWorkerStorage --project seriph");
+    expect(output).toContain("--permissions storage.objects.get\\,storage.objects.list\\,storage.objects.create\\,storage.objects.update --stage GA");
+    expect(output).toContain(`gcloud storage buckets add-iam-policy-binding gs://seriph-imports --member ${worker} --role ${storageRole} --project seriph`);
     expect(output).toContain(`gcloud tasks queues add-iam-policy-binding seriph-import --location asia-southeast1 --member ${worker} --role roles/cloudtasks.enqueuer --project seriph`);
     expect(output).toContain("FIREBASE_STORAGE_BUCKET=seriph-imports");
-    expect(output).not.toContain("roles/storage.objectAdmin"); expect(output).not.toContain("roles/editor"); expect(output).not.toContain("roles/owner");
+    expect(output).not.toContain("storage.objects.delete"); expect(output).not.toContain("roles/storage.objectUser"); expect(output).not.toContain("roles/storage.objectAdmin"); expect(output).not.toContain("roles/storage.admin"); expect(output).not.toContain("roles/editor"); expect(output).not.toContain("roles/owner");
     expect(output).not.toContain("projects add-iam-policy-binding seriph --member serviceAccount:archive-worker-service-account@seriph.iam.gserviceaccount.com --role roles/cloudtasks.enqueuer");
   });
 });
