@@ -96,10 +96,10 @@ describe("safe ZIP discovery", () => {
     expect(first.children.every((child) => child.task.archiveBudgetKey === provenance.batchId)).toBe(true);
   });
 
-  it("registers production discovery stages while future stages remain unregistered", () => {
+  it("registers production discovery and planning stages", () => {
     expect(importTaskStages.discover_source).toBeTypeOf("function");
     expect(importTaskStages.discover_item).toBeTypeOf("function");
-    expect(importTaskStages.finalize_plan).toBeUndefined();
+    expect(importTaskStages.finalize_plan).toBeTypeOf("function");
     const handler = async () => ({ status: 204 as const });
     registerImportStage("discover_item", handler);
     expect(importTaskStages.discover_item).toBe(handler);

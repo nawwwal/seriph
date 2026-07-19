@@ -3,12 +3,13 @@ import { getFirestore, type DocumentReference } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { canonicalizeImportTaskPayload, type ImportTaskPayload } from "./enqueue";
 import { enqueueImportTask } from "./enqueue";
-import { claimTaskLease, type TaskLeaseClaim } from "./lease";
+import { claimTaskLease, releaseTaskLease, type TaskLeaseClaim } from "./lease";
 import { importBatchRef } from "../store/paths";
 import { getImportConfig } from "../config/importConfig";
 import { discoverItemTask, discoverSourceTask, type DiscoveryRuntime } from "../discovery/archiveStages";
 import { applyFamilyImportStage } from "../apply/applyFamilyStage";
 import { reconcileBatchTask } from "../reconcile/reconcileBatch";
+import { finalizePlanTask } from "../planning/finalizePlan";
 
 export interface TaskHttpRequest {
   body: unknown;
@@ -29,6 +30,7 @@ export type ImportStageRegistry = Partial<Record<ImportTaskPayload["kind"], Impo
 
 export interface DispatchDependencies {
   claimLease?: (payload: ImportTaskPayload, cloudTaskName: string) => Promise<TaskLeaseClaim>;
+  releaseLease?: (payload: ImportTaskPayload, cloudTaskName: string, attempt: number) => Promise<void>;
   stages?: ImportStageRegistry;
 }
 
@@ -55,6 +57,7 @@ export function registerDefaultImportStages(runtime: () => DiscoveryRuntime = pr
   const stages: ImportStageRegistry = {
     discover_source: (payload) => discoverSourceTask(payload, runtime()),
     discover_item: (payload) => discoverItemTask(payload, runtime()),
+    finalize_plan: (payload) => finalizePlanTask(payload, getFirestore()),
     apply_family: applyFamilyImportStage,
     reconcile_batch: (payload) => reconcileBatchTask(payload, getFirestore()),
   };
@@ -99,5 +102,10 @@ export async function dispatchImportTask(
   const claimLease = dependencies.claimLease ?? claimPayloadLease;
   const lease = await claimLease(payload, request.cloudTaskName);
   if (lease.kind !== "claimed") return { status: 204 };
-  return handler(payload, lease);
+  try { return await handler(payload, lease); }
+  catch {
+    const release = dependencies.releaseLease ?? ((input, name, attempt) => releaseTaskLease(leaseReference(input, name), attempt));
+    await release(payload, request.cloudTaskName, lease.attempt);
+    return { status: 503, retryable: true };
+  }
 }

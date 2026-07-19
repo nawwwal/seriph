@@ -9,6 +9,7 @@ import { FAMILIES_COLLECTION } from "../../storage/familyStore";
 export interface PlanStoreDependencies {
   enqueue?: (payload: ImportTaskPayload) => Promise<unknown>;
   now?: () => Date;
+  enqueueTasks?: boolean;
 }
 export type SavePlanResult =
   | { kind: "created"; planVersion: number; plan: ImportPlan }
@@ -78,7 +79,7 @@ export async function saveValidatedPlan(
     tx.update(batchRef, { planVersion: next, phases: { ...(batchSnap.data() as any).phases, planning: { state: "validated", attempts: 0 } } });
     return { kind: "created", planVersion: next, plan } as const;
   });
-  if (result.kind === "created") await enqueuePendingPlanTasks(db, result.plan, dependencies);
+  if (result.kind === "created" && dependencies.enqueueTasks !== false) await enqueuePendingPlanTasks(db, result.plan, dependencies);
   return result;
 }
 

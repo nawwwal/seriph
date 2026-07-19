@@ -105,7 +105,8 @@ export async function applyFamilyTask(payload: ImportTaskPayload, deps: ApplyFam
   if (!Number.isSafeInteger(planned) || (planned as number) < 0 || taskExpected !== planned) return review({ plan, familyId: payload.resourceId, claims: [] }, { db: deps.db }, "expected_version_missing");
   const claims = await Promise.all(family.faces.flatMap((face) => face.assets).map(async (asset) => {
     const [claimSnap, itemSnap] = await Promise.all([assetClaimRef(deps.db, payload.ownerId, asset.sha256).get(), batch.collection("items").doc(asset.itemId).get()]);
-    return { ...(claimSnap.data() as PlannedAssetClaim), sourcePath: itemSnap.data()?.stagingPath };
+    const item = itemSnap.data(); const source = item?.sourceId ? await batch.collection("sources").doc(String(item.sourceId)).get() : null;
+    return { ...(claimSnap.data() as PlannedAssetClaim), sourcePath: item?.stagingPath ?? source?.data()?.storagePath };
   }));
   return applyFamilyPlan({ plan, familyId: payload.resourceId, expectedVersion: planned as number, claims }, { db: deps.db, enqueueEnrichment: deps.enqueueEnrichment,
     read: async (claim) => { if (!claim.sourcePath) throw new Error("staging path missing"); return (await deps.sourceBucket.file(claim.sourcePath).download())[0]; } });

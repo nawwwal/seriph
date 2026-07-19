@@ -89,4 +89,12 @@ describe("durable import task queue", () => {
     expect(claimLease).toHaveBeenCalledOnce();
   });
 
+  it("releases a claimed lease when a stage throws so Cloud Tasks can retry", async () => {
+    const claimLease = vi.fn().mockResolvedValue({ kind: "claimed", attempt: 2 }); const releaseLease = vi.fn();
+    await expect(dispatchImportTask({ body: JSON.stringify(payload), cloudTaskName: "task-1" }, {
+      claimLease, releaseLease, stages: { discover_item: async () => { throw new Error("temporary"); } },
+    })).resolves.toEqual({ status: 503, retryable: true });
+    expect(releaseLease).toHaveBeenCalledWith(payload, "task-1", 2);
+  });
+
 });

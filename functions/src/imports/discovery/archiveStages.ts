@@ -9,6 +9,7 @@ import { transitionSource, type SourceInput } from "../store/sourceStore";
 import type { ImportTaskPayload } from "../tasks/enqueue";
 import type { ArchiveLimits } from "./archivePolicy";
 import type { ImportItemState } from "../contracts/item";
+import { requestPlanFinalization } from "../planning/finalizePlan";
 
 export interface DiscoveryRuntime {
   db: Firestore;
@@ -41,6 +42,7 @@ export async function discoverSourceTask(payload: ImportTaskPayload, runtime: Di
   await createItemOnce(runtime.db, item);
   if (item.role === "archive") await expandItem(item, bytes, runtime); else await runtime.enqueue({ kind: "discover_item", ownerId: item.ownerId, batchId: item.batchId, resourceId: item.itemId, planVersion: 1 });
   await transitionSource(runtime.db, sourceInputValue, "discovering", "discovered");
+  await requestPlanFinalization(runtime.db, item.ownerId, item.batchId, runtime.enqueue);
   return { status: 204 };
 }
 
@@ -51,6 +53,9 @@ export async function discoverItemTask(payload: ImportTaskPayload, runtime: Disc
   if (!snap.exists) return { status: 204 }; const item = snap.data() as InventoryItem & { state: ImportItemState; stagingPath?: string };
   if (["classified", "applied", "duplicate", "review", "discarded", "failed"].includes(item.state)) return { status: 204 };
   if (item.role === "archive" && item.stagingPath) await expandItem(item, await runtime.download(item.stagingPath), runtime);
-  else await markItemTerminalOnce(runtime.db, { ownerId: item.ownerId, batchId: item.batchId, itemId: item.itemId }, terminalState(item));
+  else {
+    await markItemTerminalOnce(runtime.db, { ownerId: item.ownerId, batchId: item.batchId, itemId: item.itemId }, terminalState(item));
+    await requestPlanFinalization(runtime.db, item.ownerId, item.batchId, runtime.enqueue);
+  }
   return { status: 204 };
 }
