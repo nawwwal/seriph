@@ -97,12 +97,17 @@ This is explicitly a **later phase** — the human-facing library and the
 ingestion/enrichment/search core come first. But the data model and retrieval API
 should be designed so the MCP layer is a thin wrapper, not a rebuild.
 
-## Build-time decisions still open
+## Current implementation
 
-- **Firestore-native vector search vs. the existing Vertex File Search path.**
-  Default lean is Firestore-native for simplicity at our scale; the current
-  `searchOrchestrator` / `indexFontsToFileSearch` implementation should be measured
-  against it before we commit, then one of them retired.
+- **Firestore-native vector search is the semantic retrieval path.** The search
+  worker uses Firestore `findNearest` over the `text_vec`, `mood_vec`, and
+  `use_case_vec` fields, with structured pre-filters and a listing fallback.
+- **Index operations are in `firestore.indexes.json`.** Keep the vector entries
+  in top-level `indexes` alongside the owner/category query fields; this is one
+  Firestore-backed retrieval surface, not a second search index to synchronize.
+
+## Follow-up decisions
+
 - **Per-font vs per-family vectors.** Fine-grained retrieval (a specific weight's
   vibe) wants per-font vectors; browsing wants a family-level cover vector. Likely
   both, with family as an aggregate.

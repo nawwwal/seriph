@@ -596,7 +596,6 @@ components:
       properties:
         sources:
           type: array
-          maxItems: 200
           items:
             $ref: '#/components/schemas/ImportSourceRequest'
     ImportSourcesEnvelope:

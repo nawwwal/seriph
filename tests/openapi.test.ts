@@ -87,9 +87,11 @@ describe('OpenAPI contract', () => {
 
   it('documents the durable import request and response schemas', () => {
     const spec = readFileSync(specPath, 'utf8');
+    const document = loadYaml(spec) as { components: { schemas: { ImportSourcesRequest: { properties: { sources: Record<string, unknown> } } } } };
     for (const schema of ['ImportBatchCreateRequest', 'ImportBatchListEnvelope', 'ImportBatchDetailEnvelope', 'ImportSourcesRequest', 'ImportSourceFailureRequest', 'ImportRetryRequest', 'ImportCancelEnvelope']) {
       expect(spec).toContain(`${schema}:`);
     }
+    expect(document.components.schemas.ImportSourcesRequest.properties.sources).not.toHaveProperty('maxItems');
     expect(pathBlock(spec, '/api/v1/import-batches')).toContain("$ref: '#/components/parameters/IdempotencyKey'");
     expect(pathBlock(spec, '/api/v1/import-batches/{batchId}/actions/retry')).toContain('ImportRetryRequest');
   });

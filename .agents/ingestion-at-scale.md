@@ -34,21 +34,18 @@ folders fall out structurally — no special cases.
 
 ## Upload/analysis state machine (single source of truth)
 
-Two independent lanes; the legacy `status` field is no longer used for display.
+The durable import batch feed is the source of truth; the legacy `status` field
+is no longer used for display.
 - **Upload:** `pending → uploading → uploaded` (+ `failed`/`canceled`), with a
   client-driven `uploadProgress` 0-100.
 - **Analysis:** `not_started → queued → analyzing → enriching → complete`
   (+ `error`/`quarantined`).
 
-`getCombinedStatus(uploadState, analysisState, uploadProgress)` in
-`lib/contexts/ImportContext.tsx` returns the single canonical `stage`,
-`displayText`, `priority`, and an overall `percent` (upload = first 50%, analysis
-= second 50%). A client `uploadProgress` in (0,100) is treated as `uploading`
-even while the doc still says `pending` (no client Firestore writes needed).
-
-Server emits the real stages:
-The canonical import feed emits durable batch/source/item/family-plan stages;
-enrichment is a separate batch lane and never blocks catalogue visibility.
+`lib/contexts/UploadContext.tsx` owns the global upload state and client
+progress map. `lib/hooks/useImportBatchFeed.ts` drives the realtime batch feed
+with the API as its fallback, mapping durable `ImportBatchSummary` records and
+their upload, planning, and enrichment phases. Enrichment is a separate batch
+lane and never blocks catalogue visibility.
 
 ## Global Upload Center
 
@@ -66,8 +63,12 @@ enrichment is a separate batch lane and never blocks catalogue visibility.
 - Storage rules must allow authed users to write `intake/**` (resumable client
   uploads). Confirm/extend `storage.rules`.
 - Add Remote Config key `intake_bucket_path` (default `intake`) if overriding.
-- The `enrichFontOnReady` finalize uses a `collectionGroup('ingests')` query on
-  `familyId` — ensure that collection-group index exists.
+- `confirmFinalizedImportSource` validates finalized intake objects and enqueues
+  canonical work for `importTaskWorker`; `timeoutAbandonedImportSources` expires
+  stale source records. Deploy all three functions together.
+- Deploy the current `firestore.indexes.json` entries for `importBatches`,
+  `sources`, `families`, `items`, and the top-level `fontfamilies` vector
+  queries. Vector definitions belong in `indexes`, not `fieldOverrides`.
 - **Phase 3 (not built):** Cloud Run job for zips > 150MB (currently skipped +
   ledgered `oversized`) and Cloud Tasks/Pub-Sub backpressure on enrichment.
   Configure rates via Remote Config; no hardcoded values.
