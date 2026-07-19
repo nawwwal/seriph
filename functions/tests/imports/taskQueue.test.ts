@@ -97,4 +97,12 @@ describe("durable import task queue", () => {
     expect(releaseLease).toHaveBeenCalledWith(payload, "task-1", 2);
   });
 
+  it("releases a claimed lease when a stage requests retry", async () => {
+    const claimLease = vi.fn().mockResolvedValue({ kind: "claimed", attempt: 3 }); const releaseLease = vi.fn();
+    await expect(dispatchImportTask({ body: JSON.stringify(payload), cloudTaskName: "task-1" }, {
+      claimLease, releaseLease, stages: { discover_item: async () => ({ status: 503 }) },
+    })).resolves.toEqual({ status: 503 });
+    expect(releaseLease).toHaveBeenCalledWith(payload, "task-1", 3);
+  });
+
 });

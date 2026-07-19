@@ -102,9 +102,13 @@ export async function dispatchImportTask(
   const claimLease = dependencies.claimLease ?? claimPayloadLease;
   const lease = await claimLease(payload, request.cloudTaskName);
   if (lease.kind !== "claimed") return { status: 204 };
-  try { return await handler(payload, lease); }
+  const release = dependencies.releaseLease ?? ((input, name, attempt) => releaseTaskLease(leaseReference(input, name), attempt));
+  try {
+    const result = await handler(payload, lease);
+    if (result.status === 503) await release(payload, request.cloudTaskName, lease.attempt);
+    return result;
+  }
   catch {
-    const release = dependencies.releaseLease ?? ((input, name, attempt) => releaseTaskLease(leaseReference(input, name), attempt));
     await release(payload, request.cloudTaskName, lease.attempt);
     return { status: 503, retryable: true };
   }
