@@ -1,10 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { dispatchImportTask, type ImportStageRegistry, importTaskLeaseId } from "../../src/imports/tasks/dispatch";
+import { dispatchImportTask, type ImportStageRegistry, importTaskLeaseId, productionImportStages } from "../../src/imports/tasks/dispatch";
+import { buildHttpTask } from "../../src/imports/tasks/enqueue";
 import { importTaskWorker } from "../../src/triggers/imports";
 import { IMPORT_TASK_WORKER_OPTIONS } from "../../src/options";
 
 const payload = { kind: "discover_item" as const, ownerId: "owner-1", batchId: "batch-1", resourceId: "item-1" };
 const request = { body: JSON.stringify(payload), cloudTaskName: "projects/test/tasks/task-1" };
+const applyPayload = { kind: "apply_family" as const, ownerId: "owner-1", batchId: "batch-1", resourceId: "atlas", planVersion: 2 };
 
 describe("authenticated durable import dispatcher", () => {
   it("never claims malformed or unknown payloads", async () => {
@@ -29,6 +31,22 @@ describe("authenticated durable import dispatcher", () => {
   it("derives a stable lease identity from the Cloud Task name", () => {
     expect(importTaskLeaseId(request.cloudTaskName)).toBe(importTaskLeaseId(request.cloudTaskName));
     expect(importTaskLeaseId(request.cloudTaskName)).not.toBe(importTaskLeaseId("task-2"));
+  });
+
+  it("redelivers the canonical apply_family task through the production registry", async () => {
+    expect(productionImportStages.apply_family).toBeTypeOf("function");
+    vi.stubEnv("GOOGLE_CLOUD_PROJECT", "test-project");
+    vi.stubEnv("FUNCTIONS_REGION", "asia-southeast1");
+    vi.stubEnv("IMPORT_TASKS_QUEUE", "seriph-import");
+    vi.stubEnv("IMPORT_WORKER_URL", "https://asia-southeast1-test-project.cloudfunctions.net/importTaskWorker");
+    vi.stubEnv("IMPORT_WORKER_ALLOWED_HOSTS", "asia-southeast1-test-project.cloudfunctions.net");
+    const task = buildHttpTask(applyPayload);
+    const stages: ImportStageRegistry = productionImportStages;
+    const claimLease = vi.fn().mockResolvedValue({ kind: "busy" });
+    const taskRequest = { body: Buffer.from(task.httpRequest!.body!, "base64"), cloudTaskName: task.name };
+    await expect(dispatchImportTask(taskRequest, { claimLease, stages })).resolves.toEqual({ status: 204 });
+    await expect(dispatchImportTask(taskRequest, { claimLease, stages })).resolves.toEqual({ status: 204 });
+    expect(claimLease).toHaveBeenCalledTimes(2);
   });
 
   it("publishes the private worker with the required contract", async () => {

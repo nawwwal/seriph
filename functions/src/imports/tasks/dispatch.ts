@@ -50,13 +50,17 @@ const productionRuntime = (): DiscoveryRuntime => {
   };
 };
 
-export function registerDefaultImportStages(runtime: () => DiscoveryRuntime = productionRuntime): void {
-  registerImportStage("discover_source", (payload) => discoverSourceTask(payload, runtime()));
-  registerImportStage("discover_item", (payload) => discoverItemTask(payload, runtime()));
-  registerImportStage("apply_family", applyFamilyImportStage);
+export function registerDefaultImportStages(runtime: () => DiscoveryRuntime = productionRuntime): ImportStageRegistry {
+  const stages: ImportStageRegistry = {
+    discover_source: (payload) => discoverSourceTask(payload, runtime()),
+    discover_item: (payload) => discoverItemTask(payload, runtime()),
+    apply_family: applyFamilyImportStage,
+  };
+  Object.assign(importTaskStages, stages);
+  return stages;
 }
 
-registerDefaultImportStages();
+export const productionImportStages = registerDefaultImportStages();
 
 export function importTaskLeaseId(cloudTaskName: string): string {
   return createHash("sha256").update(cloudTaskName).digest("hex");

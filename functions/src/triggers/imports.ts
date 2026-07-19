@@ -8,7 +8,7 @@ import { getConfigValue } from "../config/remoteConfig";
 import { RC_DEFAULTS, RC_KEYS } from "../config/rcKeys";
 import { confirmFinalizedSource, firestoreSourceLifecycleStore } from "../imports/reconcile/sourceFinalized";
 import { expireSources, firestoreSourceTimeoutStore } from "../imports/reconcile/sourceTimeout";
-import { dispatchImportTask } from "../imports/tasks/dispatch";
+import { dispatchImportTask, productionImportStages } from "../imports/tasks/dispatch";
 import { enqueueImportTask } from "../imports/tasks/enqueue";
 import { IMPORT_SOURCE_FINALIZED_OPTIONS, IMPORT_SOURCE_TIMEOUT_OPTIONS, IMPORT_TASK_WORKER_OPTIONS } from "../options";
 
@@ -18,7 +18,7 @@ export const importTaskWorker = onRequest(IMPORT_TASK_WORKER_OPTIONS, async (req
   const result = await dispatchImportTask({
     body: req.body,
     cloudTaskName: req.get("X-CloudTasks-TaskName"),
-  });
+  }, { stages: productionImportStages });
   res.status(result.status).send();
 });
 
