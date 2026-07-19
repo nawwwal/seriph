@@ -3,7 +3,9 @@
 import { useMemo, useState } from 'react';
 import Modal from '@/components/ui/Modal';
 import { useUploads } from '@/lib/contexts/UploadContext';
+import { useAuth } from '@/lib/contexts/AuthContext';
 import { getCombinedStatus } from '@/lib/contexts/ImportContext';
+import { createImportBatchActions } from '@/lib/imports/importBatchActions';
 import UploadCenterRow from './UploadCenterRow';
 import { Button } from '@/components/ui/Button';
 import UploadBatchRow from './UploadBatchRow';
@@ -11,7 +13,9 @@ import { matchesUploadFilter, toggleUploadFilter, type UploadCenterFilter } from
 
 export default function UploadCenterModal() {
   const { batches, ingests, isOpen, close, uploadProgress, sourceProgress, loadChildren } = useUploads();
+  const { user } = useAuth();
   const [filter, setFilter] = useState<UploadCenterFilter | null>(null);
+  const actions = useMemo(() => user ? createImportBatchActions(() => user.getIdToken()) : undefined, [user]);
 
   const items = useMemo(
     () =>
@@ -84,7 +88,7 @@ export default function UploadCenterModal() {
           {batches.length > 0 ? filtered.length === 0 ? (
             <p className="text-sm opacity-60 py-6 text-center">No uploads to show.</p>
           ) : (
-            filtered.map((batch) => <UploadBatchRow key={batch.batchId} batch={batch} clientProgress={uploadProgress[batch.batchId] ?? clientProgress} loadChildren={loadChildren} />)
+            filtered.map((batch) => <UploadBatchRow key={batch.batchId} batch={batch} clientProgress={uploadProgress[batch.batchId] ?? clientProgress} loadChildren={loadChildren} actions={actions} />)
           ) : filteredLegacy.length === 0 ? <p className="text-sm opacity-60 py-6 text-center">No uploads to show.</p> : filteredLegacy.map(({ ing, status }) => <UploadCenterRow key={ing.id} ing={ing} status={status} />)}
         </div>
       </div>

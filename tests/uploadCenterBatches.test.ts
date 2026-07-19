@@ -15,6 +15,7 @@ const uploadState = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/contexts/UploadContext', () => ({ useUploads: () => uploadState }));
+vi.mock('@/lib/contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }));
 vi.mock('@/components/ui/Modal', () => ({
   default: ({ children }: { children: ReactNode }) => createElement('section', { 'data-test-modal': true }, children),
 }));

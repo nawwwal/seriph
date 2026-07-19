@@ -1,5 +1,6 @@
 import type { IngestRecord } from '@/models/ingest.models';
 import type { CombinedStatus } from '@/lib/upload/combinedStatus';
+import { publicImportActionError, redactImportDisplayText } from '@/lib/imports/importBatchActions';
 
 /** One upload row: name, stage badge, two-lane progress bar, optional error. */
 export default function UploadCenterRow({ ing, status }: { ing: IngestRecord; status: CombinedStatus }) {
@@ -13,7 +14,7 @@ export default function UploadCenterRow({ ing, status }: { ing: IngestRecord; st
   return (
     <div className="rule rounded-[var(--radius)] p-3">
       <div className="flex items-center justify-between gap-3">
-        <div className="font-bold truncate">{ing.originalName}</div>
+        <div className="font-bold truncate">{redactImportDisplayText(ing.originalName, 'Unnamed upload')}</div>
         <span className={`uppercase text-[10px] font-bold px-2 py-0.5 rounded-[var(--radius)] whitespace-nowrap ${badgeClass}`}>
           {status.displayText}
         </span>
@@ -21,7 +22,7 @@ export default function UploadCenterRow({ ing, status }: { ing: IngestRecord; st
       <div className="mt-2 h-1.5 w-full bg-[var(--control-track)] rounded-full overflow-hidden">
         <div className="h-full bg-[var(--ink)] transition-all" style={{ width: `${status.percent}%` }} />
       </div>
-      {ing.error && <div className="mt-1 text-xs text-[var(--danger)] truncate">{ing.error}</div>}
+      {ing.error && <div className="mt-1 text-xs text-[var(--danger)] truncate" role="alert">{publicImportActionError(ing.error)}</div>}
     </div>
   );
 }

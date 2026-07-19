@@ -16,9 +16,30 @@ export interface ImportBatchActionClient {
   cancel(request: ImportBatchCancelRequest): Promise<unknown>;
 }
 
+const privateValue = /(?:https?|file|gs):\/\/[^\s<>"']+|(?:[A-Za-z]:[\\/]|\/)[^\s<>"']+/gi;
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+export function redactImportDisplayText(value: unknown, fallback = ''): string {
+  const text = typeof value === 'string' ? value : value === null || value === undefined ? '' : String(value);
+  const safe = text.replace(privateValue, '[private value]').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
+  return safe || fallback;
+}
+
 export function publicImportActionError(value: unknown): string {
-  const message = value instanceof Error ? value.message : typeof value === 'string' ? value : 'Import action failed';
-  return message.replace(/gs:\/\/\S+|(?:\b[A-Za-z]:[\\/]|\B\/)[^\s]+/g, '[private path]');
+  const message = value instanceof Error ? value.message : typeof value === 'string' ? value : isRecord(value) && typeof value.message === 'string' ? value.message : 'Import action failed';
+  return redactImportDisplayText(message, 'Import action failed');
+}
+
+const nonNegativeInteger = (value: unknown): number | undefined => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+
+export function canRetryImportTarget(data: Record<string, unknown>): boolean {
+  const state = typeof data.state === 'string' ? data.state : typeof data.status === 'string' ? data.status : '';
+  const attempts = nonNegativeInteger(data.attempts);
+  const maxAttempts = nonNegativeInteger(data.maxAttempts);
+  const error = isRecord(data.error) ? data.error : null;
+  const retryable = data.retryable === true || error?.retryable === true;
+  const unapplied = data.applied !== true && !['applied', 'committed', 'duplicate'].includes(state);
+  return state === 'failed' && retryable && attempts !== undefined && maxAttempts !== undefined && attempts < maxAttempts && unapplied;
 }
 
 type Envelope<T> = { data?: T; error?: { message?: string } };

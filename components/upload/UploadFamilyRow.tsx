@@ -2,15 +2,16 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { createIdempotencyKey, publicImportActionError, type ImportBatchActionClient } from '@/lib/imports/importBatchActions';
+import { canRetryImportTarget, createIdempotencyKey, publicImportActionError, redactImportDisplayText, type ImportBatchActionClient } from '@/lib/imports/importBatchActions';
 import type { ImportBatchChild } from '@/lib/imports/mapImportBatch';
 import type { RetryTarget } from '@/models/import-batch.models';
 
 type Data = Record<string, unknown>;
 const record = (value: unknown): Data => value && typeof value === 'object' && !Array.isArray(value) ? value as Data : {};
-const text = (data: Data, keys: string[], fallback: string) => keys.map((key) => data[key]).find((value): value is string => typeof value === 'string' && Boolean(value.trim())) ?? fallback;
+const value = (data: Data, keys: string[]) => keys.map((key) => data[key]).find((item): item is string => typeof item === 'string' && Boolean(item.trim()));
+const text = (data: Data, keys: string[], fallback: string) => redactImportDisplayText(value(data, keys), fallback);
 const count = (data: Data, key: string, nested: string) => typeof data[key] === 'number' ? data[key] as number : Array.isArray(data[nested]) ? data[nested].length : 0;
-const label = (value: string) => value.replace(/_/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
+const label = (value: string) => redactImportDisplayText(value).replace(/_/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
 
 export interface UploadFamilyRowProps {
   family: ImportBatchChild;
@@ -20,7 +21,7 @@ export interface UploadFamilyRowProps {
 }
 
 const target = (data: Data): RetryTarget | null => {
-  const id = text(data, ['familyPlanId', 'id', 'familyId'], '');
+  const id = value(data, ['familyPlanId', 'id', 'familyId']);
   return id ? { kind: 'family', familyPlanId: id } : null;
 };
 
@@ -29,8 +30,9 @@ export default function UploadFamilyRow({ family, batchId, actions, onInspect }:
   const retryTarget = target(data); const familyName = text(data, ['familyName', 'intendedFamily', 'name'], 'Unnamed family');
   const state = text(data, ['state', 'status'], data.clean === true ? 'ready' : 'needs review');
   const aiState = text(data, ['aiState', 'enrichmentState', 'analysisState'], 'pending');
+  const canRetry = Boolean(actions && retryTarget && canRetryImportTarget(data));
   const retry = async () => {
-    if (!actions || !retryTarget) return;
+    if (!actions || !retryTarget || !canRetryImportTarget(data)) return;
     setPending(true); setError(null);
     try { await actions.retry({ batchId, idempotencyKey: createIdempotencyKey('retry'), target: retryTarget }); }
     catch (cause) { setError(publicImportActionError(cause)); }
@@ -44,7 +46,7 @@ export default function UploadFamilyRow({ family, batchId, actions, onInspect }:
     <dl className="mt-2 grid grid-cols-2 gap-2 text-xs"><div><dt className="opacity-60">Catalogue</dt><dd>{text(data, ['catalogueState', 'catalogState'], 'pending')}</dd></div><div><dt className="opacity-60">AI</dt><dd>{label(aiState)}</dd></div></dl>
     <div className="mt-3 flex flex-wrap gap-2">
       {onInspect && <Button type="button" size="sm" onClick={() => onInspect(family)} aria-label={`Inspect ${familyName}`}>Inspect</Button>}
-      {actions && retryTarget && <Button type="button" size="sm" tone="warning" disabled={pending} onClick={() => void retry()}>{pending ? 'Retrying…' : 'Retry'}</Button>}
+      {canRetry && <Button type="button" size="sm" tone="warning" disabled={pending} onClick={() => void retry()}>{pending ? 'Retrying…' : 'Retry'}</Button>}
     </div>
     {error && <p className="mt-2 text-xs text-[var(--danger)]" role="alert">{error}</p>}
   </article>;
