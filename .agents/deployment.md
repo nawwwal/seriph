@@ -370,8 +370,9 @@ rtk git diff --check
 rtk npm run lint:lines
 ```
 
-The current line policy warns above 100 non-empty source lines and fails above
-150. Task28 TypeScript stays below the repository's stricter local checker.
+The line-count policy warns above 100 non-empty source lines and fails above
+150. Warnings are reported for follow-up modularity work; only files above 150
+make `lint:lines` fail. Task28-added TypeScript stays below the warning limit.
 
 ### Hard gate
 

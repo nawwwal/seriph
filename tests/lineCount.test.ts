@@ -26,6 +26,7 @@ function writeFile(rootDir: string, relativePath: string, source: string) {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const dir of tempDirs.splice(0)) {
     fs.rmSync(dir, { force: true, recursive: true });
   }
@@ -63,10 +64,13 @@ describe('line-count lint helpers', () => {
 
   it('warns above one hundred lines and fails only above one hundred fifty', () => {
     const root = makeTempRepo();
+    writeFile(root, 'lib/exact-warning-limit.ts', Array(100).fill('line').join('\n'));
     writeFile(root, 'lib/warning.ts', Array.from({ length: 101 }, (_, index) => `line${index}`).join('\n'));
+    writeFile(root, 'lib/exact-failure-limit.ts', Array(150).fill('line').join('\n'));
     writeFile(root, 'lib/failure.ts', Array.from({ length: 151 }, (_, index) => `line${index}`).join('\n'));
 
     expect(findLineCountWarnings(root)).toEqual([
+      { file: 'lib/exact-failure-limit.ts', lineCount: 150, warningLines: 100, maxLines: 150 },
       { file: 'lib/warning.ts', lineCount: 101, warningLines: 100, maxLines: 150 },
     ]);
     expect(findLineCountViolations(root)).toEqual([
@@ -80,7 +84,5 @@ describe('line-count lint helpers', () => {
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('lib/warning.ts: 101 source lines (warning threshold 100)'));
     expect(error).toHaveBeenCalledWith(expect.stringContaining('failed'));
     expect(error).toHaveBeenCalledWith(expect.stringContaining('lib/failure.ts: 151 source lines'));
-    warn.mockRestore();
-    error.mockRestore();
   });
 });
