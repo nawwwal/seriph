@@ -66,7 +66,8 @@ run() {
 }
 
 upsert_env() {
-  local key="$1" value="$2" file="$3" tmp="${file}.tmp"
+  local key="$1" value="$2" file="$3"
+  local tmp="${file}.tmp"
   mkdir -p "$(dirname "$file")"
   if [[ -f "$file" ]]; then
     awk -v key="$key" -v value="$value" 'BEGIN { found = 0 } index($0, key "=") == 1 { print key "=" value; found = 1; next } { print } END { if (!found) print key "=" value }' "$file" > "$tmp"
