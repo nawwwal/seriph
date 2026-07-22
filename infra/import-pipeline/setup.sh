@@ -124,6 +124,7 @@ else
 fi
 
 run gcloud projects add-iam-policy-binding "$PROJECT" --member "serviceAccount:${WORKER_SERVICE_ACCOUNT}" --role roles/datastore.user --condition=None
+run gcloud projects add-iam-policy-binding "$PROJECT" --member "serviceAccount:${WORKER_SERVICE_ACCOUNT}" --role roles/cloudconfig.viewer --condition=None
 run gcloud storage buckets add-iam-policy-binding "gs://${STORAGE_BUCKET}" --member "serviceAccount:${WORKER_SERVICE_ACCOUNT}" --role "projects/${PROJECT}/roles/${STORAGE_ROLE_ID}" --project "$PROJECT"
 run gcloud tasks queues add-iam-policy-binding "$QUEUE" --location "$REGION" --member "serviceAccount:${WORKER_SERVICE_ACCOUNT}" --role roles/cloudtasks.enqueuer --project "$PROJECT"
 
