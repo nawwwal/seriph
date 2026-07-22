@@ -86,7 +86,6 @@ provision_functions_env() {
   fi
 }
 
-provision_functions_env GOOGLE_CLOUD_PROJECT "$PROJECT"
 provision_functions_env IMPORT_TASKS_LOCATION "$REGION"
 provision_functions_env IMPORT_TASKS_QUEUE "$QUEUE"
 provision_functions_env IMPORT_WORKER_URL "$FUNCTIONS_WORKER_URL"
