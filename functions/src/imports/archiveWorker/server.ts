@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { getApps, initializeApp } from "firebase-admin/app";
 import { handleArchive, productionArchiveWorkerDependencies, type ArchiveWorkerDependencies, type ArchiveWorkerRequest } from "./handleArchive";
 
 const MAX_REQUEST_BYTES = 64 * 1024;
@@ -21,7 +22,13 @@ async function toArchiveRequest(req: IncomingMessage): Promise<ArchiveWorkerRequ
   return { body, headers };
 }
 
-export function createArchiveWorkerServer(deps: ArchiveWorkerDependencies = productionArchiveWorkerDependencies()): Server {
+function productionDependencies(): ArchiveWorkerDependencies {
+  if (!getApps().length) initializeApp({ projectId: process.env.GOOGLE_CLOUD_PROJECT, storageBucket: process.env.FIREBASE_STORAGE_BUCKET });
+  return productionArchiveWorkerDependencies();
+}
+
+export function createArchiveWorkerServer(deps?: ArchiveWorkerDependencies): Server {
+  const dependencies = deps ?? productionDependencies();
   return createServer(async (req, res) => {
     if (req.method !== "POST") {
       send(res, 400, { code: "method_not_allowed" });
@@ -29,7 +36,7 @@ export function createArchiveWorkerServer(deps: ArchiveWorkerDependencies = prod
       return;
     }
     try {
-      const result = await handleArchive(await toArchiveRequest(req), deps);
+      const result = await handleArchive(await toArchiveRequest(req), dependencies);
       send(res, result.status, result.body ?? {});
     } catch (error) {
       const status = error instanceof ArchiveRequestTooLargeError ? error.status : 503;
