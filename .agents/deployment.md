@@ -89,15 +89,12 @@ Set these in **Firebase Console → Remote Config**:
 | `web_enrichment_enabled` | Boolean | `false` | Enable Google Search grounding |
 | `web_enrichment_cache_ttl_days` | Number | `30` | Cache TTL for web enrichment results (Firestore `_web_enrichment_cache`) |
 | `vertex_location_id` | String | `asia-southeast1` | Vertex AI region |
-| `visual_analysis_model_name` | String | `gemini-2.5-flash` | Stage 1 model |
-| `enriched_analysis_model_name` | String | `gemini-2.5-flash` | Stage 2 model |
-| `enriched_analysis_fallback_model_name` | String | `gemini-2.5-flash` | Fallback model |
-| `web_enricher_model_name` | String | `gemini-2.5-flash` | Web enrichment model |
-| `summary_model_name` | String | `gemini-2.5-flash` | Summary generation model |
+| `visual_analysis_model_name` | String | `gemini-3.5-flash-lite` | Stage 1 model |
+| `enriched_analysis_model_name` | String | `gemini-3.5-flash-lite` | Stage 2 model |
+| `enriched_analysis_fallback_model_name` | String | `gemini-3.5-flash-lite` | Fallback model |
+| `web_enricher_model_name` | String | `gemini-3.5-flash-lite` | Web enrichment model |
+| `summary_model_name` | String | `gemini-3.5-flash-lite` | Summary generation model |
 | `ai_max_output_tokens` | Number | `1536` | Max tokens per response |
-| `ai_temperature` | Number | `0.4` | Generation temperature |
-| `ai_top_p` | Number | `0.9` | Top-p sampling |
-| `ai_top_k` | Number | `40` | Top-k sampling |
 | `ai_max_concurrent_ops` | Number | `4` | Concurrent AI operations |
 | `ai_retry_max_attempts` | Number | `3` | Max retries for transient errors |
 | `ai_retry_base_ms` | Number | `250` | Base retry delay (ms) |
@@ -249,13 +246,13 @@ npm install && npm run build
 - **Fix:** Grant `roles/aiplatform.user` to service account (see IAM section)
 
 ### "Model not found"
-- **Check:** RC `vertex_location_id` supports the model (e.g., `asia-southeast1` for Gemini 2.5 Flash)
+- **Check:** RC `vertex_location_id` supports the configured Gemini model (default: `gemini-3.5-flash-lite`)
 - **Check:** Vertex AI API is enabled
-- **Check:** RC model names are valid (e.g., `gemini-2.5-flash`)
+- **Check:** RC model names are valid (e.g., `gemini-3.5-flash-lite`)
 
 ### Web search not working
 - **Check:** RC `web_enrichment_enabled` is `true`
-- **Check:** Model supports web search (Gemini 2.5 Flash does)
+- **Check:** The configured model supports web search (default: `gemini-3.5-flash-lite`)
 
 ---
 
@@ -332,7 +329,7 @@ Use Firebase Remote Config conditions to enable the AI pipeline for a subset of 
 - **Kill switch:** Keep `is_vertex_enabled=false` in prod until launch
 - **Token logging:** Use `ai_count_tokens_enabled=true` only in staging
 - **Concurrency:** Enforced via RC `ai_max_concurrent_ops`; fails closed on errors
-- **Region:** Default `asia-southeast1` supports Gemini 2.5 Flash
+- **Region:** Use a Vertex-supported region for the configured Gemini model; batch enrichment defaults to `global`
 
 ---
 

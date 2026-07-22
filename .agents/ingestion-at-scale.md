@@ -47,15 +47,16 @@ with the API as its fallback, mapping durable `ImportBatchSummary` records and
 their upload, planning, and enrichment phases. Enrichment is a separate batch
 lane and never blocks catalogue visibility.
 
-## Global Upload Center
+## Global import surface
 
 - `lib/contexts/UploadContext.tsx` (`UploadProvider`, wired in `app/layout.tsx`
   inside `AuthProvider`) owns the live ingest snapshot, the client progress map,
-  active count, and modal open state. Replaces the per-page snapshot listeners.
-- `components/upload/UploadCenterModal.tsx` — openable from anywhere via the
-  NavBar "Uploads" button (badge = active count); per-item progress + stage,
-  filters, mutually-exclusive stats. `BatchHUD` is now a thin floating shortcut
-  that opens it. The import page is a thin launcher; live status lives here.
+  active count, import picker state, and cancellation handle. It replaces
+  route-local snapshot listeners and upload state.
+- `components/upload/ImportOverlay.tsx` mounts `UploadSurface`, the compact
+  picker, and one bottom `UploadTray`. Dragging files anywhere starts a durable
+  import. The tray shows plain phases, progress, cancel, and actionable failures;
+  the shelf, sidebar, and footer do not duplicate that state.
 
 ## Deploy / ops notes (required for Part B to run)
 - Deploy the durable source-finalization, task-worker, and timeout functions

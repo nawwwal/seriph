@@ -14,7 +14,7 @@ const STEPS = [
   {
     n: 1,
     title: 'Drop them in',
-    body: 'Click "Add Fonts" or drag font files straight into the dropzone below.',
+    body: 'Choose files, or drag a folder or ZIP anywhere in Seriph.',
     paths: (
       <>
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />

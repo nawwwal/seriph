@@ -6,7 +6,7 @@ vi.mock('@/components/ui/Button', () => ({ Button: ({ children, ...props }: { ch
 
 import UploadReviewPanel from '@/components/upload/UploadReviewPanel';
 
-describe('Upload Center detail actions', () => {
+describe('import tray detail actions', () => {
   it('shows actionable structured errors without exposing private paths', () => {
     const html = renderToStaticMarkup(createElement(UploadReviewPanel, {
       batchId: 'batch-1',

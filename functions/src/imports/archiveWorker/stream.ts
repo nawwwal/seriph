@@ -26,7 +26,7 @@ export function observe(source: NodeJS.ReadableStream | AsyncIterable<Uint8Array
     },
     flush(callback) { resolveComplete({ sha256: hash.digest("hex"), byteSize, prefix: Buffer.concat(prefix) }); callback(); },
   });
-  input.once("error", rejectComplete); output.once("error", rejectComplete);
+  input.once("error", (error) => { rejectComplete(error); output.destroy(error as Error); }); output.once("error", rejectComplete);
   (input as NodeJS.ReadableStream & { pipe: (destination: NodeJS.WritableStream) => unknown }).pipe(output);
   return { stream: output, complete };
 }

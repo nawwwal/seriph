@@ -16,8 +16,6 @@ interface AlphabetRailProps {
   presentInitials: ReadonlySet<LetterInitial>;
   onSelect: (initial: AlphabetInitial) => void;
   onImport: () => void;
-  uploadCount: number;
-  onOpenUploads: () => void;
   filters: ShelfFilterState;
   moods: readonly string[];
   onFiltersChange: (filters: ShelfFilterState) => void;
@@ -28,8 +26,6 @@ export default function AlphabetRail({
   presentInitials,
   onSelect,
   onImport,
-  uploadCount,
-  onOpenUploads,
   filters,
   moods,
   onFiltersChange,
@@ -49,11 +45,6 @@ export default function AlphabetRail({
           <span>Import</span>
           <ArrowUpFromLine size={16} aria-hidden="true" />
         </Button>
-        {uploadCount > 0 ? (
-          <Button onClick={onOpenUploads} size="compact" className="mt-2 w-full" aria-live="polite">
-            Uploads {uploadCount}
-          </Button>
-        ) : null}
         <div className="mt-3 grid w-full grid-cols-5 border-t border-l border-[var(--ink)]">
           {LETTER_INITIALS.map((initial) => {
             const isSelected = initial === selected;

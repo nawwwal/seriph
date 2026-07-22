@@ -9,15 +9,20 @@ export interface SourceTimeoutStore {
   listStale(cutoff: number): Promise<TimeoutSource[]>;
   markTimedOut(source: TimeoutSource): Promise<boolean>;
   enqueueReconcile(batch: Pick<TimeoutSource, "ownerId" | "batchId">): Promise<unknown>;
+  listStaleBatches?(cutoff: number): Promise<TimeoutBatch[]>;
+  recoverStaleBatch?(batch: TimeoutBatch, staleBefore: number): Promise<boolean>;
   listPendingBatches?(): Promise<TimeoutBatch[]>;
   dispatchReconcile?(batch: TimeoutBatch): Promise<unknown>;
 }
 export interface Clock { now(): number; }
 export const DEFAULT_SOURCE_TIMEOUT_MINUTES = 1_440;
+export const DEFAULT_BATCH_STALL_MINUTES = 15;
 const activeStates = new Set(["registered", "uploading"]);
 
 export async function expireSources(store: SourceTimeoutStore, clock: Clock, timeoutMinutes = DEFAULT_SOURCE_TIMEOUT_MINUTES) {
-  const cutoff = clock.now() - timeoutMinutes * 60_000;
+  const now = clock.now();
+  const cutoff = now - timeoutMinutes * 60_000;
+  const batchCutoff = now - DEFAULT_BATCH_STALL_MINUTES * 60_000;
   const pending = await store.listPendingBatches?.() ?? [];
   const candidates = await store.listStale(cutoff);
   const batches = new Map(pending.map((batch) => [`${batch.ownerId}/${batch.batchId}`, batch])); let timedOut = 0;
@@ -26,6 +31,9 @@ export async function expireSources(store: SourceTimeoutStore, clock: Clock, tim
     if (await store.markTimedOut({ ...source, staleBefore: cutoff })) {
       timedOut++; batches.set(`${source.ownerId}/${source.batchId}`, { ownerId: source.ownerId, batchId: source.batchId });
     }
+  }
+  for (const batch of await store.listStaleBatches?.(batchCutoff) ?? []) {
+    if (await store.recoverStaleBatch?.(batch, batchCutoff)) batches.set(`${batch.ownerId}/${batch.batchId}`, batch);
   }
   for (const batch of await store.listPendingBatches?.() ?? []) batches.set(`${batch.ownerId}/${batch.batchId}`, batch);
   for (const batch of batches.values()) {
@@ -53,12 +61,39 @@ export function firestoreSourceTimeoutStore(deps: FirestoreSourceTimeoutDeps): S
       });
     },
     async listPendingBatches() {
-      const snap = await deps.db.collectionGroup("importBatches").where("pendingDispatch.task.kind", "==", "reconcile_batch").get();
+      const snap = await deps.db.collectionGroup("importBatches").where("pendingDispatch.task.kind", "in", ["reconcile_batch", "discover_source", "discover_item", "finalize_plan"]).get();
       return snap.docs.flatMap((doc) => {
         const parts = doc.ref.path.split("/"); const pending = pendingDispatch(doc.data().pendingDispatch);
         return parts.length === 4 && parts[0] === "users" && parts[2] === "importBatches" && pending
           ? [{ ownerId: parts[1]!, batchId: parts[3]!, documentPath: doc.ref.path, pendingDispatch: pending }]
           : [];
+      });
+    },
+    async listStaleBatches(cutoff) {
+      const snap = await deps.db.collectionGroup("importBatches").where("outcome", "==", "active").where("updatedAt", "<=", Timestamp.fromMillis(cutoff)).get();
+      return snap.docs.flatMap((doc) => {
+        const parts = doc.ref.path.split("/");
+        return parts.length === 4 && parts[0] === "users" && parts[2] === "importBatches"
+          ? [{ ownerId: parts[1]!, batchId: parts[3]!, documentPath: doc.ref.path, pendingDispatch: pendingDispatch(doc.data().pendingDispatch) }]
+          : [];
+      });
+    },
+    async recoverStaleBatch(batch, staleBefore) {
+      if (!batch.documentPath) return false;
+      return deps.db.runTransaction(async (tx) => {
+        const ref = deps.db.doc(batch.documentPath!); const snapshot = await tx.get(ref);
+        if (!snapshot.exists || snapshot.data()?.outcome !== "active" || millis(snapshot.data()?.updatedAt) > staleBefore) return false;
+        if (pendingDispatch(snapshot.data()?.pendingDispatch)) return true;
+        const [sources, items, plans] = await Promise.all([tx.get(ref.collection("sources")), tx.get(ref.collection("items")), tx.get(ref.collection("plans").limit(1))]);
+        const source = sources.docs.find((doc) => ["uploaded", "discovering"].includes(String(doc.data().state)));
+        const item = items.docs.find((doc) => String(doc.data().state) === "discovered");
+        const task: ImportTaskPayload | null = source ? { kind: "discover_source", ownerId: batch.ownerId, batchId: batch.batchId, resourceId: source.id, ...(Number.isSafeInteger(source.data().uploadedSize) ? { sourceSize: source.data().uploadedSize } : {}) }
+          : item ? { kind: "discover_item", ownerId: batch.ownerId, batchId: batch.batchId, resourceId: item.id, planVersion: 1 }
+          : sources.docs.length > 0 && sources.docs.every((doc) => ["discovered", "failed", "canceled", "timed_out"].includes(String(doc.data().state))) && items.docs.length > 0 && items.docs.every((doc) => ["classified", "applied", "duplicate", "review", "discarded", "failed"].includes(String(doc.data().state))) && plans.empty ? { kind: "finalize_plan", ownerId: batch.ownerId, batchId: batch.batchId, resourceId: batch.batchId } : null;
+        const pending = task ? { token: `recovery:${task.kind}:${task.resourceId}`, task } : reconcileDispatch(batch);
+        batch.pendingDispatch = pending;
+        tx.update(ref, task ? { pendingDispatch: pending, recovery: { state: "queued", task: task.kind, updatedAt: FieldValue.serverTimestamp() }, updatedAt: FieldValue.serverTimestamp() } : { outcome: "failed", status: "stalled", failureCode: "stale_batch", stalledAt: FieldValue.serverTimestamp(), reconciliation: { state: "scheduled", requestedAt: FieldValue.serverTimestamp() }, pendingDispatch: pending, updatedAt: FieldValue.serverTimestamp() });
+        return true;
       });
     },
     async markTimedOut(source) {
@@ -67,7 +102,7 @@ export function firestoreSourceTimeoutStore(deps: FirestoreSourceTimeoutDeps): S
       return deps.db.runTransaction(async (tx) => {
         const ref = deps.db.doc(source.documentPath!); const batch = importBatchRef(deps.db, source.ownerId, source.batchId);
         const [current, batchSnap] = await Promise.all([tx.get(ref), tx.get(batch)]); if (!current.exists || !batchSnap.exists) return false;
-        const data = current.data()!; if (!activeStates.has(String(data.state)) || millis(data.updatedAt) > staleBefore) return false;
+        const data = current.data()!; if (!activeStates.has(String(data.state)) || millis(data.updatedAt) > staleBefore || batchSnap.data()?.outcome === "canceled") return false;
         tx.update(ref, { state: "timed_out", updatedAt: FieldValue.serverTimestamp(), timedOutAt: FieldValue.serverTimestamp() });
         tx.update(batch, { reconciliation: { state: "scheduled", requestedAt: FieldValue.serverTimestamp() }, pendingDispatch: reconcileDispatch(source), updatedAt: FieldValue.serverTimestamp() }); return true;
       });

@@ -54,6 +54,9 @@ WORKER_SERVICE_ACCOUNT="${WORKER_SERVICE_ACCOUNT_NAME}@${PROJECT}.iam.gserviceac
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/${REPOSITORY}/${SERVICE}:latest"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+FUNCTIONS_ENV_FILE="${ROOT_DIR}/functions/.env.${PROJECT}"
+FUNCTIONS_WORKER_URL="https://${REGION}-${PROJECT}.cloudfunctions.net/importTaskWorker"
+FUNCTIONS_WORKER_HOST="${REGION}-${PROJECT}.cloudfunctions.net"
 
 run() {
   printf '+ '
@@ -61,6 +64,34 @@ run() {
   printf '\n'
   if ((DRY_RUN == 0)); then "$@"; fi
 }
+
+upsert_env() {
+  local key="$1" value="$2" file="$3" tmp="${file}.tmp"
+  mkdir -p "$(dirname "$file")"
+  if [[ -f "$file" ]]; then
+    awk -v key="$key" -v value="$value" 'BEGIN { found = 0 } index($0, key "=") == 1 { print key "=" value; found = 1; next } { print } END { if (!found) print key "=" value }' "$file" > "$tmp"
+  else
+    printf '%s=%s\n' "$key" "$value" > "$tmp"
+  fi
+  mv "$tmp" "$file"
+}
+
+provision_functions_env() {
+  local key="$1" value="$2"
+  if ((DRY_RUN == 1)); then
+    printf '+ update %s with %s=%s\n' "$FUNCTIONS_ENV_FILE" "$key" "$value"
+  else
+    upsert_env "$key" "$value" "$FUNCTIONS_ENV_FILE"
+  fi
+}
+
+provision_functions_env GOOGLE_CLOUD_PROJECT "$PROJECT"
+provision_functions_env IMPORT_TASKS_LOCATION "$REGION"
+provision_functions_env IMPORT_TASKS_QUEUE "$QUEUE"
+provision_functions_env IMPORT_WORKER_URL "$FUNCTIONS_WORKER_URL"
+provision_functions_env IMPORT_WORKER_ALLOWED_HOSTS "$FUNCTIONS_WORKER_HOST"
+provision_functions_env IMPORT_WORKER_SERVICE_ACCOUNT "$TASK_SERVICE_ACCOUNT"
+provision_functions_env IMPORT_TASKS_SERVICE_ACCOUNT "$TASK_SERVICE_ACCOUNT"
 
 if ((DRY_RUN == 1)); then
   run gcloud services enable cloudtasks.googleapis.com run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com --project "$PROJECT"
@@ -97,8 +128,18 @@ run gcloud storage buckets add-iam-policy-binding "gs://${STORAGE_BUCKET}" --mem
 run gcloud tasks queues add-iam-policy-binding "$QUEUE" --location "$REGION" --member "serviceAccount:${WORKER_SERVICE_ACCOUNT}" --role roles/cloudtasks.enqueuer --project "$PROJECT"
 
 run gcloud builds submit "${ROOT_DIR}/functions" --file Dockerfile.archive-worker --tag "$IMAGE" --project "$PROJECT"
-run gcloud run deploy "$SERVICE" --image "$IMAGE" --region "$REGION" --project "$PROJECT" --service-account "$WORKER_SERVICE_ACCOUNT" --set-env-vars "IMPORT_TASKS_SERVICE_ACCOUNT=${TASK_SERVICE_ACCOUNT},FIREBASE_STORAGE_BUCKET=${STORAGE_BUCKET}" --memory=1Gi --cpu=2 --concurrency=1 --timeout=900 --no-allow-unauthenticated
+run gcloud run deploy "$SERVICE" --image "$IMAGE" --region "$REGION" --project "$PROJECT" --service-account "$WORKER_SERVICE_ACCOUNT" --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT},IMPORT_TASKS_LOCATION=${REGION},IMPORT_TASKS_QUEUE=${QUEUE},IMPORT_TASKS_SERVICE_ACCOUNT=${TASK_SERVICE_ACCOUNT},FIREBASE_STORAGE_BUCKET=${STORAGE_BUCKET}" --memory=1Gi --cpu=2 --concurrency=1 --timeout=900 --no-allow-unauthenticated
 run gcloud run services add-iam-policy-binding "$SERVICE" --region "$REGION" --project "$PROJECT" --member "serviceAccount:${TASK_SERVICE_ACCOUNT}" --role roles/run.invoker
+
+if ((DRY_RUN == 1)); then
+  printf '+ update %s with IMPORT_ARCHIVE_WORKER_URL=<Cloud Run status.url> and IMPORT_ARCHIVE_WORKER_ALLOWED_HOSTS=<Cloud Run hostname>\n' "$FUNCTIONS_ENV_FILE"
+else
+  ARCHIVE_URL="$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT" --format='value(status.url)')"
+  [[ -n "$ARCHIVE_URL" ]] || { printf 'Cloud Run returned no service URL.\n' >&2; exit 1; }
+  upsert_env IMPORT_ARCHIVE_WORKER_URL "$ARCHIVE_URL/import" "$FUNCTIONS_ENV_FILE"
+  upsert_env IMPORT_ARCHIVE_WORKER_ALLOWED_HOSTS "$(printf '%s' "$ARCHIVE_URL" | sed -E 's#^https://##; s#/.*$##')" "$FUNCTIONS_ENV_FILE"
+  printf 'Updated %s. Redeploy Functions with: firebase deploy --only functions\n' "$FUNCTIONS_ENV_FILE"
+fi
 
 if ((DRY_RUN == 1)); then
   printf 'Dry run only: no GCP resources were changed.\n'

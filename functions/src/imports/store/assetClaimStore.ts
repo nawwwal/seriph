@@ -1,4 +1,5 @@
 import type { Firestore } from "firebase-admin/firestore";
+import { importBatchRef } from "./paths";
 
 const SHA256 = /^[a-f0-9]{64}$/;
 const DEFAULT_LEASE_MS = 15 * 60 * 1000;
@@ -11,6 +12,7 @@ export interface AssetClaimInput {
 export type AssetClaimResult =
   | { kind: "claimed"; leaseExpiresAt: Date }
   | { kind: "committed_duplicate"; familyId: string; logicalFaceKey: string; assetId: string }
+  | { kind: "canceled" }
   | { kind: "busy"; retryAt: Date };
 export type CommitClaimResult = { kind: "committed" } | { kind: "committed_duplicate" } | { kind: "not_claimed" };
 
@@ -45,6 +47,8 @@ export async function claimAsset(
   return db.runTransaction(async (tx) => {
     const ref = assetClaimRef(db, input.ownerId, sha256);
     const snap = await tx.get(ref);
+    const batch = await tx.get(importBatchRef(db, input.ownerId, input.batchId));
+    if (batch.exists && batch.data()?.outcome === "canceled") return { kind: "canceled" };
     const current = snap.exists ? snap.data() as Record<string, any> : undefined;
     if (current?.status === "committed") return {
       kind: "committed_duplicate", familyId: current.familyId, logicalFaceKey: current.logicalFaceKey, assetId: current.assetId,

@@ -2,23 +2,18 @@
 
 import { FontFamily } from '@/models/font.models';
 import type { ShelfFamily } from '@/models/shelf.models';
-import type { ImportBatchSummary } from '@/lib/imports/mapImportBatch';
-import ShelfUploadCard from './ShelfUploadCard';
-import { AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useCallback, useEffect, useState } from 'react';
 import { useInViewport } from '@/lib/hooks/useInViewport';
 import type { ShelfSelectionState } from '@/lib/shelf/selectionState';
 import FamilyContextMenu from './FamilyContextMenu';
 import ShelfFamilySections from './ShelfFamilySections';
-import { useShelfUploadAnnouncements } from './useShelfUploadAnnouncements';
 import { ShelfCardSkeletonGrid } from './ShelfSkeleton';
-import { LOAD_MORE_SKELETON_COUNT, SHELF_GRID_CLASS } from './shelfGrid';
+import { LOAD_MORE_SKELETON_COUNT } from './shelfGrid';
 
 const PREFETCH_ROOT_MARGIN = '2800px 0px';
 
 interface ShelfStateProps {
   families: Array<FontFamily | ShelfFamily>;
-  pendingBatches: ImportBatchSummary[];
   shelfMode: 'spines' | 'covers';
   coverSeed?: number;
   hasMore?: boolean;
@@ -33,7 +28,6 @@ interface ShelfStateProps {
 
 export default function ShelfState({
   families,
-  pendingBatches,
   shelfMode,
   coverSeed = 0,
   hasMore = false,
@@ -45,8 +39,6 @@ export default function ShelfState({
   onToggleSelected,
   onDeleteFamilies,
 }: ShelfStateProps) {
-  const activeUploads = useShelfUploadAnnouncements(pendingBatches);
-  const shouldReduceMotion = useReducedMotion() ?? false;
   const { ref: sentinelRef, inView } = useInViewport<HTMLDivElement>(PREFETCH_ROOT_MARGIN);
   const [contextMenu, setContextMenu] = useState<{ familyId: string; x: number; y: number } | null>(null);
   const openContextMenu = useCallback((event: { familyId: string; x: number; y: number }) => {
@@ -59,16 +51,6 @@ export default function ShelfState({
 
   return (
     <main className="space-y-8">
-      {activeUploads.length > 0 && (
-        <div className={SHELF_GRID_CLASS}>
-          <AnimatePresence mode="popLayout">
-            {activeUploads.map((batch) => (
-              <ShelfUploadCard key={`batch-${batch.batchId}`} batch={batch} reduceMotion={shouldReduceMotion} />
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
-
       <ShelfFamilySections
         families={families}
         shelfMode={shelfMode}

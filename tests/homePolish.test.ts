@@ -33,9 +33,9 @@ describe('home visual polish', () => {
     expect(rail).not.toContain('>All</button>');
   });
 
-  it('only includes the Uploads metric while uploads are active', () => {
+  it('keeps import status out of the catalogue status strip', () => {
     const status = read('components/home/ShelfStats.tsx');
 
-    expect(status).toContain('pendingCount > 0');
+    expect(status).not.toContain('Uploads');
   });
 });

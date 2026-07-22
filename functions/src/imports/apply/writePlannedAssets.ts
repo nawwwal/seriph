@@ -15,6 +15,7 @@ export interface WritePlannedAssetsDependencies {
   publicBucket?: Pick<Bucket, "file">;
   read?: (claim: PlannedAssetClaim) => Promise<Buffer>;
   write?: (artifact: WrittenPlannedAsset) => Promise<void>;
+  isCanceled?: () => Promise<boolean>;
 }
 
 const safe = (value: string, field: string): string => {
@@ -36,6 +37,7 @@ export async function writePlannedAssets(input: {
   const claims = new Map(input.claims.map((claim) => [claim.assetId, claim]));
   const written = new Map<string, WrittenPlannedAsset>();
   for (const asset of input.assets) {
+    if (await deps.isCanceled?.()) throw new Error("batch_canceled");
     const claim = claims.get(asset.assetId);
     if (!claim || claim.sha256 !== asset.sha256) throw new Error(`missing leased claim for ${asset.assetId}`);
     const prior = written.get(asset.sha256);
@@ -52,6 +54,7 @@ export async function writePlannedAssets(input: {
       originalUrl: cdnUrl(originalPath(safe(input.familySlug, "familySlug"), asset.sha256, originalName)),
       servedUrl: cdnUrl(servedPath(safe(input.familySlug, "familySlug"), asset.sha256, servedName)) };
     await persist(artifact, deps);
+    if (await deps.isCanceled?.()) throw new Error("batch_canceled");
     written.set(asset.sha256, artifact);
   }
   return [...written.values()];

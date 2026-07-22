@@ -11,22 +11,13 @@ export const INGEST_FUNCTION_OPTIONS = {
   maxInstances: 2,
 };
 
-export const BATCH_SUBMIT_OPTIONS = {
-  region: "asia-southeast1",
-  memory: "1GiB" as const,
-  cpu: 2,
-  timeoutSeconds: 540,
-  maxInstances: 1,
-  schedule: "every 30 minutes",
-};
-
 export const ENRICHMENT_COLLECTOR_OPTIONS = {
   region: "asia-southeast1",
   memory: "1GiB" as const,
   cpu: 2,
   timeoutSeconds: 540,
   maxInstances: 1,
-  schedule: "every 5 minutes",
+  schedule: "every 1 minutes",
 };
 
 export const BATCH_POLL_OPTIONS = {
@@ -34,7 +25,7 @@ export const BATCH_POLL_OPTIONS = {
   memory: "512MiB" as const,
   timeoutSeconds: 540,
   maxInstances: 1,
-  schedule: "every 2 minutes",
+  schedule: "every 1 minutes",
 };
 
 export const ENRICHMENT_LEASE_WATCHDOG_OPTIONS = {

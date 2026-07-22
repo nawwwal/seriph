@@ -24,7 +24,7 @@ function privateWorkerUrl(value: string, allowlistKey: string): string {
   try { url = new URL(value); } catch { throw new Error("Invalid private worker URL"); }
   const host = url.hostname.toLowerCase();
   const region = location();
-  const runHost = new RegExp(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?-${region}\\.a\\.run\\.app$`).test(host);
+  const runHost = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.a\.run\.app$/.test(host);
   const functionHost = host === `${region}-${projectId()}.cloudfunctions.net`;
   const allowlist = requiredEnv(allowlistKey).split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
   const authority = value.split("://")[1]?.split("/")[0] ?? "";

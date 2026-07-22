@@ -3,6 +3,9 @@
 import type { ReactNode } from 'react';
 import AppStatusStrip from '@/components/layout/AppStatusStrip';
 import AppShellHeader from '@/components/layout/AppShellHeader';
+import { useAuth } from '@/lib/contexts/AuthContext';
+import { useUploads } from '@/lib/contexts/UploadContext';
+import { Button } from '@/components/ui/Button';
 import {
   MotionBody,
   MotionCanvas,
@@ -27,6 +30,8 @@ export default function AppShell({
   density = 'default',
 }: AppShellProps) {
   const compact = density === 'compact';
+  const { user } = useAuth();
+  const { openImport } = useUploads();
   const railOpen = Boolean(sidebar);
   const move = useShellMove({ compact, railOpen });
 
@@ -41,7 +46,7 @@ export default function AppShell({
       <div className="rule flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-[10px] sm:rounded-[13px] bg-[var(--paper)]">
         <AppShellHeader
           compact={compact}
-          headerActions={headerActions}
+          headerActions={headerActions ?? (user ? <Button onClick={openImport} size="sm">Import</Button> : undefined)}
           move={move}
         />
 

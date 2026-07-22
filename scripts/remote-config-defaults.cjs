@@ -14,9 +14,6 @@ const RC_KEYS = {
   webEnricherModelName: 'web_enricher_model_name',
   searchRerankModelName: 'search_rerank_model_name',
   maxOutputTokens: 'ai_max_output_tokens',
-  temperature: 'ai_temperature',
-  topP: 'ai_top_p',
-  topK: 'ai_top_k',
   retryMaxAttempts: 'ai_retry_max_attempts',
   retryBaseMs: 'ai_retry_base_ms',
   retryMaxMs: 'ai_retry_max_ms',
@@ -42,17 +39,14 @@ const RC_DEFAULTS = {
   [RC_KEYS.vertexLocationId]: 'asia-southeast1',
   [RC_KEYS.confidenceBandThresholds]: '0.2,0.6,0.85',
   [RC_KEYS.opticalRangePtThresholds]: '9,18,36',
-  [RC_KEYS.classifierModelName]: 'gemini-3.5-flash',
-  [RC_KEYS.summaryModelName]: 'gemini-3.5-flash',
-  [RC_KEYS.visualAnalysisModelName]: 'gemini-3.5-flash',
-  [RC_KEYS.enrichedAnalysisModelName]: 'gemini-3.5-flash',
-  [RC_KEYS.enrichedAnalysisFallbackModelName]: 'gemini-3.5-flash',
-  [RC_KEYS.webEnricherModelName]: 'gemini-3.5-flash',
-  [RC_KEYS.searchRerankModelName]: 'gemini-3.5-flash',
+  [RC_KEYS.classifierModelName]: 'gemini-3.5-flash-lite',
+  [RC_KEYS.summaryModelName]: 'gemini-3.5-flash-lite',
+  [RC_KEYS.visualAnalysisModelName]: 'gemini-3.5-flash-lite',
+  [RC_KEYS.enrichedAnalysisModelName]: 'gemini-3.5-flash-lite',
+  [RC_KEYS.enrichedAnalysisFallbackModelName]: 'gemini-3.5-flash-lite',
+  [RC_KEYS.webEnricherModelName]: 'gemini-3.5-flash-lite',
+  [RC_KEYS.searchRerankModelName]: 'gemini-3.5-flash-lite',
   [RC_KEYS.maxOutputTokens]: '1536',
-  [RC_KEYS.temperature]: '0.4',
-  [RC_KEYS.topP]: '0.9',
-  [RC_KEYS.topK]: '40',
   [RC_KEYS.retryMaxAttempts]: '3',
   [RC_KEYS.retryBaseMs]: '250',
   [RC_KEYS.retryMaxMs]: '4000',
@@ -60,7 +54,7 @@ const RC_DEFAULTS = {
   [RC_KEYS.unprocessedBucketPath]: 'unprocessed_fonts',
   [RC_KEYS.processedBucketPath]: 'processed_fonts',
   [RC_KEYS.failedBucketPath]: 'failed_processing',
-  [RC_KEYS.analysisModelName]: 'gemini-3.5-flash',
+  [RC_KEYS.analysisModelName]: 'gemini-3.5-flash-lite',
   [RC_KEYS.embeddingModelName]: 'gemini-embedding-2-preview',
   [RC_KEYS.embeddingDimensions]: '2048',
   [RC_KEYS.embeddingLocationId]: 'us-central1',
@@ -70,4 +64,16 @@ const RC_DEFAULTS = {
   [RC_KEYS.batchIoBucket]: '',
 };
 
-module.exports = { RC_DEFAULTS, RC_KEYS };
+const DEPRECATED_RC_KEYS = ['ai_temperature', 'ai_top_p', 'ai_top_k'];
+const MODEL_RC_KEYS = [
+  RC_KEYS.classifierModelName,
+  RC_KEYS.summaryModelName,
+  RC_KEYS.visualAnalysisModelName,
+  RC_KEYS.enrichedAnalysisModelName,
+  RC_KEYS.enrichedAnalysisFallbackModelName,
+  RC_KEYS.webEnricherModelName,
+  RC_KEYS.searchRerankModelName,
+  RC_KEYS.analysisModelName,
+];
+
+module.exports = { DEPRECATED_RC_KEYS, MODEL_RC_KEYS, RC_DEFAULTS, RC_KEYS };

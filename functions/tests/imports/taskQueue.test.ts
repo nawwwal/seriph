@@ -81,12 +81,14 @@ describe("durable import task queue", () => {
 
   it("rejects missing Cloud Tasks metadata and dispatches an allowlisted kind", async () => {
     const claimLease = vi.fn().mockResolvedValue({ kind: "claimed", attempt: 1 });
+    const completeLease = vi.fn();
     await expect(dispatchImportTask({ body: JSON.stringify(payload) }, { claimLease, stages: {} }))
       .resolves.toMatchObject({ status: 400 });
     await expect(dispatchImportTask({ body: JSON.stringify(payload), cloudTaskName: "task-1" }, {
-      claimLease, stages: { discover_item: async () => ({ status: 204 }) },
+      claimLease, completeLease, stages: { discover_item: async () => ({ status: 204 }) },
     })).resolves.toMatchObject({ status: 204 });
     expect(claimLease).toHaveBeenCalledOnce();
+    expect(completeLease).toHaveBeenCalledWith(payload, "task-1", 1);
   });
 
   it("releases a claimed lease when a stage throws so Cloud Tasks can retry", async () => {

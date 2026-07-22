@@ -9,11 +9,14 @@ import type { ImportBatchChildren, ImportBatchSummary } from '@/lib/imports/mapI
 
 export interface UploadContextValue {
   batches: ImportBatchSummary[];
-  activeCount: number; // items still in flight (not complete/error/canceled)
-  transport: 'realtime' | 'polling';
-  isOpen: boolean;
-  open: () => void;
-  close: () => void;
+  notice: string | null;
+  setNotice: (notice: string | null) => void;
+  isImportOpen: boolean;
+  openImport: () => void;
+  closeImport: () => void;
+  isClientUploading: boolean;
+  registerClientUpload: (cancel: () => void) => () => void;
+  cancelClientUpload: () => void;
   sourceProgress: Record<string, number>;
   setSourceProgress: (sourceId: string, percent: number | null) => void;
   loadChildren: (batchId: string) => Promise<ImportBatchChildren>;
@@ -24,7 +27,10 @@ const UploadContext = createContext<UploadContextValue | undefined>(undefined);
 
 export function UploadProvider({ children }: { children: ReactNode }) {
   const { user, isLoading } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [isClientUploading, setIsClientUploading] = useState(false);
+  const clientCancel = useRef<(() => void) | null>(null);
   const [sourceProgress, setSourceProgressState] = useState<Record<string, number>>({});
   const completedCbs = useRef(new Set<() => void>());
   const canReadIngests = !isLoading && Boolean(user?.uid);
@@ -47,22 +53,34 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     return () => { completedCbs.current.delete(cb); };
   }, []);
 
-  const activeCount = feed.activeCount;
+  const registerClientUpload = useCallback((cancel: () => void) => {
+    clientCancel.current = cancel;
+    setIsClientUploading(true);
+    return () => {
+      if (clientCancel.current !== cancel) return;
+      clientCancel.current = null;
+      setIsClientUploading(false);
+    };
+  }, []);
+  const cancelClientUpload = useCallback(() => clientCancel.current?.(), []);
 
   const value = useMemo<UploadContextValue>(
     () => ({
       batches: canReadIngests ? feed.batches : [],
-      activeCount,
-      transport: canReadIngests ? feed.transport : 'realtime',
-      isOpen,
-      open: () => setIsOpen(true),
-      close: () => setIsOpen(false),
+      notice,
+      setNotice,
+      isImportOpen,
+      openImport: () => setIsImportOpen(true),
+      closeImport: () => setIsImportOpen(false),
+      isClientUploading,
+      registerClientUpload,
+      cancelClientUpload,
       sourceProgress,
       setSourceProgress,
       loadChildren: childStatus.loadChildren,
       onCompleted,
     }),
-    [canReadIngests, feed.batches, feed.transport, activeCount, isOpen, sourceProgress, setSourceProgress, childStatus.loadChildren, onCompleted]
+    [canReadIngests, feed.batches, notice, isImportOpen, isClientUploading, sourceProgress, setSourceProgress, registerClientUpload, cancelClientUpload, childStatus.loadChildren, onCompleted]
   );
 
   return <UploadContext.Provider value={value}>{children}</UploadContext.Provider>;

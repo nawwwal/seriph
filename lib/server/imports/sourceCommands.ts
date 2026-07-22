@@ -27,7 +27,7 @@ export async function registerImportSources(db: Firestore, batch: Batch, inputs:
   // Each transaction writes at most 200 source inventory documents; over-cap entries remain terminal inventory.
   for (const group of chunks(rows)) {
     const outcome = await db.runTransaction(async (tx) => {
-      const batchSnap = await tx.get(batchRef(db, batch)); if (!batchSnap.exists) return null; if (batchSnap.data()!.sealed) return 'batch_sealed' as const;
+      const batchSnap = await tx.get(batchRef(db, batch)); if (!batchSnap.exists) return null; if (batchSnap.data()!.sealed || (batchSnap.data()!.outcome !== undefined && batchSnap.data()!.outcome !== 'active')) return 'batch_sealed' as const;
       const refs = group.map((row) => row.error === 'invalid_source_id' || row.error === 'duplicate_source_id' ? rejectionRef(db, batch, row) : sourceRef(db, batch, row.input.sourceId)); const existing = await Promise.all(refs.map((ref) => tx.get(ref))); const now = FieldValue.serverTimestamp(); const eventAt = Timestamp.now(); let added = 0; let failures = 0;
       const registered = group.map((row, index) => {
         const prior = existing[index]!; if (prior.exists) return present(prior.data()!);
@@ -45,7 +45,7 @@ export async function registerImportSources(db: Firestore, batch: Batch, inputs:
 }
 
 export async function sealImportBatch(db: Firestore, batch: Batch) {
-  return db.runTransaction(async (tx) => { const ref = batchRef(db, batch); const snap = await tx.get(ref); if (!snap.exists) return { kind: 'batch_missing' as const }; const data = snap.data()!; if (data.sealed) return { kind: 'existing' as const }; const expected = Number(data.expectedSourceCount); const registered = Number((data.counters as Data).sources ?? 0); if (expected !== registered) return { kind: 'count_mismatch' as const, expected, registered }; tx.update(ref, { sealed: true, sealedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }); return { kind: 'sealed' as const }; });
+  return db.runTransaction(async (tx) => { const ref = batchRef(db, batch); const snap = await tx.get(ref); if (!snap.exists) return { kind: 'batch_missing' as const }; const data = snap.data()!; if (data.sealed || (data.outcome !== undefined && data.outcome !== 'active')) return { kind: 'existing' as const }; const expected = Number(data.expectedSourceCount); const registered = Number((data.counters as Data).sources ?? 0); if (expected !== registered) return { kind: 'count_mismatch' as const, expected, registered }; tx.update(ref, { sealed: true, sealedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() }); return { kind: 'sealed' as const }; });
 }
 
 export async function failImportSource(db: Firestore, batch: Batch, sourceId: string, state: string, detail: string) {

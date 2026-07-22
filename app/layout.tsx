@@ -8,7 +8,7 @@ import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import AppFrame from "@/components/layout/AppFrame";
 import { AuthProvider } from "@/lib/contexts/AuthContext";
 import { UploadProvider } from "@/lib/contexts/UploadContext";
-import UploadCenterOverlay from "@/components/upload/UploadCenterOverlay";
+import ImportOverlay from "@/components/upload/ImportOverlay";
 import FirebasePerformance from "@/components/monitoring/FirebasePerformance";
 
 const leagueSpartan = League_Spartan({
@@ -67,7 +67,7 @@ export default function RootLayout({
               </AppFrame>
               {isDevelopment && <InterfaceKit />}
               {isDevelopment && <Agentation />}
-              <UploadCenterOverlay />
+              <ImportOverlay />
             </UploadProvider>
           </AuthProvider>
         </ThemeProvider>

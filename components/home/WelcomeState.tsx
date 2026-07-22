@@ -1,13 +1,9 @@
 'use client';
 
-import Dropzone from '@/components/ui/Dropzone';
+import { Button } from '@/components/ui/Button';
 import WelcomeSteps from './WelcomeSteps';
 
-interface WelcomeStateProps {
-  onFilesSelected: (files: File[]) => void;
-}
-
-export default function WelcomeState({ onFilesSelected }: WelcomeStateProps) {
+export default function WelcomeState({ onImport }: { onImport: () => void }) {
   return (
     <main className="mt-6 sm:mt-8 md:mt-10">
       <div className="text-center mb-12">
@@ -19,9 +15,8 @@ export default function WelcomeState({ onFilesSelected }: WelcomeStateProps) {
         </p>
       </div>
 
-      <Dropzone onFilesSelected={onFilesSelected}>
-        <WelcomeSteps />
-      </Dropzone>
+      <WelcomeSteps />
+      <div className="mt-6 flex justify-center"><Button type="button" onClick={onImport}>Choose files or a folder</Button></div>
 
       <div className="mt-12 max-w-3xl mx-auto">
         <h3 className="uppercase font-bold text-lg mb-4">Supported Font Formats</h3>
@@ -42,4 +37,3 @@ export default function WelcomeState({ onFilesSelected }: WelcomeStateProps) {
     </main>
   );
 }
-

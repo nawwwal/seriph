@@ -23,7 +23,7 @@ describe("oversized archive task routing", () => {
     env();
     const task = buildHttpTask(sourceTask).httpRequest!;
     expect(task.url).toBe(process.env.IMPORT_ARCHIVE_WORKER_URL);
-    expect(task.oidcToken?.audience).toBe(process.env.IMPORT_ARCHIVE_WORKER_URL);
+    expect(task.oidcToken?.audience).toBe("https://seriph-archive-worker-abc123-asia-southeast1.a.run.app");
   });
 
   it("keeps normal discover_source tasks on the regular worker", () => {

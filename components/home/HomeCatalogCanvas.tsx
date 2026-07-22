@@ -52,8 +52,7 @@ export default function HomeCatalogCanvas({
           mutations={view.mutations}
           isEmpty={view.isEmpty}
           showShelfSkeleton={view.showShelfSkeleton}
-          pendingBatches={view.pendingBatches}
-          onFilesSelected={view.handleFilesSelected}
+          onImport={view.handleAddFonts}
         />
       )}
     </div>

@@ -6,6 +6,7 @@ vi.mock("firebase-admin/firestore", async (importOriginal) => {
   const actual = await importOriginal(); const harness = await import("./workerIntegrationHarness");
   return { ...actual, getFirestore: () => harness.firestore };
 });
+vi.mock("@google-cloud/tasks", () => ({ CloudTasksClient: class { createTask = vi.fn().mockResolvedValue({}); } }));
 vi.mock("firebase-admin/storage", async (importOriginal) => {
   const actual = await importOriginal(); const harness = await import("./workerIntegrationHarness");
   return { ...actual, getStorage: () => ({ bucket: () => harness.bucket }) };
@@ -48,13 +49,25 @@ describe("authenticated durable import dispatcher", () => {
 
   it("does not lease an unregistered stage and can execute after registration", async () => {
     const claimLease = vi.fn().mockResolvedValue({ kind: "claimed", attempt: 1 });
+    const completeLease = vi.fn();
     const stages: ImportStageRegistry = {};
     await expect(dispatchImportTask(request, { claimLease, stages }))
       .resolves.toEqual({ status: 503, code: "stage_not_registered", retryable: true });
     expect(claimLease).not.toHaveBeenCalled();
     stages.discover_item = async () => ({ status: 204 });
-    await expect(dispatchImportTask(request, { claimLease, stages })).resolves.toEqual({ status: 204 });
+    await expect(dispatchImportTask(request, { claimLease, completeLease, stages })).resolves.toEqual({ status: 204 });
     expect(claimLease).toHaveBeenCalledOnce();
+    expect(completeLease).toHaveBeenCalledWith(payload, request.cloudTaskName, 1);
+  });
+
+  it("releases only retryable dispatch failures", async () => {
+    const claimLease = vi.fn().mockResolvedValue({ kind: "claimed", attempt: 1 });
+    const releaseLease = vi.fn();
+    const completeLease = vi.fn();
+    const stages: ImportStageRegistry = { discover_item: async () => ({ status: 503, retryable: true }) };
+    await expect(dispatchImportTask(request, { claimLease, releaseLease, completeLease, stages })).resolves.toEqual({ status: 503, retryable: true });
+    expect(releaseLease).toHaveBeenCalledWith(payload, request.cloudTaskName, 1);
+    expect(completeLease).not.toHaveBeenCalled();
   });
 
   it("derives a stable lease identity from the Cloud Task name", () => {
@@ -84,8 +97,16 @@ describe("authenticated durable import dispatcher", () => {
     expect([...first.statuses, ...second.statuses]).not.toContain(503);
     expect(firestore.docs.get("fontfamilies/owner-1__atlas")).toMatchObject({ version: 1, status: "ready", styleCount: 1 });
     expect(firestore.docs.get(`users/owner-1/assetClaims/${sha}`)).toMatchObject({ status: "committed" });
-    expect(firestore.docs.get(`users/owner-1/importBatches/batch-1/tasks/${importTaskLeaseId(task.name)}`)).toMatchObject({ state: "leased", attempt: 1 });
+    expect(firestore.docs.get(`users/owner-1/importBatches/batch-1/tasks/${importTaskLeaseId(task.name)}`)).toMatchObject({ state: "complete", attempt: 1 });
     expect(firestore.writes.filter((path) => path === "fontfamilies/owner-1__atlas")).toHaveLength(1);
+  });
+
+  it("refuses a canceled batch through the deployed discovery stage", async () => {
+    const batchPath = "users/owner-1/importBatches/batch-1"; const itemPath = `${batchPath}/items/item-1`;
+    firestore.docs.set(batchPath, { outcome: "canceled" }); firestore.docs.set(itemPath, { state: "discovered", ownerId: "owner-1", batchId: "batch-1", itemId: "item-1" });
+    await expect(dispatchImportTask(request, { stages: productionImportStages })).resolves.toEqual({ status: 204 });
+    expect(firestore.docs.get(itemPath)).toMatchObject({ state: "discovered" });
+    expect(firestore.docs.get(`users/owner-1/importBatches/batch-1/tasks/${importTaskLeaseId(request.cloudTaskName)}`)).toMatchObject({ state: "complete", attempt: 1 });
   });
 
   it("publishes the private worker with the required contract", async () => {

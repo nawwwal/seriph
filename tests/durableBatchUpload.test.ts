@@ -1,8 +1,7 @@
-import fs from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/contexts/AuthContext', () => ({ useAuth: () => ({ user: null }) }));
-vi.mock('@/lib/contexts/UploadContext', () => ({ useUploads: () => ({ open: vi.fn(), setSourceProgress: vi.fn() }) }));
+vi.mock('@/lib/contexts/UploadContext', () => ({ useUploads: () => ({ setNotice: vi.fn(), registerClientUpload: () => vi.fn(), setSourceProgress: vi.fn() }) }));
 import { prepareDurableSources, runDurableUpload } from '@/lib/hooks/useDurableBatchUpload';
 import { readDurableEnabled } from '@/lib/hooks/durableRemoteConfig';
 import type { DurableUploadDeps, DurableUploadSource, RecoverySession } from '@/models/import-batch.models';
@@ -19,7 +18,8 @@ const deps = (calls: string[], upload: DurableUploadDeps['upload'] = async (sour
 describe('durable batch upload', () => {
   it('creates, registers in 100-source chunks, seals, skips rejected sources, and persists terminal failures', async () => {
     const calls: string[] = []; const upload: DurableUploadDeps['upload'] = async (source) => { calls.push(`upload:${source.sourceId}`); if (source.sourceId === 's3') throw new Error('network reset'); };
-    await runDurableUpload(files(201), deps(calls, upload));
+    await runDurableUpload(files(201), { ...deps(calls, upload), batchReady: (batchId) => calls.push(`ready:${batchId}`) });
+    expect(calls).toContain('ready:b1');
     expect(calls.filter((call) => call.startsWith('register:')).map((call) => call.split(':')[1]!.split(',').length)).toEqual([100, 100, 1]);
     expect(calls).toContain('seal:b1'); expect(calls).not.toContain('upload:s2'); expect(calls).toContain('failure:s3:upload_failed');
   });
@@ -29,7 +29,6 @@ describe('durable batch upload', () => {
     const upload: DurableUploadDeps['upload'] = async (source, _file, progress) => { active++; max = Math.max(max, active); progress(42); await Promise.resolve(); active--; calls.push(`upload:${source.sourceId}`); };
     await runDurableUpload(files(6), deps(calls, upload));
     expect(max).toBe(4); expect(calls).toContain('progress:s1:42'); expect(calls).not.toContain('progress:1.otf:42');
-    expect(fs.readFileSync('components/import/ImportWorkspace.tsx', 'utf8')).toContain('progressBySource');
   });
 
   it('reselects matching metadata and resumes its persisted batch without creating another', async () => {

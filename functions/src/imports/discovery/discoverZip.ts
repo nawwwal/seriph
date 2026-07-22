@@ -10,10 +10,11 @@ export interface ArchiveChild {
   staging: { path: string; bytes: Buffer; contentHash: string };
   task: ImportTaskPayload;
 }
-export interface ArchiveDiscovery { children: ArchiveChild[]; reviews: ArchiveDecision[] }
+export interface ArchiveDiscovery { children: ArchiveChild[]; reviews: ArchiveDecision[]; canceled?: boolean }
 export interface DiscoverZipInput extends Omit<InventoryProvenance, "bytes"> {
   archiveItemId: string; bytes: Buffer; limits: ArchiveLimits; depth?: number;
   reserve?: (reservationId: string, bytes: number) => Promise<ArchiveReservation>;
+  isCanceled?: () => Promise<boolean>;
 }
 export interface ArchiveReservation { kind: "reserved" | "exists" | "exceeded"; remainingBytes: number; reservationBytes: number }
 
@@ -82,6 +83,7 @@ export async function discoverZip(input: DiscoverZipInput): Promise<ArchiveDisco
   const children: ArchiveChild[] = [];
   let expandedBytes = 0;
   for (const file of files) {
+    if (await input.isCanceled?.()) return { children, reviews, canceled: true };
     const reservation = input.reserve ? await input.reserve(`${input.archiveItemId}:${file.path}`, file.uncompressedSize) : undefined;
     if (reservation?.kind === "exceeded") { reviews.push(context(review(file.path, "expanded_size"))); continue; }
     const extractionBudget = reservation ? reservation.remainingBytes + reservation.reservationBytes : input.limits.maxExpandedBatchBytes;

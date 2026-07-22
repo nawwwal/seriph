@@ -526,6 +526,22 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/FontFamilyDetail'
+    ImportBatchTerminalSummary:
+      type: object
+      required: [appliedFamilies, canceled, duplicates, failures, nonterminal, review, warnings, failureDetails]
+      properties:
+        appliedFamilies: { type: integer, minimum: 0 }
+        canceled: { type: integer, minimum: 0 }
+        duplicates: { type: integer, minimum: 0 }
+        failures: { type: integer, minimum: 0 }
+        nonterminal: { type: integer, minimum: 0 }
+        review: { type: integer, minimum: 0 }
+        warnings:
+          type: array
+          items: { type: object, additionalProperties: true }
+        failureDetails:
+          type: array
+          items: { type: object, additionalProperties: true }
     ImportBatch:
       type: object
       required: [batchId, schemaVersion, ownerId, label, sealed, expectedSourceCount, planVersion, phases, counters, outcome, createdAt, updatedAt]
@@ -573,8 +589,7 @@ components:
               type: object
               additionalProperties: { type: integer, minimum: 0 }
         terminalSummary:
-          type: object
-          additionalProperties: { type: integer, minimum: 0 }
+          $ref: '#/components/schemas/ImportBatchTerminalSummary'
     ImportBatchCreateRequest:
       type: object
       required: [label, expectedSourceCount]
@@ -721,7 +736,7 @@ components:
           properties:
             kind:
               type: string
-              enum: [registered, batch_missing, batch_sealed]
+              enum: [registered, batch_sealed]
             sources:
               type: array
               items:
@@ -736,7 +751,7 @@ components:
           properties:
             kind:
               type: string
-              enum: [sealed, existing, batch_missing, count_mismatch]
+              enum: [sealed, existing]
             expected:
               type: integer
             registered:
@@ -761,7 +776,7 @@ components:
           properties:
             kind:
               type: string
-              enum: [failed, existing, not_found, invalid_failure, invalid_source_id]
+              enum: [failed, existing]
     ImportRetryTarget:
       oneOf:
         - type: object
@@ -813,7 +828,7 @@ components:
           properties:
             kind:
               type: string
-              enum: [queued, existing, conflict]
+              enum: [queued, existing]
             task:
               type: object
               required: [taskId, payload]
@@ -833,7 +848,7 @@ components:
           properties:
             kind:
               type: string
-              enum: [canceled, existing, conflict]
+              enum: [canceled, existing]
             appliedFamilyIds:
               type: array
               items:

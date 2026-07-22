@@ -14,10 +14,10 @@ import SeriphLogo from '@/components/brand/SeriphLogo';
 export default function NavBar() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const { activeCount, open: openUploadCenter } = useUploads();
+  const { openImport } = useUploads();
 
   const isActive = (path: string) => (path === '/' ? pathname === '/' : pathname.startsWith(path));
-  const shelfActive = isActive('/') && !pathname.includes('family') && !pathname.includes('import');
+  const shelfActive = isActive('/') && !pathname.includes('family');
 
   return (
     <nav className="w-full rule-b bg-[var(--paper)] sticky top-0 z-10">
@@ -27,25 +27,15 @@ export default function NavBar() {
             <Link href="/" scroll={false} className={buttonClassName({ size: 'nav', tone: shelfActive ? 'active' : 'default' })}>
               Shelf
             </Link>
-            <Link href="/import" className={buttonClassName({ size: 'nav', tone: isActive('/import') ? 'active' : 'default' })}>
+            <Button onClick={openImport} size="nav">
               Import
-            </Link>
+            </Button>
             <NavSearch />
           </>
         ) : (
           <SeriphLogo className="w-24" label="Seriph" />
         )}
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {user && (
-            <Button onClick={openUploadCenter} size="navAction" aria-label="Open upload center">
-              Uploads
-              {activeCount > 0 && (
-                <span className="absolute -top-2 -right-2 min-w-5 h-5 px-1 flex items-center justify-center text-[10px] font-bold rounded-full bg-[var(--accent)] text-[var(--paper)]">
-                  {activeCount}
-                </span>
-              )}
-            </Button>
-          )}
           {user ? (
             <ProfileMenu />
           ) : (

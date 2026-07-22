@@ -129,7 +129,7 @@ Live endpoints:
 
 - The upload journey now creates owner-scoped durable batches, registers source
   inventory, seals the source set, and uploads to private intake storage. The
-  canonical HTTP surface is `/api/v1/import-batches/**`; the global Upload Center
+  canonical HTTP surface is `/api/v1/import-batches/**`; the global import tray
   reads the same batch/source/item/family-plan feed.
 - Remote Config defaults `durable_import_enabled` to on. If the browser cannot
   fetch Remote Config, the client keeps the durable path available and the import
@@ -371,10 +371,9 @@ currently using code defaults (`seriph-fonts`, `gemini-2.5-flash`,
   `/api/v1/import-batches/**`, uploads to `intake/**`, and the finalized-source
   trigger dispatches archive, parse, plan, apply, and enrichment tasks. See
   [ingestion-at-scale.md](./ingestion-at-scale.md).
-- **Upload status overhaul:** single two-lane state machine; server now emits
-  `analyzing`/`enriching`; global Upload Center modal (nav "Uploads" button)
-  replaces scattered status; `BatchHUD` is now a shortcut. Legacy `status` no
-  longer drives display.
+- **Upload status overhaul:** one global drop target and compact bottom tray map
+  durable phases to Uploading, Processing, Enriching, Needs attention, and Done.
+  Import opens a picker modal; shelf, sidebar, and footer status duplicates are removed.
 - **Family detail UI:** wired the variable playground (was orphaned); redesigned
   "Use this font" (no white code bars, URL truncation).
 - **Avatar:** Google photo now uses `referrerPolicy=no-referrer` + initials
@@ -491,10 +490,8 @@ ESLint pinned to **9.x** (Next config has no ESLint 10–compatible
   24-record detail LRU also clears pre-registry snapshots by matching both the
   bare slug and canonical `<uid>__<slug>` identity for that account.
 - The root `AppFrame` owns the persistent navigation chrome. Workspace routes
-  compose their content into that frame, while `UploadCenterModal` stays behind
-  an interaction-bound `next/dynamic` overlay. `npm run verify:upload-overlay`
-  checks fresh production manifests for both initial-bundle leakage and a
-  missing loadable registration.
+  compose their content into that frame, while `ImportOverlay` owns the global
+  drop target, picker, and bottom tray.
 - Deliberate architectural boundary: private Firebase-authenticated records
   remain in account-scoped client caches. Vercel Data Cache and Next Cache
   Components are not enabled until Seriph has server-verifiable session auth.

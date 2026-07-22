@@ -68,6 +68,21 @@ add_param() {
   fi
 }
 
+remove_param() {
+  local key=$1
+  jq --arg key "$key" 'del(.parameters[$key], .parameterGroups.Server.parameters[$key])' \
+    "$TEMPLATE_FILE" > "${TEMPLATE_FILE}.tmp" && mv "${TEMPLATE_FILE}.tmp" "$TEMPLATE_FILE"
+}
+
+if command -v jq &> /dev/null; then
+  remove_param "ai_temperature"
+  remove_param "ai_top_p"
+  remove_param "ai_top_k"
+else
+  echo "Warning: jq not found. Skipping removal of deprecated sampling parameters."
+  echo "Install it with: brew install jq"
+fi
+
 # Add all parameters from rcKeys.ts defaults
 add_param "is_vertex_enabled" "false" "BOOLEAN"
 add_param "web_enrichment_enabled" "false" "BOOLEAN"
@@ -76,16 +91,15 @@ add_param "ai_count_tokens_enabled" "false" "BOOLEAN"
 add_param "vertex_location_id" "asia-southeast1" "STRING"
 add_param "ai_confidence_band_thresholds" "0.2,0.6,0.85" "STRING"
 add_param "optical_range_pt_thresholds" "9,18,36" "STRING"
-add_param "classifier_model_name" "gemini-2.5-flash" "STRING"
-add_param "summary_model_name" "gemini-2.5-flash" "STRING"
-add_param "visual_analysis_model_name" "gemini-2.5-flash" "STRING"
-add_param "enriched_analysis_model_name" "gemini-2.5-flash" "STRING"
-add_param "enriched_analysis_fallback_model_name" "gemini-2.5-flash" "STRING"
-add_param "web_enricher_model_name" "gemini-2.5-flash" "STRING"
+add_param "classifier_model_name" "gemini-3.5-flash-lite" "STRING"
+add_param "summary_model_name" "gemini-3.5-flash-lite" "STRING"
+add_param "visual_analysis_model_name" "gemini-3.5-flash-lite" "STRING"
+add_param "enriched_analysis_model_name" "gemini-3.5-flash-lite" "STRING"
+add_param "enriched_analysis_fallback_model_name" "gemini-3.5-flash-lite" "STRING"
+add_param "web_enricher_model_name" "gemini-3.5-flash-lite" "STRING"
+add_param "search_rerank_model_name" "gemini-3.5-flash-lite" "STRING"
+add_param "analysis_model_name" "gemini-3.5-flash-lite" "STRING"
 add_param "ai_max_output_tokens" "1536" "NUMBER"
-add_param "ai_temperature" "0.4" "NUMBER"
-add_param "ai_top_p" "0.9" "NUMBER"
-add_param "ai_top_k" "40" "NUMBER"
 add_param "ai_max_concurrent_ops" "4" "NUMBER"
 add_param "ai_retry_max_attempts" "3" "NUMBER"
 add_param "ai_retry_base_ms" "250" "NUMBER"
@@ -105,4 +119,3 @@ echo "Next steps:"
 echo "1. Run: bash add-remote-config-params.sh"
 echo "2. Review: remote-config-template.json"
 echo "3. Publish: firebase remoteconfig:publish --project $PROJECT_ID"
-

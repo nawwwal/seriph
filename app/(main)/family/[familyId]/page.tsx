@@ -1,12 +1,13 @@
 'use client';
 
 import { useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppShell from '@/components/layout/AppShell';
 import { buttonClassName } from '@/components/ui/buttonStyles';
-import { storePendingFonts } from '@/utils/pendingFonts';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useDurableBatchUpload } from '@/lib/hooks/useDurableBatchUpload';
+import { filesFromInput } from '@/utils/walkDirectoryEntries';
 import { useFamilyDetail } from '@/lib/hooks/useFamilyDetail';
 import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
 import FontDetailLoader from '@/components/ui/FontDetailLoader';
@@ -28,8 +29,8 @@ function ShellMessage({ children }: { children: React.ReactNode }) {
 
 export default function FamilyDetailPage() {
   const { familyId } = useParams<{ familyId: string }>();
-  const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
+  const { upload } = useDurableBatchUpload();
   const { kind, family, isLoading, error, isPreview } = useFamilyDetail(familyId);
   useRegisterFamilyFonts(family || undefined);
 
@@ -40,8 +41,8 @@ export default function FamilyDetailPage() {
   const handleAddStyleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (!user || files.length === 0) return;
-    storePendingFonts(files, user.uid);
-    router.push('/import');
+    e.target.value = '';
+    void upload(filesFromInput(files));
   };
 
   if (isLoading) {

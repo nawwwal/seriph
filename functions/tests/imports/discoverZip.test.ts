@@ -96,6 +96,12 @@ describe("safe ZIP discovery", () => {
     expect(first.children.every((child) => child.task.archiveBudgetKey === provenance.batchId)).toBe(true);
   });
 
+  it("stops archive expansion when the batch is canceled", async () => {
+    const bytes = await fixtureZip({ "a.ttf": "font", "b.ttf": "font" });
+    await expect(discoverZip({ ...provenance, archiveItemId: "item-archive", bytes, limits, isCanceled: async () => true }))
+      .resolves.toMatchObject({ canceled: true, children: [] });
+  });
+
   it("registers production discovery and planning stages", () => {
     expect(importTaskStages.discover_source).toBeTypeOf("function");
     expect(importTaskStages.discover_item).toBeTypeOf("function");

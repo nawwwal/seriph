@@ -93,6 +93,21 @@ it("retries a persisted reconciliation dispatch after its first enqueue fails", 
   await expect(expireSources(store, { now: () => 1_440 * 60_000 + 1 })).resolves.toEqual({ timedOut: 0, batchesQueued: 1 });
 });
 
+it("redelivers a stale active batch handoff idempotently", async () => {
+  const batch = { ownerId: "u1", batchId: "b1" };
+  const pending = { token: "recovery:discover_source:s1", task: { kind: "discover_source" as const, ownerId: "u1", batchId: "b1", resourceId: "s1" } };
+  let recovered = false; let staleCutoff = 0; const dispatched: string[] = [];
+  const store: SourceTimeoutStore = {
+    listStale: async () => [], markTimedOut: async () => false, enqueueReconcile: async () => "created",
+    listStaleBatches: async (cutoff) => { staleCutoff = cutoff; return recovered ? [] : [batch]; },
+    recoverStaleBatch: async (candidate) => { candidate.pendingDispatch = pending; recovered = true; return true; },
+    dispatchReconcile: async (candidate) => { dispatched.push(candidate.pendingDispatch!.token); return "created"; },
+  };
+  await expect(expireSources(store, { now: () => 1_440 * 60_000 + 1 })).resolves.toEqual({ timedOut: 0, batchesQueued: 1 });
+  expect(staleCutoff).toBe((1_440 - 15) * 60_000 + 1);
+  expect(dispatched).toEqual([pending.token]);
+});
+
 it("uses the bounded Remote Config timeout when expiring sources", async () => {
   let cutoff = 0;
   const store: SourceTimeoutStore = {

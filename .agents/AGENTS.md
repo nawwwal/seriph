@@ -16,7 +16,7 @@ directory. Read the relevant doc before changing its area.
 | [models-and-stack.md](models-and-stack.md) | Model and infrastructure choices: multimodal analysis, embeddings, Firestore vector search, and alternatives. |
 | [search-and-agents.md](search-and-agents.md) | Hybrid/semantic/visual search, RAG, and future MCP access for agents. |
 | [frontend-ux.md](frontend-ux.md) | Front-end surface map, the catalogue auth gate, theming/tokens (and how to add a theme), inline nav search, variable-font detection, and wired interactions. Read before any UI change. |
-| [ingestion-at-scale.md](ingestion-at-scale.md) | Durable import batches, source finalization, task dispatch, and the global Upload Center. Read before upload-journey, ingest-status, or Storage-trigger work. |
+| [ingestion-at-scale.md](ingestion-at-scale.md) | Durable import batches, source finalization, task dispatch, and the global import tray. Read before upload-journey, ingest-status, or Storage-trigger work. |
 | [implementation-status.md](implementation-status.md) | As-built and live status: deployed functions, schema, decisions, verification, and deferred follow-ups. Start here for current state. |
 | [deployment.md](deployment.md) | Deployment commands, Remote Config, IAM, troubleshooting, monitoring, and production checklist. |
 | [roadmap.md](roadmap.md) | Short orientation and phase order. Plane is canonical for execution sequencing when configured. |

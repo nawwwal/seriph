@@ -70,6 +70,13 @@ describe("applyFamilyPlan", () => {
     expect(db.writes.filter(([path]) => path.startsWith("fontfamilies/")).length).toBe(0);
   });
 
+  it("does not commit a catalogue mutation after cancellation wins the final transaction", async () => {
+    const db = new Db(); seedClaim(db); db.docs.set("fontfamilies/owner-1__atlas", { version: 3, faces: [] });
+    db.docs.set("users/owner-1/importBatches/batch-1", { outcome: "canceled" });
+    await expect(applyFamilyPlan(input(), deps(db))).resolves.toEqual({ kind: "failed", retryable: false, errorCode: "batch_canceled" });
+    expect(db.writes.filter(([path]) => path.startsWith("fontfamilies/")).length).toBe(0);
+  });
+
   it("requires the persisted pre-apply version instead of reading the current family", async () => {
     const db = new Db(); db.docs.set("users/owner-1/importBatches/batch-1/plans/2", plan); db.docs.set("fontfamilies/owner-1__atlas", { version: 3, faces: [] });
     const result = await applyFamilyTask({ kind: "apply_family", ownerId: "owner-1", batchId: "batch-1", resourceId: "atlas", planVersion: 2 }, { db: db as any, sourceBucket: {} as any, enqueueEnrichment: async () => undefined });

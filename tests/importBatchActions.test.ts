@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   cancelImportBatch,
@@ -56,10 +55,11 @@ describe('import batch actions', () => {
       .resolves.toEqual({ kind: 'conflict', code: 'already_applied' });
   });
 
-  it('cancels uncommitted targets while reporting applied family IDs', async () => {
-    const store = new FakeStore(); store.batches.set('u1/b1', { outcome: 'active' }); store.targets = [item(), { ...item(), id: 'f1', kind: 'family', familyPlanId: 'f1', state: 'applied' }];
+  it('cancels the durable batch while reporting applied family IDs', async () => {
+    const store = new FakeStore(); store.batches.set('u1/b1', { outcome: 'active', planVersion: 2 }); store.targets = [item(), { ...item(), id: 'f1', kind: 'family', familyPlanId: 'f1', state: 'applied', planVersion: 2 }];
     await expect(cancelImportBatch(store, { ownerId: 'u1', batchId: 'b1', idempotencyKey: 'cancel-1' })).resolves.toMatchObject({ kind: 'canceled', appliedFamilyIds: ['f1'] });
-    expect(store.targets).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'i1', state: 'canceled' }), expect.objectContaining({ id: 'f1', state: 'applied' })]));
+    expect(store.batches.get('u1/b1')).toMatchObject({ outcome: 'canceled' });
+    expect(store.targets).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'i1', state: 'failed' }), expect.objectContaining({ id: 'f1', state: 'applied' })]));
   });
 
   it('does not mutate terminal batches and reports already-applied plan tasks', async () => {
@@ -74,10 +74,10 @@ describe('import batch actions', () => {
     expect(store.targets[0]).toMatchObject({ state: 'applied', status: 'applied' });
   });
 
-  it('fails before mutating when cancel would exceed the transaction write budget', async () => {
+  it('cancels large batches without rewriting every child in one transaction', async () => {
     const store = new FakeStore(); store.batches.set('u1/b1', { outcome: 'active' }); store.targets = Array.from({ length: 451 }, (_, index) => ({ ...item(), id: `i${index}` }));
-    await expect(cancelImportBatch(store, { ownerId: 'u1', batchId: 'b1', idempotencyKey: 'large' })).resolves.toEqual({ kind: 'conflict', code: 'cancel_limit_exceeded' });
-    expect(store.targets.every((target) => target.state === 'failed')).toBe(true); expect(store.batches.get('u1/b1')).toMatchObject({ outcome: 'active' });
+    await expect(cancelImportBatch(store, { ownerId: 'u1', batchId: 'b1', idempotencyKey: 'large' })).resolves.toEqual({ kind: 'canceled', appliedFamilyIds: [] });
+    expect(store.targets.every((target) => target.state === 'failed')).toBe(true); expect(store.batches.get('u1/b1')).toMatchObject({ outcome: 'canceled' });
   });
 
   it('fails closed before queueing malformed retry attempts and leases', async () => {
@@ -87,9 +87,8 @@ describe('import batch actions', () => {
     }
   });
 
-  it('keeps the target contract strict and exposes recovery guidance', () => {
+  it('keeps the target contract strict', () => {
     expect(parseRetryBody({ target: { kind: 'item', itemId: 'i1' } })).toEqual({ kind: 'item', itemId: 'i1' });
     expect(parseRetryBody({ target: { kind: 'item', itemId: 'i1', ignored: true } })).toBeNull();
-    expect(fs.readFileSync('components/import/ImportWorkspace.tsx', 'utf8')).toContain('Reselect');
   });
 });

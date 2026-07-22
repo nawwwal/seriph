@@ -20,9 +20,9 @@ const job: EnrichmentJob = {
 const family = { ownerId: "owner", faces: [{ id: "regular", preferredAssetId: "asset", assets: [{ id: "asset" }] }] } as FontFamilyDoc;
 
 describe("production enrichment collection", () => {
-  it("runs on the five-minute production collector cadence", () => {
-    expect(ENRICHMENT_COLLECTOR_OPTIONS.schedule).toBe("every 5 minutes");
-    expect(BATCH_POLL_OPTIONS.schedule).toBe("every 2 minutes");
+  it("runs import and enrichment collection every minute", () => {
+    expect(ENRICHMENT_COLLECTOR_OPTIONS.schedule).toBe("every 1 minutes");
+    expect(BATCH_POLL_OPTIONS.schedule).toBe("every 1 minutes");
     expect(ENRICHMENT_LEASE_WATCHDOG_OPTIONS.schedule).toBe("every 5 minutes");
   });
 

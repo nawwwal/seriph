@@ -6,6 +6,7 @@ import { importBatchRef } from "../store/paths";
 import { rebuildCatalogSummary } from "../../storage/catalogSummary";
 import { AggregateReadOverflowError, readQueryPages } from "../../storage/paginatedRead";
 import type { ImportTaskPayload } from "../tasks/enqueue";
+import { isImportBatchCanceled } from "../tasks/cancellation";
 import { appliedFamilies, enrichmentTerminal, issue, itemTerminal, list, mutationTerminal, ownerBatch, overflowReview, planTerminal, rebuildOnce, rowValue, sourceTerminal, verifiedPath } from "./reconcileBatchSupport";
 
 export type BatchRef = Pick<DocumentReference, "path">;
@@ -40,15 +41,18 @@ export async function reconcileBatch(ref: BatchRef, deps: ReconcileBatchDependen
     if (error instanceof AggregateReadOverflowError) return overflowReview(ref, deps, error);
     throw error;
   }
+  const batchData = typeof (ref as DocumentReference).get === "function" ? (await (ref as DocumentReference).get()).data() as TerminalRecord | undefined : undefined;
+  const planningFailure = (batchData?.phases as TerminalRecord | undefined)?.planning as TerminalRecord | undefined;
+  const planningFailed = planningFailure?.state === "failed";
   const families = appliedFamilies(plans, mutations);
   const reviewIds = new Set(items.filter((row) => rowValue(row) === "review").map((row, index) => typeof row.itemId === "string" ? row.itemId : `item:${index}`));
   plans.flatMap((row) => list(row, "reviewItems")).forEach((review, index) => reviewIds.add(typeof review === "object" && review !== null && typeof (review as TerminalRecord).itemId === "string" ? (review as TerminalRecord).itemId as string : `plan-review:${index}`));
   const reviewItems = reviewIds.size;
   const warnings = [...issue([...sources, ...items, ...plans, ...mutations, ...enrichments], "warnings"), ...issue([...sources, ...items, ...plans, ...mutations, ...enrichments], "warning")];
-  const failures = [...issue([...sources, ...items, ...plans, ...mutations, ...enrichments], "failures"), ...issue([...sources, ...items, ...plans, ...mutations, ...enrichments], "error")];
+  const failures = [...issue([...sources, ...items, ...plans, ...mutations, ...enrichments], "failures"), ...issue([...sources, ...items, ...plans, ...mutations, ...enrichments], "error"), ...(planningFailed ? [planningFailure?.error ?? { code: "planning_failed" }] : [])];
   const duplicateCount = items.filter((row) => ["duplicate", "deduplicate"].includes(rowValue(row))).length;
   const canceled = [...sources, ...items, ...plans, ...mutations, ...enrichments].filter((row) => rowValue(row) === "canceled").length;
-  const failed = [...sources, ...items, ...plans, ...mutations, ...enrichments].filter((row) => rowValue(row) === "failed" || row.error !== undefined).length;
+  const failed = [...sources, ...items, ...plans, ...mutations, ...enrichments].filter((row) => ["failed", "timed_out", "stalled"].includes(rowValue(row)) || row.error !== undefined).length + Number(planningFailed);
   const nonterminal = sources.filter((row) => !sourceTerminal(row)).length + items.filter((row) => !itemTerminal(row)).length + plans.filter((row) => !planTerminal(row)).length + mutations.filter((row) => !mutationTerminal(row)).length + enrichments.filter((row) => !enrichmentTerminal(row)).length;
   const audit: ReconcileAudit = { nonterminalItems: items.filter((row) => !itemTerminal(row)).length, claimCatalogueMismatches: items.filter((row) => row.claimStatus !== undefined && row.catalogued !== undefined && row.claimStatus !== row.catalogued).length, missingPublicObjects: items.filter((row) => row.publicObjectExists === false).length, summaryCountMismatches: items.filter((row) => row.summaryCount !== undefined && row.expectedSummaryCount !== row.summaryCount).length, orphanCandidates: items.flatMap((row) => row.orphanCandidate === true && typeof row.itemId === "string" ? [row.itemId] : []) };
   const terminalSummary = { appliedFamilies: families.size, canceled, duplicates: duplicateCount, failures: failed, nonterminal, review: reviewItems, warnings, failureDetails: failures };
@@ -79,6 +83,9 @@ export function firestoreReconcileDependencies(db: Firestore): ReconcileBatchDep
 }
 
 export async function reconcileBatchTask(payload: ImportTaskPayload, db: Firestore): Promise<{ status: 204 }> {
+  if (await isImportBatchCanceled(db, payload.ownerId, payload.batchId)) return { status: 204 };
+  const batch = await importBatchRef(db, payload.ownerId, payload.batchId).get();
+  if (batch.data()?.status === "stalled") return { status: 204 };
   await reconcileBatch(importBatchRef(db, payload.ownerId, payload.batchId), firestoreReconcileDependencies(db));
   return { status: 204 };
 }

@@ -18,7 +18,7 @@ export function batchClient(): GoogleGenAI {
   if (client) return client;
   const project = process.env.GOOGLE_CLOUD_PROJECT || "seriph";
   const location = getConfigValue(RC_KEYS.batchLocationId, RC_DEFAULTS[RC_KEYS.batchLocationId]);
-  client = new GoogleGenAI({ vertexai: true, project, location });
+  client = new GoogleGenAI({ vertexai: true, project, location, apiVersion: "v1" });
   return client;
 }
 
@@ -40,9 +40,7 @@ export function batchBucket(): string {
 export function batchGenerationConfig(): Record<string, unknown> {
   return {
     maxOutputTokens: getConfigNumber(RC_KEYS.maxOutputTokens, Number(RC_DEFAULTS[RC_KEYS.maxOutputTokens])),
-    temperature: getConfigNumber(RC_KEYS.temperature, Number(RC_DEFAULTS[RC_KEYS.temperature])),
-    topP: getConfigNumber(RC_KEYS.topP, Number(RC_DEFAULTS[RC_KEYS.topP])),
-    topK: getConfigNumber(RC_KEYS.topK, Number(RC_DEFAULTS[RC_KEYS.topK])),
+    thinkingConfig: { thinkingLevel: "minimal" },
     responseMimeType: "application/json",
     responseSchema: ANALYSIS_SCHEMA,
   };

@@ -1,13 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useUploads } from '@/lib/contexts/UploadContext';
 import { clearFamilyDetailNegativeCacheForUser } from '@/lib/cache/familyDetailClient';
 import { clearShelfFamilyCache, useInfiniteFamilies } from '@/lib/hooks/useInfiniteFamilies';
 import { useShelfMutations } from '@/lib/hooks/useShelfMutations';
 import { useSearchIndex } from '@/lib/hooks/useSearchIndex';
-import { storePendingFonts } from '@/utils/pendingFonts';
 import {
   deriveAvailableInitials,
   filterFamiliesByInitial,
@@ -23,8 +21,7 @@ import {
 import type { User } from 'firebase/auth';
 
 export function useHomeShelfView(user: User) {
-  const router = useRouter();
-  const { activeCount, batches, onCompleted, open: openUploadCenter } = useUploads();
+  const { onCompleted, openImport } = useUploads();
   const shelf = useInfiniteFamilies();
   const searchIndex = useSearchIndex({ enabled: true });
   const [selectedInitial, setSelectedInitial] = useState<AlphabetInitial>('ALL');
@@ -38,12 +35,6 @@ export function useHomeShelfView(user: User) {
   const mutations = useShelfMutations({ user, refreshShelf });
 
   useEffect(() => onCompleted(() => { void refreshShelf(); }), [onCompleted, refreshShelf]);
-
-  const handleFilesSelected = useCallback((files: File[]) => {
-    if (files.length === 0) return;
-    storePendingFonts(files, user.uid);
-    router.push('/import');
-  }, [router, user.uid]);
 
   const presentInitials = useMemo(
     () => new Set(deriveAvailableInitials(shelf.families)) as Set<LetterInitial>,
@@ -64,20 +55,14 @@ export function useHomeShelfView(user: User) {
   }, [activeInitial, filters, indexById, shelf.families]);
   const moods = useMemo(() => deriveShelfMoods(searchIndex.items), [searchIndex.items]);
 
-  const uploadCount = Math.max(activeCount, batches.length);
-  const pendingBatches = useMemo(() => batches.filter((batch) => batch.outcome === 'active' || batch.outcome === 'needs_review'), [batches]);
   const showShelfSkeleton = shelf.isInitialLoading && shelf.families.length === 0;
-  const isEmpty = !showShelfSkeleton && shelf.families.length === 0 && pendingBatches.length === 0;
-  const hasBlockingError = Boolean(shelf.error && shelf.families.length === 0 && pendingBatches.length === 0);
+  const isEmpty = !showShelfSkeleton && shelf.families.length === 0;
+  const hasBlockingError = Boolean(shelf.error && shelf.families.length === 0);
 
   return {
     shelf,
     mutations,
-    pendingBatches,
-    uploadCount,
-    openUploadCenter,
-    handleAddFonts: () => router.push('/import'),
-    handleFilesSelected,
+    handleAddFonts: openImport,
     activeInitial,
     setSelectedInitial,
     presentInitials,

@@ -3,7 +3,6 @@ import { createElement, useEffect, type ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 const stable = vi.hoisted(() => ({
-  open: vi.fn(),
   user: { uid: 'user-a', getIdToken: vi.fn().mockResolvedValue('token') },
   loadChildren: vi.fn(),
   send100: null as (() => void) | null,

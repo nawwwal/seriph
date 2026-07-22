@@ -45,12 +45,19 @@ function valueTypeFor(defaultValue) {
   return 'STRING';
 }
 
-function applyServerDefaults(template, defaults) {
+function applyServerDefaults(template, defaults, deprecatedKeys = [], overwriteKeys = []) {
   const serverGroup = ensureServerGroup(template);
   console.log('Adding/updating parameters in Server group...');
   let updated = 0;
 
+  for (const key of deprecatedKeys) {
+    delete template.parameters[key];
+    delete serverGroup.parameters[key];
+  }
+
   for (const [key, defaultValue] of Object.entries(defaults)) {
+    const current = serverGroup.parameters[key] ?? template.parameters[key];
+    if (current && !overwriteKeys.includes(key)) continue;
     const value = String(defaultValue);
     delete template.parameters[key];
     serverGroup.parameters[key] = { defaultValue: { value }, valueType: valueTypeFor(value) };
@@ -69,18 +76,20 @@ function logValidationErrors(errors) {
   }
 }
 
-function validateTemplate(remoteConfig, template, updated) {
+async function validateTemplate(remoteConfig, template, updated) {
   try {
-    const result = remoteConfig.validateTemplate(template);
+    const result = await remoteConfig.validateTemplate(template);
     if (result?.valid === false) {
-      console.warn('\nTemplate validation returned invalid, but publishing will be attempted.');
+      console.warn('\nTemplate validation returned invalid; publishing is blocked.');
       logValidationErrors(result.errors);
+      throw new Error('Remote Config template validation failed');
     } else {
       console.log(`\nTemplate is valid. Publishing ${updated} parameters...`);
     }
   } catch (error) {
-    console.warn('\nTemplate validation error; publishing will be attempted:', error.message);
+    console.warn('\nTemplate validation failed; publishing is blocked:', error.message);
     logValidationErrors(error.errors);
+    throw error;
   }
 }
 

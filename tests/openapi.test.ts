@@ -45,7 +45,7 @@ describe('OpenAPI contract', () => {
     const documented = Object.fromEntries(Object.entries(document.paths ?? {}).filter(([route]) => route.startsWith('/api/v1/')).map(([route, operations]) => [route, Object.keys(operations).filter((method) => routeMethods.has(method.toUpperCase())).sort()]));
     expect(document.openapi).toBe('3.1.0');
     expect(documented).toEqual(Object.fromEntries([...routes.entries()]));
-    for (const schema of ['ShelfFamily', 'ShelfStatsSummary', 'FontFamilyDetail', 'FontFace', 'FamilyListEnvelope', 'FamilyStatsEnvelope', 'FamilyDetailEnvelope', 'FamilyPatchRequest', 'FamilyMergeRequest', 'FamilyMergeEnvelope', 'FamilyMergeUndoEnvelope', 'BulkFamilyDeleteEnvelope', 'SearchEnvelope', 'SearchIndexEnvelope', 'ShareEnvelope', 'ImportError', 'ImportPhase', 'ImportBatchCounters', 'ImportBatch', 'ImportSource', 'ImportFamilyPlan', 'ImportReviewItem', 'ApiError']) expect(document.components.schemas[schema]).toBeDefined();
+    for (const schema of ['ShelfFamily', 'ShelfStatsSummary', 'FontFamilyDetail', 'FontFace', 'FamilyListEnvelope', 'FamilyStatsEnvelope', 'FamilyDetailEnvelope', 'FamilyPatchRequest', 'FamilyMergeRequest', 'FamilyMergeEnvelope', 'FamilyMergeUndoEnvelope', 'BulkFamilyDeleteEnvelope', 'SearchEnvelope', 'SearchIndexEnvelope', 'ShareEnvelope', 'ImportError', 'ImportPhase', 'ImportBatchCounters', 'ImportBatchTerminalSummary', 'ImportBatch', 'ImportSource', 'ImportFamilyPlan', 'ImportReviewItem', 'ApiError']) expect(document.components.schemas[schema]).toBeDefined();
   });
 
   it('uses JSON envelopes, auth, limits, and rate-limit refs', () => {
@@ -65,6 +65,24 @@ describe('OpenAPI contract', () => {
     for (const field of ['moods', 'useCases', 'pairingHints']) expect(enrichment[field]).toMatchObject({ type: 'array', items: { type: 'string' } });
     for (const route of ['/api/v1/import-batches', '/api/v1/import-batches/{batchId}/actions/retry', '/api/v1/import-batches/{batchId}/actions/cancel']) expect(serializedOperation(document, route)).toContain('IdempotencyKey');
     const spec = readFileSync(specPath, 'utf8'); expect(spec).toContain('ImportSourcesRequest:'); expect(spec).toContain('ImportSourceFailureRequest:'); expect(spec).toContain('ImportRetryRequest:');
+  });
+
+  it('documents live import status and action result envelopes', () => {
+    const document = readDocument();
+    const schemas = document.components.schemas as Record<string, any>;
+    expect(schemas.ImportBatch.properties.terminalSummary).toEqual({ $ref: '#/components/schemas/ImportBatchTerminalSummary' });
+    expect(schemas.ImportBatchTerminalSummary.properties.warnings.type).toBe('array');
+    expect(schemas.ImportBatchTerminalSummary.properties.failureDetails.type).toBe('array');
+    expect(schemas.ImportSourcesEnvelope.properties.data.properties.kind.enum).toEqual(['registered', 'batch_sealed']);
+    expect(schemas.ImportSealEnvelope.properties.data.properties.kind.enum).toEqual(['sealed', 'existing']);
+    expect(schemas.ImportSourceFailureEnvelope.properties.data.properties.kind.enum).toEqual(['failed', 'existing']);
+    expect(schemas.ImportRetryEnvelope.properties.data.properties.kind.enum).toEqual(['queued', 'existing']);
+    expect(schemas.ImportCancelEnvelope.properties.data.properties.kind.enum).toEqual(['canceled', 'existing']);
+    for (const [route, result] of [['/api/v1/import-batches/{batchId}/actions/retry', 'ImportRetryEnvelope'], ['/api/v1/import-batches/{batchId}/actions/cancel', 'ImportCancelEnvelope']] as const) {
+      const operation = document.paths![route].post as Record<string, any>;
+      for (const status of ['200', '202']) expect(operation.responses[status].content['application/json'].schema.$ref).toBe(`#/components/schemas/${result}`);
+      expect(operation.responses['409'].$ref).toBe('#/components/responses/Conflict');
+    }
   });
 
   it('keeps the published surface on canonical v1 routes', () => {

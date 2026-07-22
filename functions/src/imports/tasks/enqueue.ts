@@ -66,11 +66,12 @@ function taskResourceName(payload: ImportTaskPayload, serialized: string): strin
 }
 export function buildHttpTask(input: unknown, name?: string): Task {
   const { payload, serialized } = serializedPayload(input);
-  const url = payload.kind === "discover_source" && payload.sourceSize !== undefined && payload.sourceSize > getImportConfig().inlineZipBytes ? archiveWorkerUrl() : workerUrl();
+  const archive = payload.kind === "discover_source" && payload.sourceSize !== undefined && payload.sourceSize > getImportConfig().inlineZipBytes;
+  const url = archive ? archiveWorkerUrl() : workerUrl();
   const expectedName = taskResourceName(payload, serialized);
   if (name !== undefined && name !== expectedName) throw new Error("Task name does not match canonical payload identity");
   return { name: expectedName, httpRequest: { httpMethod: "POST", url, headers: { "Content-Type": "application/json" },
-    body: Buffer.from(serialized, "utf8").toString("base64"), oidcToken: { serviceAccountEmail: workerServiceAccount(), audience: url } } };
+    body: Buffer.from(serialized, "utf8").toString("base64"), oidcToken: { serviceAccountEmail: workerServiceAccount(), audience: archive ? new URL(url).origin : url } } };
 }
 let defaultClient: CloudTasksClient | undefined;
 export function cloudTasksClient(): CloudTasksClient { defaultClient ??= new CloudTasksClient(); return defaultClient; }

@@ -12,7 +12,8 @@ import { writeEnrichmentJob, type EnrichmentJobCommitInput } from "../../enrichm
 export type MutationCommitResult =
   | { kind: "committed"; familyVersion: number; mutationId: string }
   | { kind: "already_applied"; familyVersion: number }
-  | { kind: "replan_required"; expectedVersion: number; actualVersion: number };
+  | { kind: "replan_required"; expectedVersion: number; actualVersion: number }
+  | { kind: "canceled" };
 export interface MutationCommitInput {
   db: Firestore; plan: ImportPlan; familyId: string; expectedVersion: number; mutationId: string;
   assets: readonly WrittenPlannedAsset[]; claims: readonly WrittenPlannedAsset["source"][]; now: Date;
@@ -67,8 +68,9 @@ export async function commitFamilyMutation(input: MutationCommitInput): Promise<
   const plan = batch.collection("plans").doc(String(input.plan.planVersion));
   return input.db.runTransaction(async (tx) => {
     const claimRefs = input.claims.map((claim) => assetClaimRef(input.db, claim.ownerId, claim.sha256));
-    const [prior, current, taskSnap, planSnap, ...claimSnaps] = await Promise.all([tx.get(mutation), tx.get(familyDoc), tx.get(task), tx.get(plan), ...claimRefs.map((ref) => tx.get(ref))]);
+    const [prior, current, taskSnap, planSnap, batchSnap, ...claimSnaps] = await Promise.all([tx.get(mutation), tx.get(familyDoc), tx.get(task), tx.get(plan), tx.get(batch), ...claimRefs.map((ref) => tx.get(ref))]);
     if (prior.exists) return { kind: "already_applied", familyVersion: prior.data()?.familyVersion };
+    if (batchSnap.exists && batchSnap.data()?.outcome === "canceled") return { kind: "canceled" };
     const actualVersion = current.exists ? Number(current.data()?.version ?? 0) : 0;
     if (actualVersion !== input.expectedVersion) {
       const result = { kind: "replan_required" as const, expectedVersion: input.expectedVersion, actualVersion };

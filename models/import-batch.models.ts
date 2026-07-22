@@ -27,4 +27,5 @@ export interface DurableUploadDeps {
   clearProgress?(sourceId: string): void;
   persist?(session: RecoverySession): void;
   clearPersisted?(): void;
+  batchReady?(batchId: string): void;
 }

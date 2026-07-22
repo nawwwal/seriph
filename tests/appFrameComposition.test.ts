@@ -4,7 +4,6 @@ import { Children, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-const uploadState = vi.hoisted(() => ({ isOpen: false }));
 const authState = vi.hoisted<{ user: null | { uid: string }; isLoading: boolean }>(() => ({
   user: null,
   isLoading: false,
@@ -14,17 +13,10 @@ const navigationState = vi.hoisted(() => ({ pathname: '/' }));
 vi.mock('@/components/layout/NavBar', () => ({
   default: () => createElement('nav', { 'data-testid': 'navigation' }, 'Navigation'),
 }));
-vi.mock('@/lib/contexts/UploadContext', () => ({ useUploads: () => uploadState }));
 vi.mock('@/lib/contexts/AuthContext', () => ({ useAuth: () => authState }));
 vi.mock('next/navigation', () => ({ usePathname: () => navigationState.pathname }));
-vi.mock('next/dynamic', () => ({
-  default: () => function MockUploadCenterModal() {
-    return createElement('dialog', { 'data-testid': 'upload-center-modal' }, 'Uploads');
-  },
-}));
 
 import AppFrame from '@/components/layout/AppFrame';
-import UploadCenterOverlay from '@/components/upload/UploadCenterOverlay';
 
 const read = (file: string) => {
   const filePath = path.join(process.cwd(), file);
@@ -32,7 +24,6 @@ const read = (file: string) => {
 };
 
 afterEach(() => {
-  uploadState.isOpen = false;
   authState.user = null;
   authState.isLoading = false;
   navigationState.pathname = '/';
@@ -74,7 +65,7 @@ describe('persistent application frame', () => {
 
   it('keeps authenticated workspaces on a fixed internal scroll frame', () => {
     authState.user = { uid: 'user-a' };
-    navigationState.pathname = '/import';
+    navigationState.pathname = '/search';
     const markup = renderToStaticMarkup(
       createElement(AppFrame, null, createElement('main', null, 'Workspace')),
     );
@@ -89,20 +80,7 @@ describe('persistent application frame', () => {
     expect(fs.existsSync(path.join(process.cwd(), 'components/home/HomeFooter.tsx'))).toBe(false);
     for (const file of [
       'app/(main)/search/page.tsx',
-      'app/(main)/import/page.tsx',
       'app/(main)/family/[familyId]/page.tsx',
     ]) expect(read(file)).toContain('AppShell');
-  });
-
-  it('keeps UploadCenterModal behind interaction-bound dynamic import', () => {
-    const overlay = read('components/upload/UploadCenterOverlay.tsx');
-    expect(overlay).toContain("dynamic(() => import('./UploadCenterModal')");
-    expect(read('app/layout.tsx')).toContain('<UploadCenterOverlay />');
-  });
-
-  it('renders Upload Center only while open', () => {
-    expect(renderToStaticMarkup(createElement(UploadCenterOverlay))).toBe('');
-    uploadState.isOpen = true;
-    expect(renderToStaticMarkup(createElement(UploadCenterOverlay))).toContain('upload-center-modal');
   });
 });

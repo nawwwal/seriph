@@ -8,9 +8,9 @@ export interface ImportActionCommand { ownerId: string; batchId: string; idempot
 export interface CancelImportBatchCommand { ownerId: string; batchId: string; idempotencyKey: string; }
 export interface ImportBatchActionTarget { ownerId: string; batchId: string; kind: ActionTargetKind; id: string; state: string; attempts?: unknown; maxAttempts?: unknown; retryable?: boolean; leaseExpiresAt?: unknown; applied?: boolean; planVersion?: number; [key: string]: unknown; }
 export interface ImportStageTask { taskId: string; payload: ImportTaskPayload; }
-export type ActionConflictCode = 'already_applied' | 'attempts_exhausted' | 'batch_missing' | 'cancel_limit_exceeded' | 'idempotency_conflict' | 'invalid_retry_state' | 'lease_active' | 'not_retryable' | 'target_not_found' | 'terminal_batch' | 'unsupported_target';
+export type ActionConflictCode = 'already_applied' | 'attempts_exhausted' | 'batch_missing' | 'idempotency_conflict' | 'invalid_retry_state' | 'lease_active' | 'not_retryable' | 'target_not_found' | 'terminal_batch' | 'unsupported_target';
 export type RetryActionResult = { kind: 'queued' | 'existing'; task: ImportStageTask } | { kind: 'conflict'; code: ActionConflictCode };
-export type CancelActionResult = { kind: 'canceled' | 'existing'; appliedFamilyIds: string[] } | { kind: 'conflict'; code: 'batch_missing' | 'cancel_limit_exceeded' | 'idempotency_conflict' | 'terminal_batch' };
+export type CancelActionResult = { kind: 'canceled' | 'existing'; appliedFamilyIds: string[] } | { kind: 'conflict'; code: 'batch_missing' | 'idempotency_conflict' | 'terminal_batch' };
 export interface ImportActionReceipt { fingerprint: string; result: RetryActionResult | CancelActionResult; delivered?: boolean; }
 export interface ImportActionTransaction {
   getBatch(ownerId: string, batchId: string): Promise<Record<string, unknown> | null>;
@@ -60,7 +60,7 @@ export async function retryImportTarget(store: ImportActionStore, command: Impor
   await store.transaction(async (tx) => { const receipt = await tx.getReceipt(command.ownerId, command.idempotencyKey); if (receipt?.fingerprint === fingerprint(command)) await tx.setReceipt(command.ownerId, command.idempotencyKey, { ...receipt, delivered: true }); }); return result;
 }
 
-const terminal = new Set(['succeeded', 'partial', 'needs_review', 'failed', 'canceled']); const limit = 450;
+const terminal = new Set(['succeeded', 'partial', 'needs_review', 'failed', 'canceled']);
 const ids = (targets: ImportBatchActionTarget[]) => [...new Set(targets.filter((target) => target.kind === 'family' && applied(target)).map((target) => String(target.familyPlanId ?? target.id)))].sort();
 export async function cancelImportBatch(store: ImportActionStore, command: CancelImportBatchCommand, now = new Date()): Promise<CancelActionResult> {
   return store.transaction(async (tx) => {
@@ -68,10 +68,8 @@ export async function cancelImportBatch(store: ImportActionStore, command: Cance
     if (receipt) return receipt.fingerprint === mark ? { kind: 'existing', appliedFamilyIds: (receipt.result as Extract<CancelActionResult, { appliedFamilyIds: string[] }>).appliedFamilyIds } : { kind: 'conflict', code: 'idempotency_conflict' };
     const batch = await tx.getBatch(command.ownerId, command.batchId); if (!batch) return { kind: 'conflict', code: 'batch_missing' }; const planVersion = version(batch.planVersion);
     if (terminal.has(String(batch.outcome))) return String(batch.outcome) === 'canceled' ? { kind: 'existing', appliedFamilyIds: ids(planVersion ? await tx.listTargets(command.ownerId, command.batchId, 'family', planVersion) : []) } : { kind: 'conflict', code: 'terminal_batch' };
-    const groups = await Promise.all((['source', 'item', 'family', 'enrichment'] as const).map((kind) => tx.listTargets(command.ownerId, command.batchId, kind, kind === 'family' ? planVersion ?? undefined : undefined)));
-    const all = groups.flat(); const pending = all.filter((target) => !applied(target) && target.state !== 'canceled'); if (pending.length > limit) return { kind: 'conflict', code: 'cancel_limit_exceeded' };
-    for (const target of pending) await tx.updateTarget(target, target.kind === 'family' ? { state: 'canceled', status: 'canceled', canceledAt: now.toISOString() } : { state: 'canceled', canceledAt: now.toISOString() });
-    await tx.updateBatch(command.ownerId, command.batchId, { outcome: 'canceled', canceledAt: now.toISOString() }); const result: CancelActionResult = { kind: 'canceled', appliedFamilyIds: ids(all) };
+    const families = planVersion ? await tx.listTargets(command.ownerId, command.batchId, 'family', planVersion) : [];
+    await tx.updateBatch(command.ownerId, command.batchId, { outcome: 'canceled', canceledAt: now.toISOString() }); const result: CancelActionResult = { kind: 'canceled', appliedFamilyIds: ids(families) };
     await tx.setReceipt(command.ownerId, command.idempotencyKey, { fingerprint: mark, result }); return result;
   });
 }

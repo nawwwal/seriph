@@ -100,4 +100,12 @@ describe("immutable import plans", () => {
     expect(validatePlan(result.plan).contentHash).toBe(result.plan.contentHash);
   });
 
+  it("does not save a plan after cancellation wins the transaction", async () => {
+    const db = new Db();
+    db.docs.set("users/owner-1/importBatches/batch-1", { outcome: "canceled", planVersion: 1, phases: {} });
+    const result = await saveValidatedPlan(db as any, { ...buildImportPlan([item("a", sha("a"), "OTF", "1")]), planVersion: 1 }, { enqueue: async () => undefined });
+    expect(result).toEqual({ kind: "canceled" });
+    expect([...db.docs.keys()].some((key) => key.includes("/plans/"))).toBe(false);
+  });
+
 });

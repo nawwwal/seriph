@@ -14,6 +14,7 @@ export interface PlanStoreDependencies {
 export type SavePlanResult =
   | { kind: "created"; planVersion: number; plan: ImportPlan }
   | { kind: "exists"; planVersion: number; plan: ImportPlan }
+  | { kind: "canceled" }
   | { kind: "batch_missing" };
 const planRef = (db: Firestore, ownerId: string, batchId: string, version: number) =>
   importBatchRef(db, ownerId, batchId).collection("plans").doc(String(version));
@@ -41,9 +42,10 @@ export async function enqueuePendingPlanTasks(
     const current = snapshot.data() as Record<string, any>; if (current.status === "enqueued") { enqueued++; continue; }
     const payload = current.payload as ImportTaskPayload ?? payloadFor(plan, family.familyId);
     const taskName = current.taskName ?? importTaskName(payload); const attempts = (current.attempts ?? 0) + 1;
+    if ((await importBatchRef(db, plan.ownerId, plan.batchId).get()).data()?.outcome === "canceled") continue;
     try {
       await enqueue(payload);
-      await db.runTransaction(async (tx) => { const latest = await tx.get(ref); if (!latest.exists || latest.data()?.status === "enqueued") return; const at = (dependencies.now ?? (() => new Date()))(); tx.update(ref, { ...latest.data(), status: "enqueued", attempts, taskName, updatedAt: at, transitions: [...(latest.data()?.transitions ?? []), { status: "enqueued", at }] }); });
+      await db.runTransaction(async (tx) => { const latest = await tx.get(ref); const batch = await tx.get(importBatchRef(db, plan.ownerId, plan.batchId)); if (!latest.exists || latest.data()?.status === "enqueued" || batch.data()?.outcome === "canceled") return; const at = (dependencies.now ?? (() => new Date()))(); tx.update(ref, { ...latest.data(), status: "enqueued", attempts, taskName, updatedAt: at, transitions: [...(latest.data()?.transitions ?? []), { status: "enqueued", at }] }); });
       enqueued++;
     } catch (error) {
       await db.runTransaction(async (tx) => { const latest = await tx.get(ref); if (!latest.exists || latest.data()?.status === "enqueued") return; const at = (dependencies.now ?? (() => new Date()))(); tx.update(ref, { ...latest.data(), status: "pending", attempts, taskName, lastError: errorText(error), updatedAt: at, transitions: [...(latest.data()?.transitions ?? []), { status: "failed", at, error: errorText(error) }] }); });
@@ -61,6 +63,7 @@ export async function saveValidatedPlan(
     const batchRef = importBatchRef(db, validated.ownerId, validated.batchId);
     const batchSnap = await tx.get(batchRef);
     if (!batchSnap.exists) return { kind: "batch_missing" } as const;
+    if (batchSnap.data()?.outcome === "canceled") return { kind: "canceled" } as const;
     const current = batchSnap.data() as { planVersion?: number };
     const planVersion = Math.max(0, current.planVersion ?? 0);
     const next = planVersion + 1;

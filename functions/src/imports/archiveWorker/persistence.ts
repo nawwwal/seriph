@@ -12,6 +12,7 @@ import { getImportConfig } from "../config/importConfig";
 import type { ArchiveDecision, ArchiveLimits } from "../discovery/archivePolicy";
 import type { ArchiveChild } from "../discovery/discoverZip";
 import type { ArchiveLease, ArchivePersistence, ArchiveSourceReader, ArchiveWorkerDependencies, RegisteredArchiveSource } from "./types";
+import { isImportBatchCanceled } from "../tasks/cancellation";
 
 const taskLeaseId = (taskName: string): string => createHash("sha256").update(taskName).digest("hex");
 const sourceInput = (source: RegisteredArchiveSource): SourceInput => ({ ownerId: source.ownerId, batchId: source.batchId, sourceId: source.sourceId, originalPath: source.originalPath, filename: source.filename, declaredSize: source.declaredSize, declaredMimeType: source.declaredMimeType, storagePath: source.storagePath });
@@ -57,5 +58,5 @@ function productionPersistence(db: Firestore, storage: Storage): ArchivePersiste
 export function productionArchiveWorkerDependencies(): ArchiveWorkerDependencies {
   const db = getFirestore(); const storage = getStorage(); const config = getImportConfig();
   const limits: ArchiveLimits = { maxDepth: config.archiveMaxDepth, maxEntries: config.archiveMaxEntries, maxExpandedBatchBytes: config.archiveMaxExpandedBatchBytes, maxEntryBytes: config.archiveMaxEntryBytes, maxCompressionRatio: config.archiveMaxCompressionRatio, maxPathBytes: config.archiveMaxPathBytes };
-  return { source: productionSource(db, storage), lease: productionLease(db), persistence: productionPersistence(db, storage), queueName: process.env.IMPORT_TASKS_QUEUE ?? "seriph-import", limits };
+  return { source: productionSource(db, storage), lease: productionLease(db), persistence: productionPersistence(db, storage), isCanceled: (ownerId, batchId) => isImportBatchCanceled(db, ownerId, batchId), enqueueReconcile: ({ ownerId, batchId }) => enqueueImportTask({ kind: "reconcile_batch", ownerId, batchId, resourceId: batchId }), queueName: process.env.IMPORT_TASKS_QUEUE ?? "seriph-import", limits };
 }

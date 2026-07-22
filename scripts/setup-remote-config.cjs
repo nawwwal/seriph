@@ -2,7 +2,7 @@
 
 const admin = require('firebase-admin');
 const { applicationDefault } = require('firebase-admin/app');
-const { RC_DEFAULTS } = require('./remote-config-defaults.cjs');
+const { DEPRECATED_RC_KEYS, MODEL_RC_KEYS, RC_DEFAULTS } = require('./remote-config-defaults.cjs');
 const {
   applyServerDefaults,
   getRemoteConfigTemplate,
@@ -37,8 +37,8 @@ async function setupRemoteConfig(projectId) {
   try {
     console.log(`Fetching current Remote Config template for ${projectId}...`);
     const template = await getRemoteConfigTemplate(remoteConfig);
-    const updated = applyServerDefaults(template, RC_DEFAULTS);
-    validateTemplate(remoteConfig, template, updated);
+    const updated = applyServerDefaults(template, RC_DEFAULTS, DEPRECATED_RC_KEYS, MODEL_RC_KEYS);
+    await validateTemplate(remoteConfig, template, updated);
     await publishTemplate(remoteConfig, template, projectId, RC_DEFAULTS);
   } catch (error) {
     console.error('\nError:', error.message);

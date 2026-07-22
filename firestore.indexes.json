@@ -59,6 +59,22 @@
       ]
     },
     {
+      "collectionGroup": "importBatches",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "outcome", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "enrichmentJobs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "state", "order": "ASCENDING" },
+        { "fieldPath": "leaseExpiresAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "sources",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
@@ -307,6 +323,14 @@
           "order": "DESCENDING",
           "queryScope": "COLLECTION_GROUP"
         }
+      ]
+    },
+    {
+      "collectionGroup": "importBatches",
+      "fieldPath": "pendingDispatch.task.kind",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" },
+        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
       ]
     }
   ]

@@ -5,9 +5,6 @@ import { readOutputLines } from "./output";
 import { reconcileProviderOutput } from "../../enrichment/provider/reconcileOutput";
 import { retryState } from "../../enrichment/jobs/retryPolicy";
 
-export const ENRICHMENT_POLL_SCHEDULE = "every 2 minutes";
-export const ENRICHMENT_LEASE_WATCHDOG_SCHEDULE = "every 5 minutes";
-
 interface JobDoc {
   jobName: string;
   state: string;

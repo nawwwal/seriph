@@ -10,7 +10,15 @@ describe("archive worker packaging", () => {
   });
   it("prints private idempotent setup in dry-run mode", () => {
     const script = resolve(__dirname, "../../../infra/import-pipeline/setup.sh"); const output = execFileSync("bash", [script, "--project", "seriph", "--dry-run"], { encoding: "utf8" });
-    for (const value of ["cloudtasks.googleapis.com", "seriph-import", "seriph-archive-worker", "archive-worker-service-account", "--service-account archive-worker-service-account@seriph.iam.gserviceaccount.com", "--set-env-vars IMPORT_TASKS_SERVICE_ACCOUNT=import-task-service-account@seriph.iam.gserviceaccount.com", "--no-allow-unauthenticated", "--memory=1Gi", "--cpu=2", "--concurrency=1", "--timeout=900"]) expect(output).toContain(value);
+    for (const value of ["cloudtasks.googleapis.com", "seriph-import", "seriph-archive-worker", "archive-worker-service-account", "--service-account archive-worker-service-account@seriph.iam.gserviceaccount.com", "GOOGLE_CLOUD_PROJECT=seriph", "IMPORT_TASKS_LOCATION=asia-southeast1", "IMPORT_TASKS_QUEUE=seriph-import", "IMPORT_WORKER_URL=https://asia-southeast1-seriph.cloudfunctions.net/importTaskWorker", "IMPORT_WORKER_SERVICE_ACCOUNT=import-task-service-account@seriph.iam.gserviceaccount.com", "IMPORT_TASKS_SERVICE_ACCOUNT=import-task-service-account@seriph.iam.gserviceaccount.com", "IMPORT_ARCHIVE_WORKER_URL", "IMPORT_ARCHIVE_WORKER_ALLOWED_HOSTS", "--no-allow-unauthenticated", "--memory=1Gi", "--cpu=2", "--concurrency=1", "--timeout=900"]) expect(output).toContain(value);
+    const env = readFileSync(resolve(__dirname, "../../.env.example"), "utf8");
+    expect(env).toContain("IMPORT_ARCHIVE_WORKER_URL="); expect(env).toContain("IMPORT_ARCHIVE_WORKER_ALLOWED_HOSTS=");
+  });
+  it("derives the Functions task environment from the project argument", () => {
+    const script = resolve(__dirname, "../../../infra/import-pipeline/setup.sh"); const output = execFileSync("bash", [script, "--project", "other-project", "--dry-run"], { encoding: "utf8" });
+    expect(output).toContain("GOOGLE_CLOUD_PROJECT=other-project");
+    expect(output).toContain("IMPORT_WORKER_URL=https://asia-southeast1-other-project.cloudfunctions.net/importTaskWorker");
+    expect(output).toContain("IMPORT_TASKS_SERVICE_ACCOUNT=import-task-service-account@other-project.iam.gserviceaccount.com");
   });
   it("scopes runtime Storage and task roles to the configured bucket and queue", () => {
     const script = resolve(__dirname, "../../../infra/import-pipeline/setup.sh"); const output = execFileSync("bash", [script, "--project", "seriph", "--bucket", "seriph-imports", "--dry-run"], { encoding: "utf8" });

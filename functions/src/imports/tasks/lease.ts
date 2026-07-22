@@ -66,3 +66,12 @@ export async function releaseTaskLease(ref: LeaseReference, attempt: number, now
     transaction.set(ref as DocumentReference, { state: "retryable", leaseExpiresAt: now, updatedAt: now }, { merge: true });
   });
 }
+
+export async function completeTaskLease(ref: LeaseReference, attempt: number, now = new Date()): Promise<void> {
+  await ref.firestore.runTransaction(async (transaction: Transaction) => {
+    const snapshot = await transaction.get(ref as DocumentReference);
+    const current = snapshot.exists ? snapshot.data() as TaskLeaseDocument : undefined;
+    if (!current || current.state !== "leased" || current.attempt !== attempt) return;
+    transaction.set(ref as DocumentReference, { state: "complete", completedAt: now, leaseExpiresAt: now }, { merge: true });
+  });
+}

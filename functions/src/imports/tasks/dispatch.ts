@@ -3,13 +3,14 @@ import { getFirestore, type DocumentReference } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { canonicalizeImportTaskPayload, type ImportTaskPayload } from "./enqueue";
 import { enqueueImportTask } from "./enqueue";
-import { claimTaskLease, releaseTaskLease, type TaskLeaseClaim } from "./lease";
+import { claimTaskLease, completeTaskLease, releaseTaskLease, type TaskLeaseClaim } from "./lease";
 import { importBatchRef } from "../store/paths";
 import { getImportConfig } from "../config/importConfig";
 import { discoverItemTask, discoverSourceTask, type DiscoveryRuntime } from "../discovery/archiveStages";
 import { applyFamilyImportStage } from "../apply/applyFamilyStage";
 import { reconcileBatchTask } from "../reconcile/reconcileBatch";
 import { finalizePlanTask } from "../planning/finalizePlan";
+import { isImportBatchCanceled } from "./cancellation";
 
 export interface TaskHttpRequest {
   body: unknown;
@@ -30,6 +31,7 @@ export type ImportStageRegistry = Partial<Record<ImportTaskPayload["kind"], Impo
 
 export interface DispatchDependencies {
   claimLease?: (payload: ImportTaskPayload, cloudTaskName: string) => Promise<TaskLeaseClaim>;
+  completeLease?: (payload: ImportTaskPayload, cloudTaskName: string, attempt: number) => Promise<void>;
   releaseLease?: (payload: ImportTaskPayload, cloudTaskName: string, attempt: number) => Promise<void>;
   stages?: ImportStageRegistry;
 }
@@ -50,6 +52,7 @@ const productionRuntime = (): DiscoveryRuntime => {
     download: async (path) => (await bucket.file(path).download())[0],
     stage: async (child) => bucket.file(child.staging.path).save(child.staging.bytes, { resumable: false, metadata: { contentType: child.inventory.mimeType } }),
     enqueue: enqueueImportTask,
+    isCanceled: (ownerId, batchId) => isImportBatchCanceled(getFirestore(), ownerId, batchId),
   };
 };
 
@@ -102,13 +105,16 @@ export async function dispatchImportTask(
   const claimLease = dependencies.claimLease ?? claimPayloadLease;
   const lease = await claimLease(payload, request.cloudTaskName);
   if (lease.kind !== "claimed") return { status: 204 };
+  const complete = dependencies.completeLease ?? ((input, name, attempt) => completeTaskLease(leaseReference(input, name), attempt));
   const release = dependencies.releaseLease ?? ((input, name, attempt) => releaseTaskLease(leaseReference(input, name), attempt));
   try {
     const result = await handler(payload, lease);
-    if (result.status === 503) await release(payload, request.cloudTaskName, lease.attempt);
+    if (result.status === 204) await complete(payload, request.cloudTaskName, lease.attempt);
+    else if (result.status === 503) await release(payload, request.cloudTaskName, lease.attempt);
     return result;
   }
-  catch {
+  catch (error) {
+    console.error("Import task handler failed", error);
     await release(payload, request.cloudTaskName, lease.attempt);
     return { status: 503, retryable: true };
   }

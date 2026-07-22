@@ -117,16 +117,16 @@ Canonical details, interfaces, code snippets, dependency graph, and commands: [i
   - Files: reconciler/retry modules, poll/output modules, test.
 - [ ] Checkpoint D: Run valid, poison, stale, and disabled AI canaries.
 
-## Phase 6: Real-time Upload Center
+## Phase 6: Real-time import tray
 
 - [ ] Task 23: Subscribe to recent batches and lazy child status.
   - Acceptance: listener is normal path, API is fallback, terminal history stays, applied-family changes invalidate catalogue.
   - Verify: feed, completion, and app-frame tests plus typecheck.
   - Files: mapper, two hooks, UploadContext, test.
-- [ ] Task 24: Render batch summaries, filters, and phase progress.
-  - Acceptance: active/completed/review/failed filters and server counters render in deferred Upload Center.
-  - Verify: batch UI and overlay boundary tests.
-  - Files: batch row, summary, filters, modal, test.
+- [ ] Task 24: Render one compact global import tray.
+  - Acceptance: one tray shows the current phase and progress; failed batches alone expose concise review details.
+  - Verify: import-surface tests and a real-browser drop/import journey.
+  - Files: global upload surface, tray, status mapper, test.
 - [ ] Task 25: Add family/item drill-down and retry/cancel actions.
   - Acceptance: structured provenance/errors/actions render without private paths and nested controls are accessible.
   - Verify: detail/action and button-style tests plus typecheck.
@@ -134,7 +134,7 @@ Canonical details, interfaces, code snippets, dependency graph, and commands: [i
 - [ ] Task 26: Add retry/cancel APIs and reload recovery handoff.
   - Acceptance: only retryable failed targets queue; applied families remain; reselected bytes resume existing source IDs.
   - Verify: action, durable upload, and route-boundary tests plus typecheck.
-  - Files: action command, two routes, Import Workspace, test.
+  - Files: action command, two routes, durable upload hook, test.
 - [ ] Checkpoint E: Verify live drop-to-catalogue-to-AI journey in a real browser.
 
 ## Phase 7: Migration and rollout

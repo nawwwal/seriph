@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { claimTaskLease } from "../../src/imports/tasks/lease";
+import { claimTaskLease, completeTaskLease } from "../../src/imports/tasks/lease";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -31,6 +31,15 @@ describe("durable import task leases", () => {
     expect(await claimTaskLease(active.ref as never, now)).toEqual({ kind: "busy" });
     expect(expired.tx.set).toHaveBeenCalledOnce();
     expect(active.tx.set).not.toHaveBeenCalled();
+  });
+
+  it("completes the claimed lease without making it retryable", async () => {
+    const now = new Date("2026-07-18T10:00:00.000Z");
+    const lease = fakeLeaseRef({ state: "leased", attempt: 2, leaseExpiresAt: new Date("2026-07-18T10:01:00.000Z") });
+    await completeTaskLease(lease.ref as never, 2, now);
+    expect(lease.tx.set).toHaveBeenCalledWith(lease.ref, {
+      state: "complete", completedAt: now, leaseExpiresAt: now,
+    }, { merge: true });
   });
 
   it("does not claim nonretryable leases or reset malformed attempts", async () => {

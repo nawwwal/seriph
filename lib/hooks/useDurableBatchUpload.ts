@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuid } from 'uuid';
-import { ref, uploadBytesResumable } from 'firebase/storage';
+import { ref, uploadBytesResumable, type UploadTask } from 'firebase/storage';
 import { storage } from '@/lib/firebase/config';
 import { useAuth } from '@/lib/contexts/AuthContext';
 import { useUploads } from '@/lib/contexts/UploadContext';
 import { importBatchApi } from '@/lib/imports/importBatchApi';
+import { createIdempotencyKey, createImportBatchActions, publicImportActionError } from '@/lib/imports/importBatchActions';
 import type { DurableUploadDeps, DurableUploadFailure, DurableUploadPhase, DurableUploadResult, DurableUploadSource, RecoverySession, RecoverySource, RegisteredSource, SourceRegistrationInput } from '@/models/import-batch.models';
 import type { WalkedFile } from '@/utils/walkDirectoryEntries';
 import { readDurableEnabled } from './durableRemoteConfig';
@@ -30,11 +31,13 @@ export async function runDurableUpload(sources: DurableUploadSource[], deps: Dur
     let registered: RegisteredSource[];
     if (reusableRecovery) {
       phase = 'resuming';
+      deps.batchReady?.(reusableRecovery.batchId);
       registered = await deps.resume(reusableRecovery, sources.map(sourceInput));
       batchId = reusableRecovery.batchId;
     } else {
       phase = 'creating'; mutationStarted = true;
       batchId = (await deps.create({ label: 'Browser import', expectedSourceCount: sources.length, idempotencyKey: identity })).batchId;
+      deps.batchReady?.(batchId);
       phase = 'registering';
       registered = (await Promise.all(chunks(sources).map((chunk) => deps.register(batchId, chunk.map(sourceInput))))).flat();
       phase = 'sealing';
@@ -83,21 +86,31 @@ export const prepareDurableSources = (walked: Pick<WalkedFile, 'file' | 'relativ
   return sourceIds.every((sourceId): sourceId is string => sourceId !== null) && unique(sourceIds) ? walked.map((file, index) => ({ file: file.file, relativePath: file.relativePath, sourceId: sourceIds[index]! })) : freshSources(walked);
 };
 export function useDurableBatchUpload() {
-  const { user } = useAuth(); const { open, setSourceProgress } = useUploads(); const [remoteConfig, setRemoteConfig] = useState<{ ownerId: string; enabled: boolean } | null>(null); const [isUploading, setIsUploading] = useState(false); const [progressBySource, setProgressBySource] = useState<Record<string, number>>({});
+  const { user } = useAuth(); const { setNotice, registerClientUpload, setSourceProgress } = useUploads(); const [remoteConfig, setRemoteConfig] = useState<{ ownerId: string; enabled: boolean } | null>(null); const [isUploading, setIsUploading] = useState(false); const [progressBySource, setProgressBySource] = useState<Record<string, number>>({});
+  const tasks = useRef(new Set<UploadTask>()); const cancelRequested = useRef(false); const activeBatchId = useRef<string | null>(null);
   const enabled = Boolean(user) && (remoteConfig?.ownerId !== user?.uid || remoteConfig?.enabled === true);
   useEffect(() => { let active = true; if (user) void readDurableEnabled(user.uid).then((value) => { if (active) setRemoteConfig({ ownerId: user.uid, enabled: value }); }); return () => { active = false; }; }, [user]);
   const publishLocalProgress = useCallback((sourceId: string, percent: number | null) => {
     setProgressBySource((map) => { if (percent === null) { if (!(sourceId in map)) return map; const next = { ...map }; delete next[sourceId]; return next; } return { ...map, [sourceId]: percent }; });
   }, []);
   const publishProgress = useMemo(() => createSourceProgressBridge(setSourceProgress, publishLocalProgress), [publishLocalProgress, setSourceProgress]);
+  const cancel = useCallback(() => {
+    cancelRequested.current = true; tasks.current.forEach((task) => task.cancel());
+    const batchId = activeBatchId.current;
+    if (batchId && user) void createImportBatchActions(() => user.getIdToken()).cancel({ batchId, idempotencyKey: createIdempotencyKey('cancel') })
+      .then(() => { sessionStorage.removeItem(KEY); activeBatchId.current = null; })
+      .catch((cause) => setNotice(publicImportActionError(cause)));
+  }, [setNotice, user]);
   const upload = useCallback(async (walked: WalkedFile[]): Promise<DurableUploadResult> => {
     if (!user || !enabled || walked.length === 0) return { ok: false, phase: 'setup', mutationStarted: false, error: new Error('Durable upload is unavailable') };
-    setIsUploading(true); open(); const recovery = saved(user.uid);
+    cancelRequested.current = false; setNotice(null); setIsUploading(true); const unregister = registerClientUpload(cancel); const recovery = saved(user.uid);
     const sources = prepareDurableSources(walked, recovery);
     try {
       const token = await user.getIdToken(); const api = importBatchApi(token);
-      return await runDurableUpload(sources, { ...api, resume: async (session, rows) => rows.map((row) => ({ ...row, accepted: true, storagePath: `intake/${user.uid}/${session.batchId}/${row.sourceId}/${filename(row.originalName)}` })), persist: (session) => sessionStorage.setItem(KEY, JSON.stringify(session)), clearPersisted: () => sessionStorage.removeItem(KEY), progress: publishProgress, clearProgress: (sourceId) => publishProgress(sourceId, null), upload: (source, file, progress) => new Promise((resolve, reject) => { const task = uploadBytesResumable(ref(storage, source.storagePath!), file); task.on('state_changed', (snap) => progress(snap.totalBytes ? Math.round(snap.bytesTransferred / snap.totalBytes * 100) : 0), reject, () => { progress(100); resolve(); }); }) }, recovery, user.uid);
-    } catch (error) { setRemoteConfig({ ownerId: user.uid, enabled: false }); return { ok: false, phase: 'setup', mutationStarted: false, error }; } finally { setIsUploading(false); }
-  }, [enabled, open, publishProgress, user]);
-  return { upload, isUploading, enabled, recovery: saved(user?.uid), progressBySource };
+      const result = await runDurableUpload(sources, { ...api, batchReady: (batchId) => { activeBatchId.current = batchId; }, resume: async (session, rows) => rows.map((row) => ({ ...row, accepted: true, storagePath: `intake/${user.uid}/${session.batchId}/${row.sourceId}/${filename(row.originalName)}` })), persist: (session) => sessionStorage.setItem(KEY, JSON.stringify(session)), clearPersisted: () => sessionStorage.removeItem(KEY), progress: publishProgress, clearProgress: (sourceId) => publishProgress(sourceId, null), upload: (source, file, progress) => new Promise((resolve, reject) => { if (cancelRequested.current) { reject(new Error('Upload canceled')); return; } const task = uploadBytesResumable(ref(storage, source.storagePath!), file); tasks.current.add(task); const remove = () => tasks.current.delete(task); task.on('state_changed', (snap) => progress(snap.totalBytes ? Math.round(snap.bytesTransferred / snap.totalBytes * 100) : 0), (error) => { remove(); reject(error); }, () => { remove(); progress(100); resolve(); }); }) }, recovery, user.uid);
+      if (!result.ok && !result.mutationStarted) setNotice('Import could not start. Your files were not uploaded. Try again.');
+      return result;
+    } catch (error) { setNotice('Import could not start. Your files were not uploaded. Try again.'); return { ok: false, phase: 'setup', mutationStarted: false, error }; } finally { unregister(); setIsUploading(false); }
+  }, [cancel, enabled, publishProgress, registerClientUpload, setNotice, user]);
+  return { upload, cancel, isUploading, enabled, recovery: saved(user?.uid), progressBySource };
 }

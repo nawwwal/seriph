@@ -32,14 +32,12 @@ export default function HomePageContent({ user }: { user: User }) {
             presentInitials={view.presentInitials}
             onSelect={view.setSelectedInitial}
             onImport={view.handleAddFonts}
-            uploadCount={view.uploadCount}
-            onOpenUploads={view.openUploadCenter}
             filters={view.filters}
             moods={view.moods}
             onFiltersChange={view.setFilters}
           />
         )}
-        statusStrip={<ShelfStats stats={view.shelf.stats} pendingCount={view.uploadCount} />}
+        statusStrip={<ShelfStats stats={view.shelf.stats} />}
         catalogCanvas={(
           <HomeCatalogCanvas
             view={view}

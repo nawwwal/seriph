@@ -12,7 +12,7 @@ describe('workspaceNavDirection', () => {
   });
 
   it('treats other hops as cross', () => {
-    expect(workspaceNavDirection('/', '/import')).toBe('cross');
+    expect(workspaceNavDirection('/', '/search')).toBe('cross');
     expect(workspaceNavDirection('/family/a', '/search')).toBe('cross');
     expect(workspaceNavDirection('/family/a', '/family/b')).toBe('cross');
   });

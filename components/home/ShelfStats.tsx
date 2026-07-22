@@ -6,10 +6,9 @@ import { TIMING } from '@/lib/motion/catalogDetailStoryboard';
 
 interface ShelfStatsProps {
   stats: ShelfStatsSummary | null;
-  pendingCount: number;
 }
 
-export default function ShelfStats({ stats, pendingCount }: ShelfStatsProps) {
+export default function ShelfStats({ stats }: ShelfStatsProps) {
   const familyCount = stats ? String(stats.familyCount) : '-';
   const styleCount = stats ? String(stats.styleCount) : '-';
   const recentFamily = stats?.recentFamilyName ?? '-';
@@ -19,8 +18,6 @@ export default function ShelfStats({ stats, pendingCount }: ShelfStatsProps) {
     ['Styles', styleCount],
     ['Recent', recentFamily],
   ];
-  if (pendingCount > 0) items.push(['Uploads', String(pendingCount)]);
-
   return (
     <AppStatusStrip>
       <dl className="flex min-w-max items-center gap-x-4 whitespace-nowrap pr-2">
