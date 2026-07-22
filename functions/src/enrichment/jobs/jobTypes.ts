@@ -20,6 +20,7 @@ export interface EnrichmentJob extends EnrichmentJobKey {
   state: EnrichmentJobState;
   failureCode?: string;
   failureReasons?: string[];
+  attempt?: number;
   createdAt?: Date | string;
   updatedAt?: Date | string;
   submittedAt?: Date | string;

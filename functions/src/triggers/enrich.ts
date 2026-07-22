@@ -2,7 +2,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { getFirestore } from "firebase-admin/firestore";
 import { initializeRemoteConfig } from "../config/remoteConfig";
-import { collectPendingEnrichmentJobs, pollEnrichmentBatches } from "../ingest/batchEnrich";
+import { pollEnrichmentBatches, submitPendingEnrichmentBatch } from "../ingest/batchEnrich";
 import { watchExpiredEnrichmentLeases } from "../ingest/batch/poll";
 import { BATCH_POLL_OPTIONS, ENRICHMENT_COLLECTOR_OPTIONS, ENRICHMENT_LEASE_WATCHDOG_OPTIONS } from "../options";
 import { importBatchRef } from "../imports/store/paths";
@@ -29,7 +29,7 @@ export const submitEnrichmentBatch = onSchedule(ENRICHMENT_COLLECTOR_OPTIONS, as
   } catch {
     // defaults
   }
-  await collectPendingEnrichmentJobs();
+  await submitPendingEnrichmentBatch();
 });
 
 /**

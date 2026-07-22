@@ -1,5 +1,5 @@
 import { getStorage } from "firebase-admin/storage";
-import type { DocumentReference, Firestore } from "firebase-admin/firestore";
+import { FieldValue, type DocumentReference, type Firestore } from "firebase-admin/firestore";
 import { deriveBatchOutcome } from "../state/deriveBatchOutcome";
 import type { ImportBatchCounters, BatchTerminalSummary } from "../contracts/batch";
 import { importBatchRef } from "../store/paths";
@@ -75,7 +75,9 @@ export async function reconcileBatch(ref: BatchRef, deps: ReconcileBatchDependen
   const invalidationToken = families.size > 0 ? `import-batch:${ownerId}:${batchId}` : undefined;
   const priorPhases = (batchData?.phases as TerminalRecord | undefined) ?? {};
   const phases = { ...priorPhases, enrichment: { state: enrichmentPhase(enrichments), updatedAt: new Date() } };
-  await deps.writeBatch(ref, { counters, outcome, phases, terminalSummary, terminalIssues: { warnings, failures }, audit, ...(invalidationToken ? { catalogSummaryInvalidationToken: invalidationToken } : {}), ...(cleanup ? { cleanup } : {}) });
+  await deps.writeBatch(ref, { counters, outcome, status: outcome, phases, terminalSummary, terminalIssues: { warnings, failures }, audit,
+    failureCode: FieldValue.delete(), stalledAt: FieldValue.delete(), updatedAt: new Date(), reconciliation: { state: "complete", completedAt: new Date() },
+    ...(invalidationToken ? { catalogSummaryInvalidationToken: invalidationToken } : {}), ...(cleanup ? { cleanup } : {}) });
   if (families.size > 0) await rebuildOnce(`${ownerId}/${batchId}`, () => deps.rebuildSummary(ownerId, batchId));
   return { outcome, counters, terminalSummary, cataloguedFamilies: families.size, reviewItems, warnings, failures, audit, ...(cleanup ? { cleanup } : {}) };
 }
