@@ -4,6 +4,7 @@ import { renderFamilySpecimen } from "../../ai/enrichFont";
 import { getConfigNumber } from "../../config/remoteConfig";
 import { RC_DEFAULTS, RC_KEYS } from "../../config/rcKeys";
 import { FAMILIES_COLLECTION } from "../../storage/familyStore";
+import { catalogFamilyDocId } from "../../storage/catalogIdentity";
 import { submitPendingEnrichmentBatch } from "../../ingest/batch/submit";
 import { collectEnrichmentJobs, type CollectEnrichmentJobsResult } from "./collector";
 import { ENRICHMENT_JOBS_COLLECTION, firestoreEnrichmentJobStore } from "./jobStore";
@@ -39,7 +40,7 @@ export async function collectPendingEnrichmentJobs(
   const store = db ? firestoreEnrichmentJobStore(db) : undefined;
   const jobs = deps.listJobs ? await deps.listJobs() : await queuedJobs(db!, maxBatchSize);
   const loadFamily = deps.loadFamily ?? (async (job: EnrichmentJob) => {
-    const snap = await db!.collection(FAMILIES_COLLECTION).doc(job.familyId).get();
+    const snap = await db!.collection(FAMILIES_COLLECTION).doc(catalogFamilyDocId(job.ownerId, job.familyId)).get();
     return snap.exists ? ({ ...snap.data(), id: snap.id } as FontFamilyDoc) : undefined;
   });
   return collectEnrichmentJobs({

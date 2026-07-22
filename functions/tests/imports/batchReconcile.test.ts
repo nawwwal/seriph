@@ -38,7 +38,7 @@ describe("import batch reconciliation", () => {
     expect(deps.rebuildSummary).toHaveBeenCalledTimes(1);
     expect(deps.writeBatch).toHaveBeenCalledWith(
       batchRef,
-      expect.objectContaining({ outcome: "needs_review" }),
+      expect.objectContaining({ outcome: "needs_review", phases: expect.objectContaining({ enrichment: expect.objectContaining({ state: "complete" }) }) }),
     );
   });
 

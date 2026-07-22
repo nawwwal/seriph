@@ -1,8 +1,23 @@
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { getFirestore } from "firebase-admin/firestore";
 import { initializeRemoteConfig } from "../config/remoteConfig";
 import { collectPendingEnrichmentJobs, pollEnrichmentBatches } from "../ingest/batchEnrich";
 import { watchExpiredEnrichmentLeases } from "../ingest/batch/poll";
 import { BATCH_POLL_OPTIONS, ENRICHMENT_COLLECTOR_OPTIONS, ENRICHMENT_LEASE_WATCHDOG_OPTIONS } from "../options";
+import { importBatchRef } from "../imports/store/paths";
+import { firestoreReconcileDependencies, reconcileBatch } from "../imports/reconcile/reconcileBatch";
+
+export const syncEnrichmentBatchStatus = onDocumentWritten({
+  document: "enrichmentJobs/{jobId}", region: "asia-southeast1", memory: "512MiB",
+}, async (event) => {
+  const job = event.data?.after.data();
+  if (!job || typeof job.ownerId !== "string" || typeof job.batchId !== "string") return;
+  const db = getFirestore();
+  const ref = importBatchRef(db, job.ownerId, job.batchId);
+  if (!(await ref.get()).exists) return;
+  await reconcileBatch(ref, firestoreReconcileDependencies(db));
+});
 
 /**
  * Versioned enrichment (submit). On a schedule, collect queued family jobs,

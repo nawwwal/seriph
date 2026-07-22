@@ -8,6 +8,7 @@ import { AggregateReadOverflowError, readQueryPages } from "../../storage/pagina
 import type { ImportTaskPayload } from "../tasks/enqueue";
 import { isImportBatchCanceled } from "../tasks/cancellation";
 import { appliedFamilies, enrichmentTerminal, issue, itemTerminal, list, mutationTerminal, ownerBatch, overflowReview, planTerminal, rebuildOnce, rowValue, sourceTerminal, verifiedPath } from "./reconcileBatchSupport";
+import { ENRICHMENT_JOBS_COLLECTION } from "../../enrichment/jobs/jobStore";
 
 export type BatchRef = Pick<DocumentReference, "path">;
 export type TerminalRecord = Record<string, unknown>;
@@ -28,6 +29,13 @@ export interface ReconcileBatchResult {
   warnings: readonly unknown[]; failures: readonly unknown[]; audit: ReconcileAudit; cleanup?: readonly CleanupResult[];
 }
 export interface ReconcileAudit { nonterminalItems: number; claimCatalogueMismatches: number; missingPublicObjects: number; summaryCountMismatches: number; orphanCandidates: readonly string[]; aggregateReadOverflow?: string }
+
+function enrichmentPhase(rows: readonly TerminalRecord[]): string {
+  if (rows.some((row) => rowValue(row) === "failed")) return "failed";
+  if (rows.length && rows.every((row) => rowValue(row) === "complete")) return "complete";
+  if (rows.length && rows.every((row) => rowValue(row) === "skipped_disabled")) return "skipped_disabled";
+  return rows.length ? rowValue(rows[0]!) || "queued" : "blocked";
+}
 
 export async function reconcileBatch(ref: BatchRef, deps: ReconcileBatchDependencies): Promise<ReconcileBatchResult> {
   const { ownerId, batchId } = ownerBatch(ref);
@@ -65,7 +73,9 @@ export async function reconcileBatch(ref: BatchRef, deps: ReconcileBatchDependen
     cleanup = await deps.deleteContainers(ref, paths);
   }
   const invalidationToken = families.size > 0 ? `import-batch:${ownerId}:${batchId}` : undefined;
-  await deps.writeBatch(ref, { counters, outcome, terminalSummary, terminalIssues: { warnings, failures }, audit, ...(invalidationToken ? { catalogSummaryInvalidationToken: invalidationToken } : {}), ...(cleanup ? { cleanup } : {}) });
+  const priorPhases = (batchData?.phases as TerminalRecord | undefined) ?? {};
+  const phases = { ...priorPhases, enrichment: { state: enrichmentPhase(enrichments), updatedAt: new Date() } };
+  await deps.writeBatch(ref, { counters, outcome, phases, terminalSummary, terminalIssues: { warnings, failures }, audit, ...(invalidationToken ? { catalogSummaryInvalidationToken: invalidationToken } : {}), ...(cleanup ? { cleanup } : {}) });
   if (families.size > 0) await rebuildOnce(`${ownerId}/${batchId}`, () => deps.rebuildSummary(ownerId, batchId));
   return { outcome, counters, terminalSummary, cataloguedFamilies: families.size, reviewItems, warnings, failures, audit, ...(cleanup ? { cleanup } : {}) };
 }
@@ -75,7 +85,12 @@ export function firestoreReconcileDependencies(db: Firestore): ReconcileBatchDep
   const bucket = getStorage().bucket();
   return {
     listSources: (ref) => listCollection(ref, "sources"), listItems: (ref) => listCollection(ref, "items"), listPlans: (ref) => listCollection(ref, "plans"),
-    listMutations: (ref) => listCollection(ref, "mutations"), listEnrichments: (ref) => listCollection(ref, "enrichments"),
+    listMutations: (ref) => listCollection(ref, "mutations"),
+    listEnrichments: async (ref) => {
+      const { ownerId, batchId } = ownerBatch(ref);
+      const rows = await readQueryPages(db.collection(ENRICHMENT_JOBS_COLLECTION).where("batchId", "==", batchId), ENRICHMENT_JOBS_COLLECTION);
+      return rows.map((doc) => doc.data()).filter((row) => row.ownerId === ownerId);
+    },
     writeBatch: async (ref, update) => { await (ref as DocumentReference).set(update, { merge: true }); },
     rebuildSummary: (ownerId, batchId) => rebuildCatalogSummary(db, ownerId, `import-batch:${ownerId}:${batchId}`),
     deleteContainers: async (_ref, paths) => Promise.all(paths.map(async (path) => { try { await bucket.file(path).delete({ ignoreNotFound: true }); return { path, kind: "deleted" as const }; } catch (error) { return { path, kind: "failed" as const, error: error instanceof Error ? error.message : "delete_failed" }; } })),

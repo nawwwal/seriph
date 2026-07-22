@@ -28,6 +28,7 @@ describe('Drive-like import surface', () => {
   it('maps every batch phase to one editorial status label', () => {
     expect(importStatus(batch('active'))).toBe('Uploading');
     expect(importStatus(batch('active', {}, { discoveredItems: 1 }))).toBe('Processing');
+    expect(importStatus(batch('active', {}, { discoveredItems: 1 }), true)).toBe('Processing');
     expect(importStatus(batch('active', {}, { discoveredItems: 1, families: 1 }))).toBe('Enriching');
     expect(importStatus(batch('needs_review'))).toBe('Needs attention');
     expect(importStatus(batch('succeeded'))).toBe('Done');

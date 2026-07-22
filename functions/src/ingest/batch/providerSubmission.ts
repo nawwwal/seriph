@@ -1,6 +1,7 @@
 import { getStorage } from "firebase-admin/storage";
 import { renderFamilySpecimen } from "../../ai/enrichFont";
 import { FAMILIES_COLLECTION } from "../../storage/familyStore";
+import { catalogFamilyDocId } from "../../storage/catalogIdentity";
 import type { FontFamilyDoc } from "../../models/catalog.models";
 import type { EnrichmentJob } from "../../enrichment/jobs/jobTypes";
 import { buildProviderRun, type ProviderJob } from "../../enrichment/provider/buildInput";
@@ -23,7 +24,7 @@ export async function submitProviderJobs(
 ): Promise<{ selected: number; submitted: number; rejected: number; jobName?: string }> {
   const families = new Map<string, FontFamilyDoc>();
   await Promise.all(selectedJobs.map(async (job) => {
-    const snap = await db.collection(FAMILIES_COLLECTION).doc(job.familyId).get();
+    const snap = await db.collection(FAMILIES_COLLECTION).doc(catalogFamilyDocId(job.ownerId, job.familyId)).get();
     if (snap.exists) families.set(job.familyId, { ...snap.data(), id: snap.id } as FontFamilyDoc);
   }));
   const run = await buildProviderRun(selectedJobs as readonly ProviderJob[], {

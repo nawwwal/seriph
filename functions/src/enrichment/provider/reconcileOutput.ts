@@ -4,10 +4,11 @@ import { applyOutputRow } from "../../ingest/batch/output";
 import { parseBatchCatalogKey } from "../../ingest/batch/key";
 import { catalogKeyFromOutputRow, isMalformedJsonlRow, textFromOutputRow, type BatchOutputRow } from "../../ingest/batch/outputRows";
 import { retryState } from "../jobs/retryPolicy";
+import { catalogFamilyDocId } from "../../storage/catalogIdentity";
 
 export type OutputDisposition = "complete" | "missing" | "malformed" | "duplicate" | "stale" | "hidden" | "failed";
 export interface ExpectedOutputJob {
-  jobId: string; familyId?: string; familyVersion?: number; promptVersion?: string;
+  jobId: string; ownerId?: string; familyId?: string; familyVersion?: number; promptVersion?: string;
   analysisModel?: string; embeddingVersion?: string; attempt?: number;
 }
 export interface ProviderOutputRun {
@@ -45,7 +46,7 @@ function stale(job: ExpectedOutputJob, key: NonNullable<ReturnType<typeof parseB
 async function familyFor(job: ExpectedOutputJob, deps: ReconcileOutputDependencies): Promise<FontFamilyDoc | undefined> {
   if (deps.loadFamily) return deps.loadFamily(job);
   if (!deps.db || !job.familyId) return undefined;
-  const snap = await deps.db.collection("fontfamilies").doc(job.familyId).get();
+  const snap = await deps.db.collection("fontfamilies").doc(catalogFamilyDocId(job.ownerId, job.familyId)).get();
   return snap.exists ? ({ ...snap.data(), id: snap.id } as FontFamilyDoc) : undefined;
 }
 async function hydrateJob(job: ExpectedOutputJob, deps: ReconcileOutputDependencies): Promise<ExpectedOutputJob> {

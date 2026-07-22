@@ -2,6 +2,7 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { parseAnalysis, buildEnrichmentUpdate } from "../../ai/enrichFont";
 import { FAMILIES_COLLECTION } from "../../storage/familyStore";
+import { catalogFamilyDocId } from "../../storage/catalogIdentity";
 import type { FontFamilyDoc, FontEnrichment } from "../../models/catalog.models";
 import { parseBatchCatalogKey } from "./key";
 import { catalogKeyFromOutputRow, textFromOutputRow, type BatchOutputRow } from "./outputRows";
@@ -52,7 +53,9 @@ export async function applyOutputRow(row: BatchOutputRow): Promise<boolean> {
   const providerRunId = key.providerRunId ?? key.jobId;
   const familyVersion = key.familyVersion ?? key.version;
   const db = getFirestore();
-  const ref = db.collection(FAMILIES_COLLECTION).doc(key.familyId);
+  const job = key.jobId ? await db.collection("enrichmentJobs").doc(key.jobId).get() : undefined;
+  const ownerId = job?.data()?.ownerId as string | undefined;
+  const ref = db.collection(FAMILIES_COLLECTION).doc(catalogFamilyDocId(ownerId, key.familyId));
   const snap = await ref.get();
   if (!snap.exists) return false;
   const family = { ...snap.data(), id: snap.id } as FontFamilyDoc;
@@ -101,6 +104,6 @@ export async function applyOutputRow(row: BatchOutputRow): Promise<boolean> {
     await ref.set(payload, { merge: true }); applied = true;
   }
   if (!applied) return false;
-  await finalizeIngestsForFamily(family.id, providerRunId, familyVersion);
+  await finalizeIngestsForFamily(key.familyId, providerRunId, familyVersion);
   return true;
 }

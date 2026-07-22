@@ -30,7 +30,7 @@ export function currentImportPercent(batch: ImportBatchSummary): number | undefi
 export function importStatus(batch: ImportBatchSummary, hasClientUpload = false): ImportStatus {
   if (batch.outcome === 'succeeded') return 'Done';
   if (batch.outcome === 'failed' || batch.outcome === 'partial' || batch.outcome === 'needs_review') return 'Needs attention';
-  if (hasClientUpload) return 'Uploading';
+  if (hasClientUpload && batch.counters.discoveredItems === 0) return 'Uploading';
   if (batch.counters.families > 0 || ['applied', 'complete', 'completed'].includes(state(batch.phases.planning))) return 'Enriching';
   if (batch.counters.discoveredItems > 0 || state(batch.phases.planning) === 'validated') return 'Processing';
   return 'Uploading';

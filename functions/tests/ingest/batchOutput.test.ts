@@ -52,7 +52,8 @@ class FakeDb {
 describe("batch output consumer", () => {
   beforeEach(() => {
     firestore.db = new FakeDb();
-    firestore.db.docs.set("fontfamilies/family-a", {
+    firestore.db.docs.set("enrichmentJobs/job-a", { ownerId: "owner-a" });
+    firestore.db.docs.set("fontfamilies/owner-a__family-a", {
       id: "family-a", status: "enriching", hidden: false, version: 3,
       enrichmentJobId: "run-a", enrichmentJobVersion: 3,
     });
