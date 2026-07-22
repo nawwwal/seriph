@@ -128,7 +128,7 @@ run gcloud projects add-iam-policy-binding "$PROJECT" --member "serviceAccount:$
 run gcloud storage buckets add-iam-policy-binding "gs://${STORAGE_BUCKET}" --member "serviceAccount:${WORKER_SERVICE_ACCOUNT}" --role "projects/${PROJECT}/roles/${STORAGE_ROLE_ID}" --project "$PROJECT"
 run gcloud tasks queues add-iam-policy-binding "$QUEUE" --location "$REGION" --member "serviceAccount:${WORKER_SERVICE_ACCOUNT}" --role roles/cloudtasks.enqueuer --project "$PROJECT"
 
-run gcloud builds submit "${ROOT_DIR}/functions" --file Dockerfile.archive-worker --tag "$IMAGE" --project "$PROJECT"
+run gcloud builds submit "${ROOT_DIR}/functions" --config "${ROOT_DIR}/functions/cloudbuild.archive-worker.yaml" --substitutions "_IMAGE=${IMAGE}" --project "$PROJECT"
 run gcloud run deploy "$SERVICE" --image "$IMAGE" --region "$REGION" --project "$PROJECT" --service-account "$WORKER_SERVICE_ACCOUNT" --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT},IMPORT_TASKS_LOCATION=${REGION},IMPORT_TASKS_QUEUE=${QUEUE},IMPORT_TASKS_SERVICE_ACCOUNT=${TASK_SERVICE_ACCOUNT},FIREBASE_STORAGE_BUCKET=${STORAGE_BUCKET}" --memory=1Gi --cpu=2 --concurrency=1 --timeout=900 --no-allow-unauthenticated
 run gcloud run services add-iam-policy-binding "$SERVICE" --region "$REGION" --project "$PROJECT" --member "serviceAccount:${TASK_SERVICE_ACCOUNT}" --role roles/run.invoker
 
