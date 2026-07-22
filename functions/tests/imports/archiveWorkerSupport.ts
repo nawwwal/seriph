@@ -3,7 +3,7 @@ import { vi } from "vitest";
 import { OVERSIZED_ARCHIVE_MIN_BYTES, type ArchiveWorkerDependencies } from "../../src/imports/archiveWorker/handleArchive";
 
 export const archivePayload = { kind: "discover_source" as const, ownerId: "owner-1", batchId: "batch-1", resourceId: "source-1", planVersion: 1 };
-export const archiveHeaders = { "x-cloudtasks-taskname": "projects/seriph/locations/asia-southeast1/queues/seriph-import/tasks/task-1", "x-cloudtasks-queuename": "seriph-import" };
+export const archiveHeaders = { "x-cloudtasks-taskname": "task-1", "x-cloudtasks-queuename": "seriph-import" };
 export const archiveLimits = { maxDepth: 4, maxEntries: 100, maxExpandedBatchBytes: 100, maxEntryBytes: 50, maxCompressionRatio: 100, maxPathBytes: 1024 };
 
 export function testSource(overrides: Record<string, unknown> = {}) {

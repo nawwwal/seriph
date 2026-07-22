@@ -24,7 +24,7 @@ const bodyValue = (body: unknown): unknown => {
   try { return JSON.parse(Buffer.from(body).toString("utf8")); } catch { return undefined; }
 };
 const archiveId = (source: RegisteredArchiveSource): string => `item-${createHash("sha256").update(JSON.stringify({ ownerId: source.ownerId, batchId: source.batchId, sourceId: source.sourceId, storagePath: source.storagePath })).digest("hex")}`;
-const validTaskName = (name: string, queue: string): boolean => new RegExp(`^projects/[^/]+/locations/[^/]+/queues/${queue.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}/tasks/[^/]+$`).test(name);
+const validTaskName = (name: string): boolean => /^[A-Za-z0-9_-]{1,500}$/.test(name);
 function childFor(source: RegisteredArchiveSource, archiveItemId: string, entryPath: string, bytes: Buffer): { input: InventoryInput; staging: ArchiveChild["staging"]; task: ImportTaskPayload } {
   const safePath = entryPath.normalize("NFKC").replace(/\\/g, "/"); const filename = safePath.split("/").pop()!;
   return { input: { ownerId: source.ownerId, batchId: source.batchId, sourceId: source.sourceId, originalPath: source.originalPath, archiveLineage: [{ archiveItemId, entryPath }], filename, extension: filename.includes(".") ? `.${filename.split(".").pop()!.toLowerCase()}` : "", declaredMimeType: "application/octet-stream", bytes, name: safePath },
@@ -43,7 +43,7 @@ const reconcile = async (deps: ArchiveWorkerDependencies, ownerId: string, batch
 
 export async function handleArchive(request: ArchiveWorkerRequest, deps: ArchiveWorkerDependencies = productionArchiveWorkerDependencies()): Promise<ArchiveWorkerResult> {
   const name = taskName(request); const queue = queueName(request); const expectedQueue = deps.queueName ?? "seriph-import";
-  if (!name || !queue || queue !== expectedQueue || !validTaskName(name, queue)) return { status: 400, body: { code: "missing_task_metadata" } };
+  if (!name || !queue || queue !== expectedQueue || !validTaskName(name)) return { status: 400, body: { code: "missing_task_metadata" } };
   let payload: ImportTaskPayload;
   try { payload = canonicalizeImportTaskPayload(bodyValue(request.body)); } catch { return { status: 400, body: { code: "invalid_task_payload" } }; }
   if (payload.kind !== "discover_source") return { status: 400, body: { code: "unsupported_task_kind" } };
