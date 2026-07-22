@@ -23,11 +23,13 @@ describe("durable import task leases", () => {
     }, { merge: true });
   });
 
-  it("reclaims retryable leases at the exact expiry boundary", async () => {
+  it("reclaims retryable and abandoned leased work at the exact expiry boundary", async () => {
     const now = new Date("2026-07-18T10:00:00.000Z");
     const expired = fakeLeaseRef({ state: "retryable", attempt: 1, leaseExpiresAt: now });
+    const abandoned = fakeLeaseRef({ state: "leased", attempt: 2, leaseExpiresAt: now });
     const active = fakeLeaseRef({ state: "leased", attempt: 1, leaseExpiresAt: new Date("2026-07-18T10:01:00.000Z") });
     expect(await claimTaskLease(expired.ref as never, now)).toMatchObject({ kind: "claimed", attempt: 2 });
+    expect(await claimTaskLease(abandoned.ref as never, now)).toMatchObject({ kind: "claimed", attempt: 3 });
     expect(await claimTaskLease(active.ref as never, now)).toEqual({ kind: "busy" });
     expect(expired.tx.set).toHaveBeenCalledOnce();
     expect(active.tx.set).not.toHaveBeenCalled();

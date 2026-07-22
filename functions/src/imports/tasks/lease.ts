@@ -39,7 +39,8 @@ function storedAttempt(current: TaskLeaseDocument): number {
   return current.attempt as number;
 }
 function canClaim(current: TaskLeaseDocument | undefined, now: Date): boolean {
-  if (!current || current.state !== "retryable") return !current;
+  if (!current) return true;
+  if (current.state !== "retryable" && current.state !== "leased") return false;
   const expiresAt = asDate(current.leaseExpiresAt);
   return expiresAt !== undefined && expiresAt.getTime() <= now.getTime();
 }
