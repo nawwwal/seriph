@@ -9,7 +9,7 @@ import { transitionSource, type SourceInput } from "../store/sourceStore";
 import type { ImportTaskPayload } from "../tasks/enqueue";
 import type { ArchiveLimits } from "./archivePolicy";
 import type { ImportItemState } from "../contracts/item";
-import { requestPlanFinalization } from "../planning/finalizePlan";
+import { failPlanningTerminally, requestPlanFinalization } from "../planning/finalizePlan";
 import { isMissingStorageObject } from "../tasks/cancellation";
 
 export interface DiscoveryRuntime {
@@ -52,6 +52,7 @@ export async function discoverSourceTask(payload: ImportTaskPayload, runtime: Di
   catch (error) {
     if (!isMissingStorageObject(error)) throw error;
     try { await transitionSource(runtime.db, sourceInputValue, sourceState, "failed"); } catch { /* cancellation may have won the race */ }
+    await failPlanningTerminally(runtime.db, payload, "source_object_missing", runtime.enqueue, { sourceId: payload.resourceId });
     return { status: 204 };
   }
   if (await runtime.isCanceled?.(payload.ownerId, payload.batchId)) return { status: 204 };
