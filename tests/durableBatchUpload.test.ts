@@ -24,11 +24,11 @@ describe('durable batch upload', () => {
     expect(calls).toContain('seal:b1'); expect(calls).not.toContain('upload:s2'); expect(calls).toContain('failure:s3:upload_failed');
   });
 
-  it('limits accepted uploads to four and keys controller progress by sourceId', async () => {
+  it('bounds accepted uploads and keys controller progress by sourceId', async () => {
     const calls: string[] = []; let active = 0; let max = 0;
     const upload: DurableUploadDeps['upload'] = async (source, _file, progress) => { active++; max = Math.max(max, active); progress(42); await Promise.resolve(); active--; calls.push(`upload:${source.sourceId}`); };
-    await runDurableUpload(files(6), deps(calls, upload));
-    expect(max).toBe(4); expect(calls).toContain('progress:s1:42'); expect(calls).not.toContain('progress:1.otf:42');
+    await runDurableUpload(files(12), deps(calls, upload));
+    expect(max).toBe(8); expect(calls).toContain('progress:s1:42'); expect(calls).not.toContain('progress:1.otf:42');
   });
 
   it('reselects matching metadata and resumes its persisted batch without creating another', async () => {
