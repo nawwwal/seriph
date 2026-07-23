@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   // Firebase Admin must stay bundled: its Auth dependency now mixes CJS with
   // ESM, which Vercel's external-module loader cannot execute.
   serverExternalPackages: ["@google-cloud/tasks"],
+  transpilePackages: ["firebase-admin", "jwks-rsa", "jose"],
   // Shell chrome uses Framer Motion (see lib/motion/catalogDetailStoryboard.ts).
   // View Transitions experimental flag intentionally off.
 };
