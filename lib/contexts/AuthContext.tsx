@@ -32,21 +32,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (nextUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
       setIsLoading(false);
-      if (nextUser) {
-        try {
-          const idToken = await nextUser.getIdToken();
-          await fetch('/api/auth/ensure-user', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${idToken}` },
-          });
-        } catch (error) {
-          // Best-effort; non-fatal
-          console.error('Failed to ensure user profile:', error);
-        }
-      }
     });
     return () => unsubscribe();
   }, []);

@@ -60,9 +60,6 @@ export function useInfiniteFamiliesReload(args: ReloadArgs) {
     setState(stateFromShelfCache(user.uid, cached));
     const tokenPromise = user.getIdToken();
     const getIdToken = () => tokenPromise;
-    const statsPromise = fetchShelfStats({ getIdToken, signal: controller.signal })
-      .then((stats) => ({ ok: true as const, stats }))
-      .catch((error: unknown) => ({ ok: false as const, error }));
 
     const persisted = await readPersistentShelfCache(user.uid);
     if (requestId.current !== id) return;
@@ -72,15 +69,19 @@ export function useInfiniteFamiliesReload(args: ReloadArgs) {
     }
 
     if (cached) {
-      const statsResult = await statsPromise;
-      if (requestId.current !== id) return;
-      if (statsResult.ok && hasMatchingShelfRevision(cached, statsResult.stats)) {
-        const current = { ...cached, stats: statsResult.stats };
-        writeShelfFamilyCache(user.uid, current);
-        setState(stateFromShelfPage(user.uid, current));
-        return;
+      try {
+        const stats = await fetchShelfStats({ getIdToken, signal: controller.signal });
+        if (requestId.current !== id) return;
+        if (hasMatchingShelfRevision(cached, stats)) {
+          const current = { ...cached, stats };
+          writeShelfFamilyCache(user.uid, current);
+          setState(stateFromShelfPage(user.uid, current));
+          return;
+        }
+      } catch (error) {
+        if (isAbortError(error) || requestId.current !== id) return;
+        console.warn('Failed to refresh shelf stats', error);
       }
-      if (!statsResult.ok && !isAbortError(statsResult.error)) console.warn('Failed to refresh shelf stats', statsResult.error);
     }
 
     try {
@@ -89,11 +90,7 @@ export function useInfiniteFamiliesReload(args: ReloadArgs) {
       const refreshedPage = mergeShelfRefreshPage(cached, cached?.stats ? { ...page, stats: cached.stats } : page);
       writeShelfFamilyCache(user.uid, refreshedPage);
       setState(stateFromShelfPage(user.uid, refreshedPage));
-      const statsResult = await statsPromise;
-      if (requestId.current !== id) return;
-      if (statsResult.ok) {
-        synchronizeShelfStats(user.uid, statsResult.stats, setState);
-      } else if (!isAbortError(statsResult.error)) console.warn('Failed to refresh shelf stats', statsResult.error);
+      if (page.stats) synchronizeShelfStats(user.uid, page.stats, setState);
     } catch (error) {
       if (isAbortError(error) || requestId.current !== id) return;
       setState((current) => ({

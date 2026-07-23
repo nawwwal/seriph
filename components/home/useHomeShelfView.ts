@@ -23,7 +23,9 @@ import type { User } from 'firebase/auth';
 export function useHomeShelfView(user: User) {
   const { onCompleted, openImport } = useUploads();
   const shelf = useInfiniteFamilies();
-  const searchIndex = useSearchIndex({ enabled: true });
+  const searchIndex = useSearchIndex({
+    enabled: !shelf.isInitialLoading && shelf.families.length > 0,
+  });
   const [selectedInitial, setSelectedInitial] = useState<AlphabetInitial>('ALL');
   const [filters, setFilters] = useState<ShelfFilterState>(emptyShelfFilters);
 

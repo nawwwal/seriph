@@ -24,7 +24,11 @@ export async function fetchFamilyPage({
 }: FetchFamilyPageInput): Promise<PaginatedFamiliesResponse> {
   const token = await getIdToken();
   const params = new URLSearchParams({ limit: String(FAMILY_PAGE_SIZE) });
-  if (cursor) params.set('cursor', cursor);
+  if (cursor) {
+    params.set('cursor', cursor);
+  } else {
+    params.set('stats', '1');
+  }
   const response = await fetch(`/api/v1/families?${params.toString()}`, {
     headers: { Authorization: `Bearer ${token}` },
     signal,
