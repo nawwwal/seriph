@@ -44,7 +44,7 @@ const sizeClasses: Record<ButtonSize, string> = {
   clearIcon: 'rule rounded-[var(--radius)] h-7 w-7 inline-flex items-center justify-center hover:ink-bg',
   compact: 'uppercase font-bold rule px-3 py-2 rounded-[var(--radius)] text-sm',
   copy: 'shrink-0 uppercase text-xs font-bold rule px-2 py-1.5 rounded-[var(--radius)] w-16 text-center',
-  filterTiny: 'rule rounded-[var(--radius)] px-2 py-1 text-[10px] uppercase font-black',
+  filterTiny: 'border border-[var(--ink)] rounded-[var(--radius)] px-2 py-1 text-xs uppercase font-bold',
   icon: 'inline-flex h-8 w-8 items-center justify-center rule rounded-[var(--radius)] p-2',
   iconText: 'inline-flex items-center gap-2 uppercase text-xs font-bold rule px-3 py-2 rounded-[var(--radius)]',
   md: 'uppercase font-bold rule px-4 py-2 rounded-[var(--radius)] text-sm sm:text-base',
