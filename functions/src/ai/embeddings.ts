@@ -40,18 +40,31 @@ export async function embedText(
   text: string,
   taskType: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY' = 'RETRIEVAL_DOCUMENT'
 ): Promise<number[] | null> {
-  const trimmed = (text || '').trim();
-  if (!trimmed) return null;
+  return (await embedTexts([text], taskType))[0] ?? null;
+}
+
+/** Embed related texts in one provider request while preserving input order. */
+export async function embedTexts(
+  texts: readonly string[],
+  taskType: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY' = 'RETRIEVAL_DOCUMENT'
+): Promise<Array<number[] | null>> {
+  const trimmed = texts.map((text) => (text || '').trim());
+  const present = trimmed.map((text, index) => ({ text, index })).filter(({ text }) => text.length > 0);
+  const result: Array<number[] | null> = texts.map(() => null);
+  if (!present.length) return result;
   try {
     const res = await ai().models.embedContent({
       model: embeddingModelId(),
-      contents: trimmed,
+      contents: present.map(({ text }) => text),
       config: { outputDimensionality: embeddingDims(), taskType },
     });
-    const values = res.embeddings?.[0]?.values;
-    return values && values.length ? values : null;
+    present.forEach(({ index }, resultIndex) => {
+      const values = res.embeddings?.[resultIndex]?.values;
+      result[index] = values && values.length ? values : null;
+    });
+    return result;
   } catch (e: any) {
-    logger.warn('embedText failed', { message: e?.message });
-    return null;
+    logger.warn('embedTexts failed', { message: e?.message, count: present.length });
+    return result;
   }
 }
