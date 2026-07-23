@@ -55,12 +55,28 @@ export async function listImportBatches(db: Firestore, ownerId: string, query: B
   return { batches: docs.map((doc) => scrub({ batchId: doc.id, ...doc.data() })), nextCursor: snap.docs.length > query.limit ? cursor(docs[docs.length - 1]!.id) : null };
 }
 
-async function children(ref: ReturnType<typeof batches> extends infer T ? T extends { doc(id: string): infer R } ? R : never : never, name: string, value: string | null) {
-  let request = (ref as unknown as { collection: (name: string) => any }).collection(name).orderBy('__name__'); const id = decodeCursor(value); if (id) request = request.startAfter(id);
-  const snap = await request.limit(101).get(); return snap.docs.map((doc: { id: string; data: () => Data }) => ({ id: doc.id, ...doc.data() }));
-}
+const list = (value: unknown): Data[] => Array.isArray(value) ? value.filter((item): item is Data => Boolean(item) && typeof item === 'object' && !Array.isArray(item)) : [];
+const pageAfter = (rows: Data[], value: string | null) => { const id = decodeCursor(value); const index = id ? rows.findIndex((row) => String(row.id) === id) : -1; return rows.slice(index + 1, index + 102); };
+const taskState = (tasks: Map<string, Data>, familyId: string) => {
+  const task = tasks.get(familyId); const status = typeof task?.status === 'string' ? task.status : 'waiting';
+  return { catalogueState: status, state: status === 'failed' ? 'failed' : status === 'applied' ? 'ready' : 'processing', retryable: status === 'failed', attempts: typeof task?.attempts === 'number' ? task.attempts : 0 };
+};
+const familyRows = (plan: Data, tasks: Map<string, Data>, enrichmentState: unknown) => list(plan.families).map((family) => {
+  const faces = list(family.faces); const familyId = String(family.familyId ?? family.id ?? '');
+  const weights = [...new Set(faces.map((face) => face.weight).filter((weight): weight is number => typeof weight === 'number'))].sort((a, b) => a - b);
+  const styles = faces.map((face) => face.styleName).filter((style): style is string => typeof style === 'string' && Boolean(style));
+  return { id: familyId, familyPlanId: familyId, familyName: family.familyName, clean: family.clean, faces, faceCount: faces.length, styleCount: styles.length, assetCount: faces.reduce((sum, face) => sum + list(face.assets).length, 0), weights, styles, aiState: enrichmentState, ...taskState(tasks, familyId) };
+});
 export async function readImportBatchDetail(db: Firestore, ownerId: string, batchId: string, familyPlansCursor: string | null, reviewItemsCursor: string | null) {
   const ref = batches(db, ownerId).doc(batchId); const batch = await ref.get(); if (!batch.exists) return null;
-  const [familyPlans, reviewItems] = await Promise.all([children(ref, 'familyPlans', familyPlansCursor), children(ref, 'reviewItems', reviewItemsCursor)]);
+  const batchData = batch.data() as Data; const planVersion = Number(batchData.planVersion ?? 0);
+  if (!Number.isSafeInteger(planVersion) || planVersion < 1) return presentBatchDetail({ batchId, ...batchData }, [], []);
+  const planRef = ref.collection('plans').doc(String(planVersion)); const [planSnapshot, taskSnapshot] = await Promise.all([planRef.get(), planRef.collection('applyTasks').get()]);
+  if (!planSnapshot.exists) return presentBatchDetail({ batchId, ...batchData }, [], []);
+  const tasks = new Map(taskSnapshot.docs.map((doc) => [doc.id, doc.data() as Data]));
+  const plan = planSnapshot.data() as Data; const phases = batchData.phases as Data | undefined; const enrichment = phases?.enrichment as Data | undefined;
+  const familyPlans = pageAfter(familyRows(plan, tasks, enrichment?.state ?? 'waiting'), familyPlansCursor);
+  const reviews = list(plan.reviewItems).map((item) => ({ id: String(item.itemId ?? item.id ?? ''), ...item }));
+  const reviewItems = pageAfter(reviews, reviewItemsCursor);
   return presentBatchDetail({ batchId, ...batch.data()! }, familyPlans, reviewItems);
 }

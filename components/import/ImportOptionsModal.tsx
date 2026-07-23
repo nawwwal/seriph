@@ -1,8 +1,8 @@
 'use client';
 
 import { useRef } from 'react';
+import { Upload } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
-import { Button } from '@/components/ui/Button';
 import { useUploads } from '@/lib/contexts/UploadContext';
 import { useDurableBatchUpload } from '@/lib/hooks/useDurableBatchUpload';
 import { filesFromInput } from '@/utils/walkDirectoryEntries';
@@ -11,10 +11,7 @@ export default function ImportOptionsModal() {
   const { isImportOpen, closeImport } = useUploads();
   const { upload, isUploading } = useDurableBatchUpload();
   const fileInput = useRef<HTMLInputElement>(null);
-  const folderInput = useRef<HTMLInputElement>(null);
-  const zipInput = useRef<HTMLInputElement>(null);
 
-  const choose = (input: React.RefObject<HTMLInputElement | null>) => input.current?.click();
   const selected = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files ? Array.from(event.target.files) : [];
     event.target.value = '';
@@ -25,15 +22,13 @@ export default function ImportOptionsModal() {
 
   return (
     <Modal isOpen={isImportOpen} onClose={closeImport} title="Import" size="sm">
-      <p className="mb-4 text-sm opacity-75">Add fonts to your shelf. Folders and ZIPs keep their paths.</p>
-      <div className="grid gap-2">
-        <Button type="button" disabled={isUploading} onClick={() => choose(fileInput)}>Choose files</Button>
-        <Button type="button" disabled={isUploading} onClick={() => choose(folderInput)}>Choose folder</Button>
-        <Button type="button" disabled={isUploading} onClick={() => choose(zipInput)}>Choose ZIP</Button>
-      </div>
+      <button type="button" disabled={isUploading} onClick={() => fileInput.current?.click()} className="grid w-full place-items-center gap-2 border-2 border-dashed border-[var(--ink)] px-5 py-10 text-center transition-colors hover:bg-[var(--control-track)] disabled:opacity-50">
+        <Upload size={24} aria-hidden />
+        <strong className="text-lg">Drop fonts here</strong>
+        <span className="text-sm opacity-70">Files, folders, or ZIPs</span>
+        <span className="text-xs font-bold uppercase underline">Choose fonts</span>
+      </button>
       <input ref={fileInput} hidden type="file" multiple accept=".ttf,.otf,.woff,.woff2,.zip" onChange={selected} />
-      <input ref={folderInput} hidden type="file" multiple onChange={selected} {...{ webkitdirectory: '' }} />
-      <input ref={zipInput} hidden type="file" accept=".zip" onChange={selected} />
     </Modal>
   );
 }

@@ -7,6 +7,7 @@ import { useImportBatchChildren } from '@/lib/hooks/useImportBatchChildren';
 import { useImportBatchFeed } from '@/lib/hooks/useImportBatchFeed';
 import type { ImportBatchChildren, ImportBatchSummary } from '@/lib/imports/mapImportBatch';
 
+export interface UploadSourcePreview { sourceId: string; name: string; }
 export interface UploadContextValue {
   batches: ImportBatchSummary[];
   notice: string | null;
@@ -19,7 +20,10 @@ export interface UploadContextValue {
   cancelClientUpload: () => void;
   sourceProgress: Record<string, number>;
   setSourceProgress: (sourceId: string, percent: number | null) => void;
+  sourcePreviews: UploadSourcePreview[];
+  setSourcePreviews: (previews: UploadSourcePreview[]) => void;
   loadChildren: (batchId: string) => Promise<ImportBatchChildren>;
+  refreshChildren: (batchId: string) => Promise<ImportBatchChildren>;
   onCompleted: (cb: () => void) => () => void; // fires (debounced) on completion
 }
 
@@ -32,6 +36,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
   const [isClientUploading, setIsClientUploading] = useState(false);
   const clientCancel = useRef<(() => void) | null>(null);
   const [sourceProgress, setSourceProgressState] = useState<Record<string, number>>({});
+  const [sourcePreviews, setSourcePreviews] = useState<UploadSourcePreview[]>([]);
   const completedCbs = useRef(new Set<() => void>());
   const canReadIngests = !isLoading && Boolean(user?.uid);
   const notifyCompleted = useCallback(() => {
@@ -77,10 +82,13 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       cancelClientUpload,
       sourceProgress,
       setSourceProgress,
+      sourcePreviews,
+      setSourcePreviews,
       loadChildren: childStatus.loadChildren,
+      refreshChildren: childStatus.refreshChildren,
       onCompleted,
     }),
-    [canReadIngests, feed.batches, notice, isImportOpen, isClientUploading, sourceProgress, setSourceProgress, registerClientUpload, cancelClientUpload, childStatus.loadChildren, onCompleted]
+    [canReadIngests, feed.batches, notice, isImportOpen, isClientUploading, sourceProgress, sourcePreviews, setSourceProgress, registerClientUpload, cancelClientUpload, childStatus.loadChildren, childStatus.refreshChildren, onCompleted]
   );
 
   return <UploadContext.Provider value={value}>{children}</UploadContext.Provider>;

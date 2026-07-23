@@ -682,13 +682,36 @@ components:
           $ref: '#/components/schemas/ImportError'
     ImportFamilyPlan:
       type: object
-      required: [id]
+      required: [id, familyPlanId, familyName, state, catalogueState, aiState, faceCount, styleCount, assetCount, weights, styles]
       properties:
         id:
+          type: string
+        familyPlanId:
           type: string
         familyId:
           type: string
         familyName:
+          type: string
+        faceCount:
+          type: integer
+          minimum: 0
+        styleCount:
+          type: integer
+          minimum: 0
+        assetCount:
+          type: integer
+          minimum: 0
+        weights:
+          type: array
+          items:
+            type: integer
+        styles:
+          type: array
+          items:
+            type: string
+        catalogueState:
+          type: string
+        aiState:
           type: string
         state:
           type: string

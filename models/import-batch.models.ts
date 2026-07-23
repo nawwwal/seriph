@@ -8,7 +8,7 @@ export interface CreateBatchInput { label: string; expectedSourceCount: number; 
 export interface CreatedBatch { batchId: string; }
 export interface SourceRegistrationInput { sourceId: string; originalName: string; relativePath: string; size: number; declaredContentType?: string; }
 export interface RegisteredSource extends SourceRegistrationInput { accepted: boolean; storagePath?: string; state?: 'uploading' | 'failed'; errorCode?: string; }
-export interface UploadFailure { state: 'upload_failed'; detail: string; }
+export interface UploadFailure { state: 'upload_failed' | 'canceled'; detail: string; }
 export interface DurableUploadSource { sourceId: string; file: File; relativePath: string; }
 export interface RecoverySource { sourceId: string; originalName: string; relativePath: string; size: number; }
 export type DurableUploadPhase = 'setup' | 'creating' | 'registering' | 'resuming' | 'sealing' | 'uploading' | 'completed';
@@ -25,6 +25,7 @@ export interface DurableUploadDeps {
   fail(batchId: string, sourceId: string, error: UploadFailure): Promise<void>;
   progress?(sourceId: string, percent: number): void;
   clearProgress?(sourceId: string): void;
+  cancelled?(): boolean;
   persist?(session: RecoverySession): void;
   clearPersisted?(): void;
   batchReady?(batchId: string): void;

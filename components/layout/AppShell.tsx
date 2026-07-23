@@ -65,7 +65,7 @@ export default function AppShell({
 
         <footer
           data-status-strip
-          className="h-10 min-h-10 shrink-0 overflow-hidden border-t border-[var(--ink)] bg-[var(--paper)]"
+          className="h-10 min-h-10 shrink-0 overflow-visible border-t border-[var(--ink)] bg-[var(--paper)]"
         >
           {statusStrip ?? <AppStatusStrip />}
         </footer>

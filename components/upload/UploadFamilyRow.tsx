@@ -12,6 +12,7 @@ const value = (data: Data, keys: string[]) => keys.map((key) => data[key]).find(
 const text = (data: Data, keys: string[], fallback: string) => redactImportDisplayText(value(data, keys), fallback);
 const count = (data: Data, key: string, nested: string) => typeof data[key] === 'number' ? data[key] as number : Array.isArray(data[nested]) ? data[nested].length : 0;
 const label = (value: string) => redactImportDisplayText(value).replace(/_/g, ' ').replace(/^./, (letter) => letter.toUpperCase());
+const labels = (data: Data, key: string) => Array.isArray(data[key]) ? [...new Set(data[key].filter((item): item is string | number => typeof item === 'string' || typeof item === 'number').map(String))] : [];
 
 export interface UploadFamilyRowProps {
   family: ImportBatchChild;
@@ -38,13 +39,14 @@ export default function UploadFamilyRow({ family, batchId, actions, onInspect }:
     catch (cause) { setError(publicImportActionError(cause)); }
     finally { setPending(false); }
   };
-  return <article className="rule rounded-[var(--radius)] p-3" data-upload-family-row={retryTarget?.kind === 'family' ? retryTarget.familyPlanId : undefined}>
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0"><h4 className="truncate font-bold">{familyName}</h4><p className="text-xs opacity-70">{count(data, 'faceCount', 'faces')} faces · {count(data, 'assetCount', 'assets')} assets</p></div>
+  const styles = labels(data, 'styles'); const weights = labels(data, 'weights'); const chips = styles.length ? styles : weights.map((weight) => `Weight ${weight}`);
+  return <article className="rule rounded-[var(--radius)] px-3 py-2" data-upload-family-row={retryTarget?.kind === 'family' ? retryTarget.familyPlanId : undefined}>
+    <div className="flex items-center justify-between gap-3">
+      <div className="min-w-0"><h4 className="truncate text-sm font-bold">{familyName}</h4><p className="text-xs opacity-65">{count(data, 'styleCount', 'faces')} {count(data, 'styleCount', 'faces') === 1 ? 'style' : 'styles'} · Catalogue {label(text(data, ['catalogueState', 'catalogState'], 'waiting'))} · AI {label(aiState)}</p></div>
       <span className="shrink-0 text-[10px] font-bold uppercase">{label(state)}</span>
     </div>
-    <dl className="mt-2 grid grid-cols-2 gap-2 text-xs"><div><dt className="opacity-60">Catalogue</dt><dd>{text(data, ['catalogueState', 'catalogState'], 'pending')}</dd></div><div><dt className="opacity-60">AI</dt><dd>{label(aiState)}</dd></div></dl>
-    <div className="mt-3 flex flex-wrap gap-2">
+    {chips.length > 0 && <div className="mt-2 flex flex-wrap gap-1">{chips.slice(0, 8).map((chip) => <span key={chip} className="rule rounded-[var(--radius)] px-1.5 py-0.5 text-[10px]">{chip}</span>)}{chips.length > 8 && <span className="px-1 py-0.5 text-[10px] opacity-60">+{chips.length - 8}</span>}</div>}
+    <div className="mt-2 flex flex-wrap gap-2">
       {onInspect && <Button type="button" size="sm" onClick={() => onInspect(family)} aria-label={`Inspect ${familyName}`}>Inspect</Button>}
       {canRetry && <Button type="button" size="sm" tone="warning" disabled={pending} onClick={() => void retry()}>{pending ? 'Retrying…' : 'Retry'}</Button>}
     </div>
