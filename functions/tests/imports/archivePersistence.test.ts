@@ -32,6 +32,26 @@ it("persists child inventory/staging/tasks once and completes only after termina
   expect((db.docs.get(importItemRef(db, "ada", "b1", archive.itemId).path)!.archive as Data).state).toBe("complete");
 });
 
+it("bounds child durability at eight and waits for every child before completing", async () => {
+  const db = new Db(); await createBatch(db, { ownerId: "ada", batchId: "b1", label: "x", expectedSourceCount: 1 });
+  const archive = await buildInventoryItem({ ...base, bytes: Buffer.from([0x50, 0x4b, 0x03, 0x04]) }); await createItemOnce(db, archive);
+  const children = [];
+  for (let index = 0; index < 12; index += 1) {
+    const filename = `font-${index}.ttf`;
+    const inventory = await buildInventoryItem({ ...base, filename, extension: ".ttf", archiveLineage: [{ archiveItemId: archive.itemId, entryPath: filename }], bytes: Buffer.from([0, 1, 0, index]), name: filename });
+    children.push({ inventory, staging: { path: `import_staging/ada/b1/archive/${filename}`, bytes: Buffer.from(filename), contentHash: inventory.sha256 }, task: { kind: "discover_item" as const, ownerId: "ada", batchId: "b1", resourceId: inventory.itemId, planVersion: 1 } });
+  }
+  let active = 0; let maxActive = 0; let staged = 0; let enqueued = 0;
+  const stage = vi.fn(async () => {
+    active += 1; maxActive = Math.max(maxActive, active); await new Promise((resolve) => setTimeout(resolve, 5)); active -= 1; staged += 1;
+  });
+  const enqueue = vi.fn(async () => { enqueued += 1; });
+  const result = await persistArchiveDiscovery(db, archive.itemId, { children, reviews: [] }, { stage, enqueue });
+  expect(maxActive).toBe(8); expect(staged).toBe(12); expect(enqueued).toBe(12);
+  expect(result).toEqual({ createdItems: 12, stagedChildren: 12, enqueuedChildren: 12 });
+  expect((db.docs.get(importItemRef(db, "ada", "b1", archive.itemId).path)!.archive as Data)).toMatchObject({ inventoryDurable: true, expectedChildren: 12 });
+});
+
 it("reserves one shared archive budget atomically across redelivery and nesting", async () => {
   const db = new Db(); await createBatch(db, { ownerId: "ada", batchId: "b1", label: "x", expectedSourceCount: 1 });
   await expect(reserveArchiveBytesOnce(db, { ownerId: "ada", batchId: "b1", reservationId: "outer/font.ttf", bytes: 80, maxBytes: 100 })).resolves.toMatchObject({ kind: "reserved", reservedBytes: 80, remainingBytes: 20 });

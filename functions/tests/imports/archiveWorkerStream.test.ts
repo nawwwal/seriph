@@ -61,4 +61,22 @@ describe("archive worker streaming policy", () => {
     expect(source.createReadStream).toHaveBeenCalledTimes(2);
     expect(deps.persistence.persistChild).toHaveBeenCalledOnce();
   });
+
+  it("bounds streamed child persistence at eight while preserving the completion barrier", async () => {
+    const parser = vi.fn(async function* (stream) {
+      stream.resume();
+      for (let index = 0; index < 12; index += 1) {
+        yield { path: `font-${index}.ttf`, type: "File", flags: 0, compressionMethod: 0, compressedSize: 4, uncompressedSize: 4, stream: () => Readable.from([Buffer.from([0, 1, 0, index])]) };
+      }
+    });
+    let active = 0; let maxActive = 0; let persisted = 0;
+    const base = testDependencies(testSource(), { parser, limits: { ...archiveLimits, maxExpandedBatchBytes: 100 } });
+    const persistChild = vi.fn(async () => {
+      active += 1; maxActive = Math.max(maxActive, active); await new Promise((resolve) => setTimeout(resolve, 5)); active -= 1; persisted += 1;
+    });
+    const deps = testDependencies(testSource(), { parser, limits: { ...archiveLimits, maxExpandedBatchBytes: 100 }, persistence: { ...base.persistence, persistChild } });
+    await expect(handleArchive({ body: archivePayload, headers: archiveHeaders }, deps)).resolves.toMatchObject({ status: 204 });
+    expect(maxActive).toBe(8); expect(persisted).toBe(12);
+    expect(deps.persistence.completeArchive).toHaveBeenCalledWith(expect.objectContaining({ expectedChildren: 12 }));
+  });
 });
