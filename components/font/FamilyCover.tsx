@@ -10,7 +10,7 @@ import { useFamilyRoutePrefetch } from '@/lib/hooks/useFamilyRoutePrefetch';
 import { useInViewport } from '@/lib/hooks/useInViewport';
 import { familyCoverLinkHandlers } from './familyCoverLinkProps';
 import FamilyCoverBody from './familyCoverBody';
-import { getSampleChars, isFullFamily, toShelfFamily, useRegisterShelfFace } from './FamilyCoverArt';
+import { isFullFamily, toShelfFamily, useRegisterShelfFace } from './FamilyCoverArt';
 
 const PREVIEW_FONT_ROOT_MARGIN = '1800px';
 
@@ -18,7 +18,6 @@ interface FamilyCoverProps {
   family: FontFamily | ShelfFamily;
   mode: 'spines' | 'covers';
   coverSeed?: number;
-  description?: string;
   isSelectionMode?: boolean;
   isSelected?: boolean;
   onToggleSelected?: (familyId: string) => void;
@@ -27,14 +26,13 @@ interface FamilyCoverProps {
 
 function FamilyCover({
   family, isSelectionMode = false, isSelected = false,
-  onToggleSelected, onOpenContextMenu, description,
+  onToggleSelected, onOpenContextMenu,
 }: FamilyCoverProps) {
   const { ref, inView } = useInViewport<HTMLAnchorElement>(PREVIEW_FONT_ROOT_MARGIN);
   useRegisterFamilyFonts(isFullFamily(family) ? family : null, {
     enabled: inView, representativeOnly: true,
   });
   useRegisterShelfFace(family, inView);
-  const sampleChars = getSampleChars(family.classification);
   const isVariable = isFullFamily(family)
     ? family.fonts?.some((f) => f.isVariable) : family.isVariable;
   const styleCount = isFullFamily(family) ? family.fonts.length : family.styleCount;
@@ -65,8 +63,6 @@ function FamilyCover({
       ) : null}
       <FamilyCoverBody
         name={family.name}
-        sampleChars={sampleChars}
-        description={description}
         styleCount={styleCount}
         isVariable={isVariable}
         classification={family.classification}

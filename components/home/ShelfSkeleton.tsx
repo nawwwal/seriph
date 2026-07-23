@@ -13,19 +13,16 @@ export function ShelfCardSkeletons({ count = INITIAL_SKELETON_COUNT }: ShelfCard
         <div
           key={index}
           aria-hidden="true"
-          className="shelf-card-skeleton relative flex h-full min-h-[220px] flex-col overflow-hidden rounded-[var(--radius)] rule"
+          className="shelf-card-skeleton relative flex min-h-[260px] flex-col overflow-hidden rounded-[var(--radius)] rule bg-[var(--paper)] p-5 sm:p-6"
         >
-          <div className="relative flex flex-1 items-end bg-[color-mix(in_srgb,var(--ink)_6%,var(--paper))] p-4 sm:p-5 md:p-6">
-            <span className="text-6xl font-black uppercase leading-none opacity-10 pulse sm:text-7xl lg:text-6xl xl:text-7xl">
-              ABC
-            </span>
+          <div>
+            <div className="h-4 w-2/5 bg-[color-mix(in_srgb,var(--ink)_12%,transparent)] pulse" />
+            <div className="mt-2 h-3 w-3/5 bg-[color-mix(in_srgb,var(--ink)_8%,transparent)] pulse" />
           </div>
-          <div className="bg-[var(--paper)] p-3 rule-t sm:p-4">
-            <div className="h-5 w-1/2 bg-[color-mix(in_srgb,var(--ink)_12%,transparent)] pulse" />
-            <div className="mt-4 flex items-center justify-between">
-              <div className="h-3 w-16 bg-[color-mix(in_srgb,var(--ink)_12%,transparent)] pulse" />
-              <div className="h-3 w-24 bg-[color-mix(in_srgb,var(--ink)_12%,transparent)] pulse" />
-            </div>
+          <div className="mt-auto pt-8">
+            <div className="text-6xl font-normal leading-none opacity-10 pulse sm:text-7xl">Aa</div>
+            <div className="mt-6 h-5 w-4/5 bg-[color-mix(in_srgb,var(--ink)_10%,transparent)] pulse" />
+            <div className="mt-2 h-5 w-3/4 bg-[color-mix(in_srgb,var(--ink)_10%,transparent)] pulse" />
           </div>
         </div>
       ))}

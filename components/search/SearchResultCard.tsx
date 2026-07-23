@@ -21,5 +21,5 @@ export default function SearchResultCard({ r }: { r: SearchResultItem }) {
     updatedAt: r.updatedAt,
     coverFace: r.coverFace,
   };
-  return <FamilyCover family={family} mode="covers" description={r.summary} />;
+  return <FamilyCover family={family} mode="covers" />;
 }
