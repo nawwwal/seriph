@@ -7,7 +7,7 @@ import { useInViewport } from '@/lib/hooks/useInViewport';
 import type { ShelfSelectionState } from '@/lib/shelf/selectionState';
 import FamilyContextMenu from './FamilyContextMenu';
 import ShelfFamilySections from './ShelfFamilySections';
-import { ShelfCardSkeletonGrid } from './ShelfSkeleton';
+import { ShelfCardSkeletons } from './ShelfSkeleton';
 import { LOAD_MORE_SKELETON_COUNT } from './shelfGrid';
 
 const PREFETCH_ROOT_MARGIN = '2800px 0px';
@@ -59,10 +59,12 @@ export default function ShelfState({
         selectionState={selectionState}
         onToggleSelected={onToggleSelected}
         onOpenContextMenu={openContextMenu}
+        tail={(hasMore || isLoadingMore)
+          ? <ShelfCardSkeletons count={LOAD_MORE_SKELETON_COUNT} />
+          : null}
       />
 
       {hasMore && <div ref={sentinelRef} className="h-px w-full" aria-hidden="true" />}
-      {(hasMore || isLoadingMore) && <ShelfCardSkeletonGrid count={LOAD_MORE_SKELETON_COUNT} />}
       {contextMenu && (
         <FamilyContextMenu
           familyId={contextMenu.familyId}
