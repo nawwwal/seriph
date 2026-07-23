@@ -22,7 +22,7 @@ export function faceWeightLabel(font: Pick<Font, 'weight' | 'isVariable'>): stri
 
 export function sortFacesForPlayground(fonts: Font[]): Font[] {
   return [...fonts].sort((a, b) => {
-    if (a.isVariable !== b.isVariable) return a.isVariable ? 1 : -1;
+    if (a.isVariable !== b.isVariable) return a.isVariable ? -1 : 1;
     if (a.weight !== b.weight) return a.weight - b.weight;
     return a.subfamily.localeCompare(b.subfamily);
   });

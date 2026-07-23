@@ -46,9 +46,12 @@ export function uniqueFacesById(fonts: Font[]): Font[] {
 }
 
 export function selectDefaultFace(fonts: Font[]): Font | undefined {
+  const uniqueFaces = uniqueFacesById(fonts);
+  const variableFaces = uniqueFaces.filter((font) => font.isVariable);
+  const candidates = variableFaces.length > 0 ? variableFaces : uniqueFaces;
   let selected: Font | undefined;
   let selectedScore = Number.POSITIVE_INFINITY;
-  for (const font of uniqueFacesById(fonts)) {
+  for (const font of candidates) {
     const weight = Number.isFinite(font.weight) ? font.weight : 400;
     const score = (isItalicFace(font) ? 10_000 : 0)
       + Math.abs(weight - 400) - (/regular/i.test(font.subfamily) ? 1 : 0);
