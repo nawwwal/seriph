@@ -1,14 +1,14 @@
-import * as admin from "firebase-admin";
+import type { ServiceAccount } from "firebase-admin/app";
 import { logger } from "firebase-functions";
 import { coercePrivateKey } from "./privateKey";
 
-type ServiceAccountConfig = admin.ServiceAccount & {
+type ServiceAccountConfig = ServiceAccount & {
   project_id?: string;
   client_email?: string;
   private_key?: string;
 };
 
-function fromJson(json: string, source: string): admin.ServiceAccount | null {
+function fromJson(json: string, source: string): ServiceAccount | null {
   try {
     const parsed: ServiceAccountConfig = JSON.parse(json);
     const clientEmail = parsed.client_email ?? parsed.clientEmail;
@@ -29,7 +29,7 @@ function fromJson(json: string, source: string): admin.ServiceAccount | null {
   }
 }
 
-function fromBase64(value: string, source: string): admin.ServiceAccount | null {
+function fromBase64(value: string, source: string): ServiceAccount | null {
   try {
     return fromJson(Buffer.from(value, "base64").toString("utf8"), source);
   } catch {
@@ -38,7 +38,7 @@ function fromBase64(value: string, source: string): admin.ServiceAccount | null 
 }
 
 /** Resolve a service account from the supported credential env vars, in priority order. */
-export function loadServiceAccountFromEnv(): admin.ServiceAccount | null {
+export function loadServiceAccountFromEnv(): ServiceAccount | null {
   const inline = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
   if (inline?.startsWith("{")) {
     const parsed = fromJson(inline, "GOOGLE_APPLICATION_CREDENTIALS");

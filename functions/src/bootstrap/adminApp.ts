@@ -1,6 +1,6 @@
 import { statSync } from "fs";
 import { resolve } from "path";
-import * as admin from "firebase-admin";
+import { cert, initializeApp, type AppOptions } from "firebase-admin/app";
 import { logger } from "firebase-functions";
 import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
@@ -33,13 +33,13 @@ function sanitizeCredentialsEnv(): void {
 }
 
 function initializeFirebaseAdminApp(): void {
-  const appOptions: admin.AppOptions = {};
+  const appOptions: AppOptions = {};
   const storageBucket = resolveStorageBucket();
   if (storageBucket) appOptions.storageBucket = storageBucket;
 
   const serviceAccount = loadServiceAccountFromEnv();
   if (serviceAccount) {
-    appOptions.credential = admin.credential.cert(serviceAccount);
+    appOptions.credential = cert(serviceAccount);
     if (!appOptions.projectId && serviceAccount.projectId) appOptions.projectId = serviceAccount.projectId;
   } else {
     sanitizeCredentialsEnv();
@@ -49,7 +49,7 @@ function initializeFirebaseAdminApp(): void {
   }
 
   try {
-    admin.initializeApp(appOptions);
+    initializeApp(appOptions);
   } catch (error) {
     logger.error("Failed to initialize Firebase Admin app.", {
       message: error instanceof Error ? error.message : String(error),

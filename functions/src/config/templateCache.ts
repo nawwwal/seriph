@@ -1,8 +1,8 @@
 import * as functions from "firebase-functions";
-import * as admin from "firebase-admin";
+import { getRemoteConfig, type RemoteConfigTemplate } from "firebase-admin/remote-config";
 
 interface TemplateCache {
-  template: admin.remoteConfig.RemoteConfigTemplate;
+  template: RemoteConfigTemplate;
   fetchedAt: number;
   version: string;
 }
@@ -11,9 +11,9 @@ const TEMPLATE_TTL_MS = 60 * 1000; // Firebase best-practice TTL
 let templateCache: TemplateCache | null = null;
 let refreshPromise: Promise<void> | null = null;
 
-async function fetchTemplate(): Promise<admin.remoteConfig.RemoteConfigTemplate | null> {
+async function fetchTemplate(): Promise<RemoteConfigTemplate | null> {
   try {
-    return await admin.remoteConfig().getTemplate();
+    return await getRemoteConfig().getTemplate();
   } catch (error: any) {
     functions.logger.error("Failed to fetch Remote Config template:", { message: error?.message, code: error?.code });
     return null;
@@ -56,6 +56,6 @@ export function triggerBackgroundRefresh(): void {
   ensureFreshTemplate().catch((error) => functions.logger.warn("Background template refresh failed:", error));
 }
 
-export function getCachedTemplate(): admin.remoteConfig.RemoteConfigTemplate | null {
+export function getCachedTemplate(): RemoteConfigTemplate | null {
   return templateCache?.template ?? null;
 }
