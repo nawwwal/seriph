@@ -70,6 +70,7 @@ function FamilyCover({
         styleCount={styleCount}
         isVariable={isVariable}
         classification={family.classification}
+        normalizeFont={inView}
       />
     </Link>
   );
