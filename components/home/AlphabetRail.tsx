@@ -43,11 +43,11 @@ export default function AlphabetRail({
                 aria-pressed={isSelected}
                 disabled={!isPresent}
                 onClick={() => onSelect(toggleAlphabetInitial(selected, initial))}
-                className={`theme-focus-ring flex aspect-square items-center justify-center border-r border-b border-[var(--ink)] text-sm uppercase sm:text-base ${
+                className={`theme-focus-ring flex aspect-square items-center justify-center border-r border-b border-[var(--ink)] text-sm uppercase transition-colors sm:text-base ${
                   isSelected
                     ? 'ink-bg'
                     : isPresent
-                      ? 'hover:ink-bg'
+                      ? 'btn-ink'
                       : 'cursor-not-allowed'
                 }`}
               >
