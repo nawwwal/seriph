@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "crypto";
-import { firestore, seedApplyFamily, sourceBytes } from "./workerIntegrationHarness";
+import { bucket, firestore, seedApplyFamily, sourceBytes } from "./workerIntegrationHarness";
 
 vi.mock("firebase-admin/firestore", async (importOriginal) => {
   const actual = await importOriginal(); const harness = await import("./workerIntegrationHarness");
@@ -99,6 +99,63 @@ describe("authenticated durable import dispatcher", () => {
     expect(firestore.docs.get(`users/owner-1/assetClaims/${sha}`)).toMatchObject({ status: "committed" });
     expect(firestore.docs.get(`users/owner-1/importBatches/batch-1/tasks/${importTaskLeaseId(task.name)}`)).toMatchObject({ state: "complete", attempt: 1 });
     expect(firestore.writes.filter((path) => path === "fontfamilies/owner-1__atlas")).toHaveLength(1);
+  });
+
+  it("reuses a committed byte-identical asset from another batch without a retry tail or duplicate face asset", async () => {
+    firestore.docs.clear(); firestore.writes.length = 0; bucket.saved.length = 0;
+    vi.stubEnv("GOOGLE_CLOUD_PROJECT", "test-project");
+    vi.stubEnv("FUNCTIONS_REGION", "asia-southeast1");
+    vi.stubEnv("IMPORT_TASKS_QUEUE", "seriph-import");
+    vi.stubEnv("IMPORT_WORKER_URL", "https://asia-southeast1-test-project.cloudfunctions.net/importTaskWorker");
+    vi.stubEnv("IMPORT_WORKER_ALLOWED_HOSTS", "asia-southeast1-test-project.cloudfunctions.net");
+    vi.stubEnv("IMPORT_WORKER_SERVICE_ACCOUNT", "import-worker@test-project.iam.gserviceaccount.com");
+    const batchPath = "users/owner-1/importBatches/batch-2";
+    firestore.docs.set(`${batchPath}/plans/1`, { ownerId: "owner-1", batchId: "batch-2", planVersion: 1, state: "validated",
+      items: [{ id: "item-2", itemId: "item-2", sha256: sha, action: "apply", reasonCode: "planned", reasonCodes: [], familyId: "atlas", logicalFaceKey: "regular" }],
+      families: [{ familyId: "atlas", familyName: "Atlas", familySlug: "atlas", clean: true, faces: [{ logicalFaceKey: "regular", styleName: "Regular", weight: 400, width: 100, italic: false,
+        assets: [{ assetId: "asset-2", itemId: "item-2", sha256: sha, format: "WOFF", version: "1" }] }] }], reviewItems: [], expectedFamilyVersions: { atlas: 1 } });
+    firestore.docs.set(`${batchPath}/plans/1/applyTasks/atlas`, { expectedFamilyVersion: 1 });
+    firestore.docs.set(`${batchPath}/items/item-2`, { stagingPath: "intake/batch-2/atlas/item-2", filename: "atlas.woff" });
+    firestore.docs.set("fontfamilies/owner-1__atlas", { id: "owner-1__atlas", slug: "atlas", name: "Atlas", version: 1, status: "ready",
+      faces: [{ id: "regular", logicalFaceKey: "regular", assets: [{ id: "asset-1", contentHash: sha, containerFormat: "WOFF" }] }] });
+    firestore.docs.set(`users/owner-1/assetClaims/${sha}`, { ownerId: "owner-1", batchId: "batch-1", itemId: "item-1", sha256: sha,
+      familyId: "atlas", logicalFaceKey: "regular", assetId: "asset-1", claimId: "batch-1:item-1", status: "committed", updatedAt: new Date("2026-07-24T00:00:00Z") });
+    const applyPayload = { kind: "apply_family" as const, ownerId: "owner-1", batchId: "batch-2", resourceId: "atlas", planVersion: 1 };
+    const task = buildHttpTask(applyPayload); const headers = { authorization: "Bearer integration-test-token", "x-cloudtasks-taskname": task.name };
+    const result = response();
+    await importTaskWorker({ body: Buffer.from(task.httpRequest!.body!, "base64"), headers, get: (name: string) => headers[name.toLowerCase()] } as any, result.res as any);
+    expect(result.statuses).toEqual([204]);
+    expect(firestore.docs.get("fontfamilies/owner-1__atlas")).toMatchObject({ version: 1 });
+    expect((firestore.docs.get("fontfamilies/owner-1__atlas")?.faces[0]?.assets ?? [])).toHaveLength(1);
+    expect(firestore.docs.get(`users/owner-1/assetClaims/${sha}`)).toMatchObject({ status: "committed", batchId: "batch-2", assetId: "asset-1", reusedFrom: expect.any(Object) });
+    expect(firestore.docs.get(`${batchPath}/plans/1/applyTasks/atlas`)).toMatchObject({ status: "applied", result: { kind: "already_applied", familyVersion: 1 } });
+  });
+
+  it("reviews a committed digest whose family identity conflicts instead of retrying forever", async () => {
+    firestore.docs.clear(); firestore.writes.length = 0; bucket.saved.length = 0;
+    vi.stubEnv("GOOGLE_CLOUD_PROJECT", "test-project");
+    vi.stubEnv("FUNCTIONS_REGION", "asia-southeast1");
+    vi.stubEnv("IMPORT_TASKS_QUEUE", "seriph-import");
+    vi.stubEnv("IMPORT_WORKER_URL", "https://asia-southeast1-test-project.cloudfunctions.net/importTaskWorker");
+    vi.stubEnv("IMPORT_WORKER_ALLOWED_HOSTS", "asia-southeast1-test-project.cloudfunctions.net");
+    vi.stubEnv("IMPORT_WORKER_SERVICE_ACCOUNT", "import-worker@test-project.iam.gserviceaccount.com");
+    const batchPath = "users/owner-1/importBatches/batch-conflict";
+    firestore.docs.set(`${batchPath}/plans/1`, { ownerId: "owner-1", batchId: "batch-conflict", planVersion: 1, state: "validated",
+      items: [{ id: "item-conflict", itemId: "item-conflict", sha256: sha, action: "apply", reasonCode: "planned", reasonCodes: [], familyId: "atlas", logicalFaceKey: "regular" }],
+      families: [{ familyId: "atlas", familyName: "Atlas", familySlug: "atlas", clean: true, faces: [{ logicalFaceKey: "regular", styleName: "Regular", weight: 400, width: 100, italic: false,
+        assets: [{ assetId: "asset-conflict", itemId: "item-conflict", sha256: sha, format: "WOFF", version: "1" }] }] }], reviewItems: [], expectedFamilyVersions: { atlas: 0 } });
+    firestore.docs.set(`${batchPath}/plans/1/applyTasks/atlas`, { expectedFamilyVersion: 0 });
+    firestore.docs.set(`${batchPath}/items/item-conflict`, { stagingPath: "intake/conflict/atlas/item-conflict" });
+    firestore.docs.set("fontfamilies/owner-1__atlas", { id: "owner-1__atlas", slug: "atlas", name: "Atlas", version: 0, status: "ready", faces: [] });
+    firestore.docs.set(`users/owner-1/assetClaims/${sha}`, { ownerId: "owner-1", batchId: "batch-1", itemId: "item-1", sha256: sha,
+      familyId: "bravo", logicalFaceKey: "regular", assetId: "asset-1", claimId: "batch-1:item-1", status: "committed" });
+    const applyPayload = { kind: "apply_family" as const, ownerId: "owner-1", batchId: "batch-conflict", resourceId: "atlas", planVersion: 1 };
+    const task = buildHttpTask(applyPayload); const headers = { authorization: "Bearer integration-test-token", "x-cloudtasks-taskname": task.name };
+    const result = response();
+    await importTaskWorker({ body: Buffer.from(task.httpRequest!.body!, "base64"), headers, get: (name: string) => headers[name.toLowerCase()] } as any, result.res as any);
+    expect(result.statuses).toEqual([204]);
+    expect(firestore.docs.get(`${batchPath}/plans/1/applyTasks/atlas`)).toMatchObject({ status: "review", result: { reasonCode: "asset_claim_identity_conflict" } });
+    expect(firestore.docs.get("fontfamilies/owner-1__atlas")).toMatchObject({ version: 0, faces: [] });
   });
 
   it("refuses a canceled batch through the deployed discovery stage", async () => {
