@@ -9,9 +9,20 @@ const GROUP_LABELS: { key: keyof CharacterGroups; label: string }[] = [
   { key: 'lowercase', label: 'Lowercase' },
   { key: 'numbers', label: 'Numbers' },
   { key: 'punctuation', label: 'Punctuation' },
+  { key: 'spacing', label: 'Spacing' },
   { key: 'symbols', label: 'Symbols' },
   { key: 'other', label: 'Other' },
 ];
+
+const SPACING_LABELS = new Map<number, string>([
+  [0x09, 'Tab'],
+  [0x20, 'Space'],
+  [0xa0, 'NBSP'],
+  [0x2002, 'En space'],
+  [0x2003, 'Em space'],
+  [0x2009, 'Thin'],
+  [0x200a, 'Hair'],
+]);
 
 function CharacterGrid({
   characters,
@@ -33,15 +44,21 @@ function CharacterGrid({
       <div className="col-span-full border-b border-[var(--ink)] px-4 py-3 font-sans text-xs font-bold not-italic opacity-80 uppercase">
         {label} ({characters.length})
       </div>
-      {characters.map((character, index) => (
-        <span
-          key={`${character}-${index}`}
-          className="flex aspect-square items-center justify-center border-b border-r border-[var(--ink)] text-xl not-italic sm:text-2xl"
-          style={{ fontFamily: familyName, fontStyle: 'normal' }}
-        >
-          {character}
-        </span>
-      ))}
+      {characters.map((character, index) => {
+        const spacingLabel = SPACING_LABELS.get(character.codePointAt(0) ?? -1);
+        return (
+          <span
+            key={`${character}-${index}`}
+            aria-label={spacingLabel}
+            className={`flex aspect-square items-center justify-center border-b border-r border-[var(--ink)] not-italic ${
+              spacingLabel ? 'font-sans text-[0.625rem] font-bold uppercase' : 'text-xl sm:text-2xl'
+            }`}
+            style={spacingLabel ? undefined : { fontFamily: familyName, fontStyle: 'normal' }}
+          >
+            {spacingLabel ?? character}
+          </span>
+        );
+      })}
     </div>
   );
 }

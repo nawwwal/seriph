@@ -5,6 +5,7 @@ export interface CharacterGroups {
   lowercase: string[];
   numbers: string[];
   punctuation: string[];
+  spacing: string[];
   symbols: string[];
   other: string[];
 }
@@ -32,7 +33,15 @@ export function buildCharacterSet(family: FontFamily | null): Set<number> {
 
 /** Bucket a code-point set into uppercase/lowercase/numbers/punctuation/symbols/other. */
 export function groupCharacters(characterSet: Set<number>): CharacterGroups {
-  const groups: CharacterGroups = { uppercase: [], lowercase: [], numbers: [], punctuation: [], symbols: [], other: [] };
+  const groups: CharacterGroups = {
+    uppercase: [],
+    lowercase: [],
+    numbers: [],
+    punctuation: [],
+    spacing: [],
+    symbols: [],
+    other: [],
+  };
 
   Array.from(characterSet)
     .sort((a, b) => a - b)
@@ -45,7 +54,8 @@ export function groupCharacters(characterSet: Set<number>): CharacterGroups {
         else if (isLower || /[a-z]/.test(char)) groups.lowercase.push(char);
         else if (/[0-9]/.test(char)) groups.numbers.push(char);
         else if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?`~]/.test(char)) groups.punctuation.push(char);
-        else if (char.trim() !== '' && /[^\w\s]/.test(char)) groups.symbols.push(char);
+        else if (char.trim() === '') groups.spacing.push(char);
+        else if (/[^\w\s]/.test(char)) groups.symbols.push(char);
         else groups.other.push(char);
       } catch (e) {
         console.warn(`Invalid code point: ${codePoint}`, e);
