@@ -59,8 +59,11 @@ export async function discoverSourceTask(payload: ImportTaskPayload, runtime: Di
   const item = await buildInventoryItem({ ...sourceInput(source), bytes, name: source.filename });
   await createItemOnce(runtime.db, item);
   if (await runtime.isCanceled?.(payload.ownerId, payload.batchId)) return { status: 204 };
-  if (item.role === "archive") { if (!(await expandItem(item, bytes, runtime))) return { status: 204 }; }
-  else await runtime.enqueue({ kind: "discover_item", ownerId: item.ownerId, batchId: item.batchId, resourceId: item.itemId, planVersion: 1 });
+  if (item.role === "archive") {
+    if (!(await expandItem(item, bytes, runtime))) return { status: 204 };
+  } else {
+    await markItemTerminalOnce(runtime.db, { ownerId: item.ownerId, batchId: item.batchId, itemId: item.itemId }, terminalState(item));
+  }
   await transitionSource(runtime.db, sourceInputValue, "discovering", "discovered");
   if (await runtime.isCanceled?.(payload.ownerId, payload.batchId)) return { status: 204 };
   await requestPlanFinalization(runtime.db, item.ownerId, item.batchId, runtime.enqueue);

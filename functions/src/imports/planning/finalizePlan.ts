@@ -5,30 +5,47 @@ import { claimAsset } from "../store/assetClaimStore";
 import { enqueuePendingPlanTasks, saveValidatedPlan } from "../store/planStore";
 import { importBatchRef, importSourceRef } from "../store/paths";
 import { importItemRef } from "../store/itemStore";
+import { readImportReadiness, readinessWithDelta, terminalItemState, terminalSourceState } from "../store/batchStore";
 import { enqueueImportTask, type ImportTaskPayload } from "../tasks/enqueue";
 import { isImportBatchCanceled, isMissingStorageObject } from "../tasks/cancellation";
-import { deliverPendingDispatch, type PendingImportDispatch } from "../reconcile/pendingDispatch";
+import { deliverPendingDispatch, pendingDispatch, type PendingImportDispatch } from "../reconcile/pendingDispatch";
 import { buildImportPlan, type ImportPlan, type PlanInventoryItem } from "./buildPlan";
+import { mapWithConcurrency } from "./limitedMap";
+import { ensureImportReadiness } from "./readiness";
 
 type Row = Record<string, unknown>;
 type Enqueue = (payload: ImportTaskPayload) => Promise<unknown>;
 export interface FinalizePlanDependencies { enqueueReconcile?: Enqueue; }
-const terminalSource = new Set(["discovered", "failed", "canceled", "timed_out"]);
-const terminalItem = new Set(["classified", "applied", "duplicate", "review", "discarded", "failed"]);
-
 function isReady(sources: readonly Row[], items: readonly Row[]): boolean {
-  return sources.length > 0 && sources.every((source) => terminalSource.has(String(source.state)))
-    && items.length > 0 && items.every((item) => terminalItem.has(String(item.state)));
+  return sources.length > 0 && sources.every((source) => terminalSourceState(source.state))
+    && items.length > 0 && items.every((item) => terminalItemState(item.state));
 }
 
-/** Queue planning only after every source and inventory item has a durable terminal state. */
+/** Queue planning once, after durable counters prove every source and item is terminal. */
 export async function requestPlanFinalization(db: Firestore, ownerId: string, batchId: string, enqueue: Enqueue): Promise<boolean> {
   const batch = importBatchRef(db, ownerId, batchId);
   if (await isImportBatchCanceled(db, ownerId, batchId)) return false;
-  const [sources, items] = await Promise.all([batch.collection("sources").get(), batch.collection("items").get()]);
-  if (!isReady(sources.docs.map((doc) => doc.data()), items.docs.map((doc) => doc.data()))) return false;
-  if (await isImportBatchCanceled(db, ownerId, batchId)) return false;
-  await enqueue({ kind: "finalize_plan", ownerId, batchId, resourceId: batchId });
+  await ensureImportReadiness(db, batch);
+  const task: ImportTaskPayload = { kind: "finalize_plan", ownerId, batchId, resourceId: batchId };
+  const pending: PendingImportDispatch = { token: `finalize:${batchId}`, task };
+  const scheduled = await db.runTransaction(async (tx) => {
+    const snapshot = await tx.get(batch);
+    if (!snapshot.exists || snapshot.data()?.outcome === "canceled") return false;
+    const data = snapshot.data() as Row; const readiness = readImportReadiness(data.readiness);
+    const counters = (data.counters as Row | undefined) ?? {};
+    if (!readiness || readiness.finalizationRequested || readiness.pendingSources > 0 || readiness.pendingItems > 0 ||
+      Number(counters.sources ?? 0) < 1 || Number(counters.discoveredItems ?? 0) < 1) return false;
+    const existing = pendingDispatch(data.pendingDispatch);
+    if (existing && (existing.token !== pending.token || JSON.stringify(existing.task) !== JSON.stringify(task))) return false;
+    tx.update(batch, {
+      readiness: { ...readiness, finalizationRequested: true },
+      pendingDispatch: pending,
+      updatedAt: new Date(),
+    });
+    return true;
+  });
+  if (!scheduled) return false;
+  try { await deliverPendingDispatch(db, batch, pending, enqueue); } catch { /* pendingDispatch remains for scheduled recovery */ }
   return true;
 }
 
@@ -42,6 +59,12 @@ async function parsedItem(item: Row, sourcePath: string): Promise<PlanInventoryI
   const metadata = await serverParseFontFile(bytes, String(item.filename));
   if (!metadata) throw new Error(`font_metadata_unreadable:${String(item.itemId)}`);
   return { ...item, ...metadata, itemId: String(item.itemId), ownerId: String(item.ownerId), batchId: String(item.batchId), sha256: String(item.sha256) };
+}
+
+function discoveredItem(item: Row): PlanInventoryItem {
+  const metadata = item.fontMetadata;
+  if (!metadata || typeof metadata !== "object") throw new Error(`font_metadata_missing:${String(item.itemId)}`);
+  return { ...item, ...(metadata as Record<string, unknown>), itemId: String(item.itemId), ownerId: String(item.ownerId), batchId: String(item.batchId), sha256: String(item.sha256) } as PlanInventoryItem;
 }
 
 class MissingSourceObjectError extends Error {
@@ -70,9 +93,14 @@ export async function failPlanningTerminally(db: Firestore, payload: ImportTaskP
     const [itemSnapshot, sourceSnapshot] = await Promise.all([item ? tx.get(item) : Promise.resolve(undefined), source ? tx.get(source) : Promise.resolve(undefined)]);
     const data = snapshot.data() as Row; const phases = (data.phases as Row | undefined) ?? {}; const planning = (phases.planning as Row | undefined) ?? {};
     const error = { code, message: code, phase: "planning", retryable: false };
-    if (item && itemSnapshot?.exists && !["applied", "duplicate", "review", "discarded", "failed"].includes(String(itemSnapshot.data()?.state))) tx.update(item, { state: "failed", error, updatedAt: new Date() });
-    if (source && sourceSnapshot?.exists && !["failed", "canceled", "timed_out"].includes(String(sourceSnapshot.data()?.state))) tx.update(source, { state: "failed", error, updatedAt: new Date() });
-    tx.update(batch, { phases: { ...phases, planning: { ...planning, state: "failed", error, updatedAt: new Date() } }, reconciliation: { state: "scheduled", requestedAt: new Date() }, pendingDispatch: pending, updatedAt: new Date() });
+    const itemCanFail = Boolean(itemSnapshot?.exists && !["applied", "duplicate", "review", "discarded", "failed"].includes(String(itemSnapshot.data()?.state)));
+    const sourceCanFail = Boolean(sourceSnapshot?.exists && !["failed", "canceled", "timed_out"].includes(String(sourceSnapshot.data()?.state)));
+    const itemPending = Boolean(itemCanFail && !terminalItemState(itemSnapshot?.data()?.state));
+    const sourcePending = Boolean(sourceCanFail && !terminalSourceState(sourceSnapshot?.data()?.state));
+    if (itemCanFail) tx.update(item!, { state: "failed", error, updatedAt: new Date() });
+    if (sourceCanFail) tx.update(source!, { state: "failed", error, updatedAt: new Date() });
+    const readiness = readinessWithDelta(data.readiness, { pendingItems: itemPending ? -1 : 0, pendingSources: sourcePending ? -1 : 0 });
+    tx.update(batch, { phases: { ...phases, planning: { ...planning, state: "failed", error, updatedAt: new Date() } }, reconciliation: { state: "scheduled", requestedAt: new Date() }, pendingDispatch: pending, ...(readiness ? { readiness } : {}), updatedAt: new Date() });
     return true;
   });
   if (!scheduled) return;
@@ -90,12 +118,16 @@ export async function finalizePlanTask(payload: ImportTaskPayload, db: Firestore
   if (!isReady([...sources.values()], items)) return { status: 503 };
   let inputs: PlanInventoryItem[];
   try {
-    inputs = await Promise.all(items.filter((item) => item.role === "font" && item.action === "apply").map(async (item) => {
+    const fontItems = items.filter((item) => item.role === "font" && item.action === "apply");
+    const discovered = fontItems.filter((item) => item.fontMetadata && typeof item.fontMetadata === "object").map(discoveredItem);
+    const legacy = fontItems.filter((item) => !item.fontMetadata || typeof item.fontMetadata !== "object");
+    inputs = [...discovered, ...await mapWithConcurrency(legacy, 4, async (item) => {
+      if (item.fontMetadata && typeof item.fontMetadata === "object") return discoveredItem(item);
       const source = sources.get(String(item.sourceId));
       const path = typeof item.stagingPath === "string" ? item.stagingPath : source?.storagePath;
       if (typeof path !== "string" || !path) throw new MissingSourceObjectError(String(item.itemId), typeof item.sourceId === "string" ? item.sourceId : undefined);
       return parsedItem(item, path);
-    }));
+    })];
   } catch (error) {
     if (!(error instanceof MissingSourceObjectError) && !isMissingStorageObject(error)) throw error;
     const missing = error instanceof MissingSourceObjectError ? { itemId: error.itemId, sourceId: error.sourceId } : {};

@@ -1,6 +1,7 @@
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { ImportArchiveLifecycle, ImportItemAction, ImportItemReason } from "../contracts/item";
 import { importBatchRef } from "./paths";
+import { readinessWithDelta } from "./batchStore";
 import type { InventoryItem } from "../discovery/inventory";
 
 const itemSegment = (value: string): string => {
@@ -43,8 +44,10 @@ export async function createItemOnce(db: Firestore, item: InventoryItem): Promis
       state: "discovered", attempts: 0, createdAt: now, updatedAt: now, ...(archive ? { archive } : {}),
     });
     const data = batchSnap.data() as { counters: Record<string, number> };
+    const readiness = readinessWithDelta(batchSnap.data()?.readiness, { pendingItems: 1 });
     tx.update(batch, {
       counters: { ...data.counters, discoveredItems: data.counters.discoveredItems + 1 }, updatedAt: now,
+      ...(readiness ? { readiness } : {}),
     });
     if (parent?.exists && parentId) {
       const parentArchive = parent.data()?.archive as ImportArchiveLifecycle | undefined;
