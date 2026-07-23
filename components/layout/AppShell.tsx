@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import AppStatusStrip from '@/components/layout/AppStatusStrip';
 import AppShellHeader from '@/components/layout/AppShellHeader';
 import { useAuth } from '@/lib/contexts/AuthContext';
@@ -12,6 +12,7 @@ import {
   MotionRail,
   useShellMove,
 } from '@/components/motion/shellMotion';
+import { useShellMotionParams } from '@/components/motion/ShellMotionParamsContext';
 
 interface AppShellProps {
   sidebar?: ReactNode;
@@ -34,6 +35,10 @@ export default function AppShell({
   const { openImport } = useUploads();
   const railOpen = Boolean(sidebar);
   const move = useShellMove({ compact, railOpen });
+  const railWidthRem = useShellMotionParams().shell.railWidthRem;
+  const shellStyle = {
+    '--shell-rail-width': `${railWidthRem}rem`,
+  } as CSSProperties;
 
   return (
     <section
@@ -42,12 +47,14 @@ export default function AppShell({
       data-shell-density={density}
       data-rail={railOpen ? 'open' : 'collapsed'}
       className="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden p-2 sm:p-3 md:p-5"
+      style={shellStyle}
     >
       <div className="rule flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-[10px] sm:rounded-[13px] bg-[var(--paper)]">
         <AppShellHeader
           compact={compact}
           headerActions={headerActions ?? (user ? <Button onClick={openImport} size="sm">Import</Button> : undefined)}
           move={move}
+          railOpen={railOpen}
         />
 
         <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col md:flex-row">
