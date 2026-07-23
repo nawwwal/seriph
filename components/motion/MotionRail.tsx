@@ -4,6 +4,7 @@ import { useMemo, type ReactNode } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { peekShellSnap } from '@/lib/motion/shellContinuity';
 import { useShellMotionParams } from '@/components/motion/ShellMotionParamsContext';
+import { cn } from '@/lib/utils/cn';
 
 type Move = { duration: number; ease?: [number, number, number, number] };
 
@@ -13,6 +14,7 @@ type Move = { duration: number; ease?: [number, number, number, number] };
  */
 export function MotionRail({
   open,
+  className,
   children,
   move,
 }: {
@@ -41,11 +43,12 @@ export function MotionRail({
       data-app-sidebar
       data-alphabet-rail
       aria-hidden={paintOpen ? undefined : true}
-      className={
+      className={cn(
         paintOpen
           ? 'min-w-0 shrink-0 overflow-hidden border-b border-[var(--ink)] bg-[var(--paper)] md:border-b-0 md:border-r'
-          : 'pointer-events-none min-w-0 shrink-0 overflow-hidden border-0 p-0'
-      }
+          : 'pointer-events-none min-w-0 shrink-0 overflow-hidden border-0 p-0',
+        className,
+      )}
       initial={initialWidth === false ? false : { width: initialWidth, opacity: startClosed ? 0 : 1 }}
       animate={{ width, opacity: paintOpen ? 1 : 0 }}
       transition={transition}

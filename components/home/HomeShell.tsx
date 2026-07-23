@@ -14,7 +14,7 @@ export default function HomeShell({
   statusStrip,
 }: HomeShellProps) {
   return (
-    <AppShell sidebar={alphabetRail} statusStrip={statusStrip}>
+    <AppShell sidebar={alphabetRail} statusStrip={statusStrip} scrollSidebarWithLogo>
       {catalogCanvas}
     </AppShell>
   );

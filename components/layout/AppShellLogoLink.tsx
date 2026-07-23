@@ -7,9 +7,11 @@ import SeriphLogo from '@/components/brand/SeriphLogo';
 /** Logo home link — Framer layoutId on the mark handles size morph. */
 export default function AppShellLogoLink({
   compact,
+  logoClassName,
   move = { duration: 0 },
 }: {
   compact: boolean;
+  logoClassName?: string;
   move?: { duration: number; ease?: [number, number, number, number] };
 }) {
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -36,7 +38,8 @@ export default function AppShellLogoLink({
         compact={compact}
         move={move}
         className={
-          compact ? 'block w-14 sm:w-16 leading-none' : 'block w-[140px] sm:w-[193px]'
+          logoClassName
+          ?? (compact ? 'block w-14 sm:w-16 leading-none' : 'block w-[140px] sm:w-[193px]')
         }
         label="Seriph"
       />

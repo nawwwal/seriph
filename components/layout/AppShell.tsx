@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from 'react';
 import AppStatusStrip from '@/components/layout/AppStatusStrip';
 import AppShellHeader from '@/components/layout/AppShellHeader';
+import ScrollableRailAppShell from '@/components/layout/ScrollableRailAppShell';
 import {
   MotionBody,
   MotionCanvas,
@@ -17,6 +18,7 @@ interface AppShellProps {
   statusStrip?: ReactNode;
   headerActions?: ReactNode;
   density?: 'default' | 'compact';
+  scrollSidebarWithLogo?: boolean;
 }
 
 /** Single-tree shell. Canvas is opaque paper (no ghost catalogue under cards). */
@@ -26,6 +28,7 @@ export default function AppShell({
   statusStrip,
   headerActions,
   density = 'default',
+  scrollSidebarWithLogo = false,
 }: AppShellProps) {
   const compact = density === 'compact';
   const railOpen = Boolean(sidebar);
@@ -45,25 +48,33 @@ export default function AppShell({
       style={shellStyle}
     >
       <div className="rule flex h-full min-h-0 min-w-0 w-full flex-col overflow-hidden rounded-[10px] sm:rounded-[13px] bg-[var(--paper)]">
-        <AppShellHeader
-          compact={compact}
-          headerActions={headerActions}
-          move={move}
-          railOpen={railOpen}
-        />
+        {scrollSidebarWithLogo && railOpen ? (
+          <ScrollableRailAppShell move={move} sidebar={sidebar}>
+            {children}
+          </ScrollableRailAppShell>
+        ) : (
+          <>
+            <AppShellHeader
+              compact={compact}
+              headerActions={headerActions}
+              move={move}
+              railOpen={railOpen}
+            />
 
-        <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col md:flex-row">
-          <MotionRail open={railOpen} move={move}>
-            {sidebar}
-          </MotionRail>
+            <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col md:flex-row">
+              <MotionRail open={railOpen} move={move}>
+                {sidebar}
+              </MotionRail>
 
-          <MotionCanvas
-            className="relative min-h-0 min-w-0 w-full max-w-full flex-1 overflow-hidden bg-[var(--paper)]"
-            move={move}
-          >
-            <MotionBody>{children}</MotionBody>
-          </MotionCanvas>
-        </div>
+              <MotionCanvas
+                className="relative min-h-0 min-w-0 w-full max-w-full flex-1 overflow-hidden bg-[var(--paper)]"
+                move={move}
+              >
+                <MotionBody>{children}</MotionBody>
+              </MotionCanvas>
+            </div>
+          </>
+        )}
 
         <footer
           data-status-strip

@@ -29,9 +29,9 @@ export default function AlphabetRail({
   return (
     <nav
       aria-label="Filter families by initial"
-      className="h-full min-w-0 w-full max-w-full overflow-x-hidden overflow-y-auto"
+      className="h-full min-w-0 w-full max-w-full overflow-x-hidden overflow-y-auto md:h-auto md:overflow-visible"
     >
-      <div className="min-w-0 w-full px-3 py-3 sm:px-4 md:px-5 md:pt-6 md:pb-4">
+      <div className="min-w-0 w-full px-3 pb-3 pt-[8px] sm:px-4 md:px-5 md:pb-4">
         <div className="grid w-full grid-cols-5 border-t border-l border-[var(--ink)]">
           {LETTER_INITIALS.map((initial) => {
             const isSelected = initial === selected;
