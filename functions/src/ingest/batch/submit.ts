@@ -12,7 +12,9 @@ export { buildSubmissionCandidates } from "../../enrichment/preflight";
 export type { ProviderRunRecord } from "./submissionStore";
 
 const COLLECTABLE_STATES = ["queued", "retrying"];
-const CONCURRENCY = 4;
+// This is recovery work only. New jobs are dispatched by the Firestore trigger;
+// one scheduler instance remains deliberately conservative to avoid a thundering herd.
+const CONCURRENCY = 2;
 
 async function processJobs(db: FirebaseFirestore.Firestore, jobs: readonly EnrichmentJob[]): Promise<boolean[]> {
   const results = new Array<boolean>(jobs.length); let cursor = 0;
