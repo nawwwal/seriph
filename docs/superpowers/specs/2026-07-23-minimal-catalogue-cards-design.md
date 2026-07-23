@@ -27,7 +27,12 @@ This follows the supplied reference while replacing weight labels with family id
 ## Responsive and Failure Behaviour
 
 - Long names and metadata truncate rather than changing card height.
-- Specimen lines stay on one line and clip only at the card's horizontal edge.
+- Specimen lines stay on one line and fit inside the card's horizontal edge.
+- Normal faces keep their authored baseline size.
+- A primary specimen that occupies less than 18% of its frame may grow uniformly, subject to an ink-coverage cap.
+- The resulting family scale carries to both alphabet rows; a row may then shrink uniformly only when its measured width would overflow.
+- Dense block faces use frame-relative ink coverage to avoid dominating the card.
+- Horizontal clipping never clips ascenders, descenders, or swashes vertically.
 - Safe font-size adjustment applies to specimen text, not the readable interface label.
 - Cards remain usable before a font face loads because the browser falls back without changing the structure.
 - Selection controls remain overlaid in the top-right corner.

@@ -61,7 +61,7 @@ export default function HomeHeaderSearch() {
           {!query ? (
             <span
               aria-hidden="true"
-              className="pointer-events-none col-start-1 row-start-1 text-2xl font-bold uppercase not-italic tracking-tight text-[var(--ink)]/35 [text-box:trim-both_cap_alphabetic] sm:text-3xl md:text-4xl"
+              className="pointer-events-none col-start-1 row-start-1 text-2xl font-bold uppercase not-italic tracking-tight text-[var(--ink)]/22 [text-box:trim-both_cap_alphabetic] sm:text-3xl md:text-4xl"
             >
               WHAT’S YOUR TYPE?
             </span>

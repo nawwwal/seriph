@@ -1,6 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { useSafeCoverFontNormalization } from './useSafeCoverFontNormalization';
+import FittedSpecimenLine from './FittedSpecimenLine';
 
 const UPPERCASE_SAMPLE = 'ABCDEFGHIJKLM';
 const LOWERCASE_SAMPLE = 'abcdefghijklm';
@@ -20,6 +22,7 @@ export default function FamilyCoverBody({
   normalizeFont: boolean;
 }) {
   const fontSizeAdjust = useSafeCoverFontNormalization(name, normalizeFont);
+  const [specimenScale, setSpecimenScale] = useState(1);
   const styleLabel = `${styleCount} ${styleCount === 1 ? 'style' : 'styles'}`;
 
   return (
@@ -35,14 +38,31 @@ export default function FamilyCoverBody({
         className="family-sample mt-auto min-w-0 pt-8"
         style={{ fontFamily: name, fontSizeAdjust, letterSpacing: '0' }}
       >
-        <div
-          className="whitespace-nowrap pb-[12px] text-6xl font-normal leading-none sm:text-7xl"
-          aria-hidden="true"
+        <FittedSpecimenLine
+          allowGrowth
+          className="pb-[12px] text-6xl font-normal leading-none sm:text-7xl"
+          frameClassName="h-24"
+          hiddenFromScreenReaders
+          minFill={0.18}
+          onScaleChange={setSpecimenScale}
+          targetFill={0.3}
         >
           Aa
-        </div>
-        <p className="whitespace-nowrap text-2xl font-normal leading-snug">{UPPERCASE_SAMPLE}</p>
-        <p className="whitespace-nowrap text-2xl font-normal leading-snug">{LOWERCASE_SAMPLE}</p>
+        </FittedSpecimenLine>
+        <FittedSpecimenLine
+          className="text-2xl font-normal leading-snug"
+          frameClassName="h-10"
+          preferredScale={specimenScale}
+        >
+          {UPPERCASE_SAMPLE}
+        </FittedSpecimenLine>
+        <FittedSpecimenLine
+          className="text-2xl font-normal leading-snug"
+          frameClassName="h-10"
+          preferredScale={specimenScale}
+        >
+          {LOWERCASE_SAMPLE}
+        </FittedSpecimenLine>
       </div>
     </div>
   );
