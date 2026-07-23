@@ -76,3 +76,9 @@ html { scrollbar-gutter: stable; }
   box-shadow: 0 0 0 var(--rule) var(--ink), inset 0 1px 0 color-mix(in srgb, var(--paper) 28%, transparent);
 }
 *::-webkit-scrollbar-thumb:horizontal:active { background-image: var(--scroll-grip-h-on); }
+
+.seriph-scrollbar {
+  scrollbar-color: var(--scroll-thumb) var(--scroll-track);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}

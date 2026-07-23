@@ -28,7 +28,7 @@ export default function ScrollableRailAppShell({
 }) {
   return (
     <div className="grid min-h-0 min-w-0 w-full flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[6rem_auto_minmax(0,1fr)] md:flex md:flex-row">
-      <div className="contents md:flex md:h-full md:min-h-0 md:w-[var(--shell-rail-width)] md:shrink-0 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:border-r md:border-[var(--ink)]">
+      <div className="seriph-scrollbar contents md:flex md:h-full md:min-h-0 md:w-[var(--shell-rail-width)] md:shrink-0 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:border-r md:border-[var(--ink)]">
         <div className="col-start-1 row-start-1 flex h-24 min-h-24 min-w-0 shrink-0 items-center border-b border-[var(--ink)] px-4 sm:px-6 md:border-b-0 md:px-6">
           <AppShellLogoLink
             compact={false}

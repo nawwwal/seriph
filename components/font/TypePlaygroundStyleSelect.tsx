@@ -61,7 +61,7 @@ export default function TypePlaygroundStyleSelect({
                   key={option.id}
                   value={option.id}
                   label={option.label}
-                  className="flex cursor-pointer items-center gap-2 rounded-[calc(var(--radius)-2px)] px-3 py-2 text-sm font-bold uppercase tracking-tight outline-none data-[highlighted]:bg-[var(--ink)] data-[highlighted]:text-[var(--paper)] data-[selected]:font-extrabold"
+                  className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sharp)] px-3 py-2 text-sm font-bold uppercase tracking-tight outline-none data-[highlighted]:bg-[var(--ink)] data-[highlighted]:text-[var(--paper)] data-[selected]:font-extrabold"
                 >
                   <Select.ItemText className="min-w-0 truncate">
                     {option.label}

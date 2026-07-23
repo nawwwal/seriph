@@ -3,6 +3,24 @@
   overflow: hidden;
 }
 
+.specimen-edge-fade {
+  --specimen-fade-size: 24px;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black var(--specimen-fade-size),
+    black calc(100% - var(--specimen-fade-size)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black var(--specimen-fade-size),
+    black calc(100% - var(--specimen-fade-size)),
+    transparent
+  );
+}
+
 *:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;

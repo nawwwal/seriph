@@ -55,7 +55,7 @@ export default function TypePlaygroundEditor({
           onChange={(event) => onChange(event.target.value)}
           spellCheck={false}
           aria-label="Type playground preview"
-          className="specimen-text relative z-10 w-full min-h-[12rem] resize-y border-0 bg-transparent p-0 outline-none theme-focus-ring md:min-h-[16rem]"
+          className="specimen-text specimen-edge-fade relative z-10 w-full min-h-[12rem] resize-y border-0 bg-transparent p-0 outline-none theme-focus-ring md:min-h-[16rem]"
           style={style}
         />
       </div>

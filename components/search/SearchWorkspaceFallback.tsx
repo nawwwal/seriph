@@ -31,7 +31,7 @@ export default function SearchWorkspaceFallback() {
         <div className="mt-4 grid grid-cols-1 grid-poster-gap auto-rows-fr content-start sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {Array.from({ length: 8 }, (_, index) => (
             <div key={index} className="min-h-72 overflow-hidden rounded-[var(--radius)] rule">
-              <Block className="h-44 rounded-none" />
+              <Block className="h-44 rounded-[var(--radius-sharp)]" />
               <div className="space-y-3 p-4 rule-t">
                 <Block className="h-6 w-3/4" />
                 <Block className="h-3 w-full" />

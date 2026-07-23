@@ -5,6 +5,7 @@
   --ink: #0D7E6C;
   --rule: 1.5px;
   --rhythm: 10px;
+  --radius-sharp: 1px;
   --radius: 2px;
   --muted: color-mix(in srgb, var(--ink) 16%, transparent);
   --surface: #FFFFFF;

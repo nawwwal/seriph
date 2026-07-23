@@ -76,7 +76,7 @@ export default function TypePlayground({ family, testerRef }: TypePlaygroundProp
         familyId={family.id}
       />
       <section className="mt-6">
-        <div className="rounded-[var(--radius)] rule p-4 sm:p-6">
+        <div className="rounded-[var(--radius)] rule p-4 pt-[8px] sm:p-6 sm:pt-[8px]">
           <TypePlaygroundControls
             state={faceState}
             axes={axes}

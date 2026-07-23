@@ -2,6 +2,10 @@ html, body {
   height: 100%;
 }
 
+:where(.rule, [class*='rule-'], [class*='border']):not([class*='rounded-']):not([class~='rounded']) {
+  border-radius: var(--radius-sharp, 1px);
+}
+
 body {
   background-color: var(--paper);
   color: var(--ink);
