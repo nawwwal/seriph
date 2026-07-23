@@ -1,6 +1,5 @@
 'use client';
 
-import { ArrowUpFromLine } from 'lucide-react';
 import {
   LETTER_INITIALS,
   toggleAlphabetInitial,
@@ -9,13 +8,11 @@ import {
 } from './alphabetFilter';
 import type { ShelfFilterState } from './shelfFilters';
 import ShelfFilterChips from './ShelfFilterChips';
-import { Button } from '@/components/ui/Button';
 
 interface AlphabetRailProps {
   selected: AlphabetInitial;
   presentInitials: ReadonlySet<LetterInitial>;
   onSelect: (initial: AlphabetInitial) => void;
-  onImport: () => void;
   filters: ShelfFilterState;
   moods: readonly string[];
   onFiltersChange: (filters: ShelfFilterState) => void;
@@ -25,7 +22,6 @@ export default function AlphabetRail({
   selected,
   presentInitials,
   onSelect,
-  onImport,
   filters,
   moods,
   onFiltersChange,
@@ -36,16 +32,7 @@ export default function AlphabetRail({
       className="h-full min-w-0 w-full max-w-full overflow-x-hidden overflow-y-auto"
     >
       <div className="min-w-0 w-full px-3 py-3 sm:px-4 md:px-5 md:pt-6 md:pb-4">
-        <Button
-          onClick={onImport}
-          size="compact"
-          tone="solid"
-          className="w-full flex h-11 items-center justify-between rounded-none px-3 text-sm font-black"
-        >
-          <span>Import</span>
-          <ArrowUpFromLine size={16} aria-hidden="true" />
-        </Button>
-        <div className="mt-3 grid w-full grid-cols-5 border-t border-l border-[var(--ink)]">
+        <div className="grid w-full grid-cols-5 border-t border-l border-[var(--ink)]">
           {LETTER_INITIALS.map((initial) => {
             const isSelected = initial === selected;
             const isPresent = presentInitials.has(initial);

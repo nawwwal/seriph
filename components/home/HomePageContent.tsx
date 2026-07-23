@@ -31,7 +31,6 @@ export default function HomePageContent({ user }: { user: User }) {
             selected={view.activeInitial}
             presentInitials={view.presentInitials}
             onSelect={view.setSelectedInitial}
-            onImport={view.handleAddFonts}
             filters={view.filters}
             moods={view.moods}
             onFiltersChange={view.setFilters}
