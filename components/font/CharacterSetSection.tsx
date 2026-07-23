@@ -13,6 +13,21 @@ const GROUP_LABELS: { key: keyof CharacterGroups; label: string }[] = [
   { key: 'other', label: 'Other' },
 ];
 
+function CharacterGrid({ characters }: { characters: string[] }) {
+  return (
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] border-l border-t border-[var(--ink)]">
+      {characters.map((character, index) => (
+        <span
+          key={`${character}-${index}`}
+          className="flex aspect-square items-center justify-center border-b border-r border-[var(--ink)] text-xl sm:text-2xl"
+        >
+          {character}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function CharacterSetSection({ family }: { family: FontFamily }) {
   const characterSet = useMemo(() => buildCharacterSet(family), [family]);
   const groups = useMemo(() => groupCharacters(characterSet), [characterSet]);
@@ -22,18 +37,14 @@ export default function CharacterSetSection({ family }: { family: FontFamily }) 
       <h2 className="uppercase font-black text-2xl sm:text-3xl rule-b pb-4">Character Set</h2>
       <div className="mt-6 rule p-6 rounded-[var(--radius)] overflow-x-auto">
         {characterSet.size > 0 ? (
-          <div className="text-xl tracking-wide" style={{ fontFamily: family.name }}>
+          <div style={{ fontFamily: family.name }}>
             {GROUP_LABELS.map(({ key, label }) =>
               groups[key].length > 0 ? (
-                <div key={key} className="mb-4">
+                <div key={key} className="mb-6 last:mb-0">
                   <div className="uppercase text-xs font-bold opacity-80 mb-2">
                     {label} ({groups[key].length})
                   </div>
-                  <div className="flex flex-wrap gap-1">
-                    {groups[key].map((char, idx) => (
-                      <span key={idx}>{char}</span>
-                    ))}
-                  </div>
+                  <CharacterGrid characters={groups[key]} />
                 </div>
               ) : null
             )}
