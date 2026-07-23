@@ -2,18 +2,18 @@ import type { Classification } from '@/models/font.models';
 import type { SearchIndexItem } from '@/models/search.models';
 import type { ShelfFamily } from '@/models/shelf.models';
 
-export type ShelfVariableFilter = 'any' | 'variable' | 'static';
+export type ShelfBuildFilter = 'variable' | 'static';
 
 export interface ShelfFilterState {
+  builds: ShelfBuildFilter[];
   classifications: string[];
   moods: string[];
-  variable: ShelfVariableFilter;
 }
 
 export const emptyShelfFilters: ShelfFilterState = {
+  builds: [],
   classifications: [],
   moods: [],
-  variable: 'any',
 };
 
 export const SHELF_CLASSIFICATIONS: readonly Classification[] = [
@@ -25,12 +25,15 @@ export const SHELF_CLASSIFICATIONS: readonly Classification[] = [
   'Symbol & Icon',
 ];
 
-export function toggleFilterValue(values: string[], value: string): string[] {
+export function toggleFilterValue<Value extends string>(
+  values: readonly Value[],
+  value: Value,
+): Value[] {
   return values.includes(value) ? values.filter((item) => item !== value) : [...values, value];
 }
 
 export function hasShelfFilters(filters: ShelfFilterState): boolean {
-  return filters.variable !== 'any'
+  return filters.builds.length > 0
     || filters.classifications.length > 0
     || filters.moods.length > 0;
 }
@@ -61,13 +64,13 @@ export function applyShelfFilters(
       && !filters.classifications.includes(family.classification)) {
       return false;
     }
-    if (filters.variable === 'variable' && !family.isVariable) return false;
-    if (filters.variable === 'static' && family.isVariable) return false;
+    const build: ShelfBuildFilter = family.isVariable ? 'variable' : 'static';
+    if (filters.builds.length > 0 && !filters.builds.includes(build)) return false;
     if (filters.moods.length > 0) {
       const moods = indexById.get(family.id)?.moods
         ?? indexById.get(family.normalizedName)?.moods
         ?? [];
-      if (!filters.moods.every((mood) => moods.includes(mood))) return false;
+      if (!filters.moods.some((mood) => moods.includes(mood))) return false;
     }
     return true;
   });

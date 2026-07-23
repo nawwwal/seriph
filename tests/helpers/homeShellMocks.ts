@@ -47,7 +47,7 @@ vi.mock('@/components/home/useHomeShelfView', () => ({
     handleAddFonts: vi.fn(), handleFilesSelected: vi.fn(),
     activeInitial: 'ALL', setSelectedInitial: vi.fn(),
     presentInitials: new Set(),
-    filters: { classifications: [], moods: [], variable: 'any' },
+    filters: { builds: [], classifications: [], moods: [] },
     setFilters: vi.fn(), moods: [], visibleFamilies: [],
     showShelfSkeleton: false, isEmpty: true, hasBlockingError: false,
   }),

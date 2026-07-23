@@ -70,7 +70,7 @@ describe('shelfFilters', () => {
     const result = applyShelfFilters(families, {
       ...emptyShelfFilters,
       classifications: ['Sans Serif'],
-      variable: 'variable',
+      builds: ['variable'],
     }, index);
     expect(result.map((family) => family.id)).toEqual(['sans-a']);
   });
