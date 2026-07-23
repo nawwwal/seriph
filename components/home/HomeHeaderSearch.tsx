@@ -40,7 +40,10 @@ export default function HomeHeaderSearch() {
     <form onSubmit={submit} className="relative min-w-0 flex-1">
       <label className="flex min-w-0 items-center gap-3">
         <Search size={20} className="shrink-0 opacity-45" aria-hidden="true" />
-        <span className="grid min-w-0 flex-1 items-center">
+        <span
+          className="grid min-w-0 flex-1 items-center"
+          style={{ fontFamily: 'var(--font-league-spartan), system-ui, -apple-system, sans-serif' }}
+        >
           <input
             type="search"
             value={query}
@@ -54,7 +57,6 @@ export default function HomeHeaderSearch() {
             }}
             aria-label="Search your type library"
             className="header-search-input relative z-10 col-start-1 row-start-1 min-w-0 border-0 bg-transparent text-2xl font-bold uppercase not-italic leading-none tracking-tight text-[var(--ink)] outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none sm:text-3xl md:text-4xl"
-            style={{ fontFamily: 'var(--font-league-spartan), system-ui, -apple-system, sans-serif' }}
           />
           {!query ? (
             <span
