@@ -37,25 +37,34 @@ export default function HomeHeaderSearch() {
   };
 
   return (
-    <form onSubmit={submit} className="relative min-w-0 flex-1">
+    <form onSubmit={submit} className="relative ml-auto min-w-0 w-full max-w-2xl">
       <label className="flex min-w-0 items-center gap-3">
         <Search size={20} className="shrink-0 opacity-45" aria-hidden="true" />
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onFocus={() => setFocused(true)}
-          onBlur={() => window.setTimeout(() => setFocused(false), 120)}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter') return;
-            event.preventDefault();
-            commit();
-          }}
-          placeholder="SEARCH YOUR TYPE…"
-          aria-label="Search your type library"
-          className="header-search-input min-w-0 flex-1 border-0 bg-transparent text-2xl font-bold uppercase not-italic tracking-tight text-[var(--ink)] outline-none ring-0 placeholder:text-[var(--ink)]/35 focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none sm:text-3xl md:text-4xl"
-          style={{ fontFamily: 'var(--font-league-spartan), system-ui, -apple-system, sans-serif' }}
-        />
+        <span className="grid min-w-0 flex-1 items-center">
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => window.setTimeout(() => setFocused(false), 120)}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return;
+              event.preventDefault();
+              commit();
+            }}
+            aria-label="Search your type library"
+            className="header-search-input relative z-10 col-start-1 row-start-1 min-w-0 border-0 bg-transparent text-2xl font-bold uppercase not-italic leading-none tracking-tight text-[var(--ink)] outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none sm:text-3xl md:text-4xl"
+            style={{ fontFamily: 'var(--font-league-spartan), system-ui, -apple-system, sans-serif' }}
+          />
+          {!query ? (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none col-start-1 row-start-1 text-2xl font-bold uppercase not-italic tracking-tight text-[var(--ink)]/35 [text-box:trim-both_cap_alphabetic] sm:text-3xl md:text-4xl"
+            >
+              WHAT’S YOUR TYPE?
+            </span>
+          ) : null}
+        </span>
       </label>
       {showSuggestions ? (
         <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-[var(--radius)] border border-[var(--ink)]/20 bg-[var(--paper)] theme-shadow-xl">
