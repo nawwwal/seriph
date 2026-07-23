@@ -13,13 +13,31 @@ const GROUP_LABELS: { key: keyof CharacterGroups; label: string }[] = [
   { key: 'other', label: 'Other' },
 ];
 
-function CharacterGrid({ characters }: { characters: string[] }) {
+function CharacterGrid({
+  characters,
+  familyName,
+  isFirst,
+  label,
+}: {
+  characters: string[];
+  familyName: string;
+  isFirst: boolean;
+  label: string;
+}) {
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] border-l border-t border-[var(--ink)]">
+    <div
+      className={`grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] ${
+        isFirst ? '' : '-mt-px border-t border-[var(--ink)]'
+      }`}
+    >
+      <div className="col-span-full border-b border-[var(--ink)] px-4 py-3 font-sans text-xs font-bold not-italic opacity-80 uppercase">
+        {label} ({characters.length})
+      </div>
       {characters.map((character, index) => (
         <span
           key={`${character}-${index}`}
-          className="flex aspect-square items-center justify-center border-b border-r border-[var(--ink)] text-xl sm:text-2xl"
+          className="flex aspect-square items-center justify-center border-b border-r border-[var(--ink)] text-xl not-italic sm:text-2xl"
+          style={{ fontFamily: familyName, fontStyle: 'normal' }}
         >
           {character}
         </span>
@@ -31,27 +49,31 @@ function CharacterGrid({ characters }: { characters: string[] }) {
 export default function CharacterSetSection({ family }: { family: FontFamily }) {
   const characterSet = useMemo(() => buildCharacterSet(family), [family]);
   const groups = useMemo(() => groupCharacters(characterSet), [characterSet]);
+  const visibleGroups = GROUP_LABELS.filter(({ key }) => groups[key].length > 0);
 
   return (
     <section className="mt-10">
       <h2 className="uppercase font-black text-2xl sm:text-3xl rule-b pb-4">Character Set</h2>
-      <div className="mt-6 rule p-6 rounded-[var(--radius)] overflow-x-auto">
+      <div className="mt-6 overflow-hidden rounded-[var(--radius)] rule">
         {characterSet.size > 0 ? (
-          <div style={{ fontFamily: family.name }}>
-            {GROUP_LABELS.map(({ key, label }) =>
-              groups[key].length > 0 ? (
-                <div key={key} className="mb-6 last:mb-0">
-                  <div className="uppercase text-xs font-bold opacity-80 mb-2">
-                    {label} ({groups[key].length})
-                  </div>
-                  <CharacterGrid characters={groups[key]} />
-                </div>
-              ) : null
-            )}
-            <div className="mt-6 pt-4 rule-t text-sm opacity-70">Total: {characterSet.size} characters</div>
+          <div>
+            {visibleGroups.map(({ key, label }, index) => (
+              <CharacterGrid
+                key={key}
+                characters={groups[key]}
+                familyName={family.name}
+                isFirst={index === 0}
+                label={label}
+              />
+            ))}
+            <div className="-mt-px border-t border-[var(--ink)] px-4 py-3 font-sans text-sm not-italic opacity-70">
+              Total: {characterSet.size} characters
+            </div>
           </div>
         ) : (
-          <div className="text-base opacity-70">Character set information not available for this font.</div>
+          <div className="p-6 text-base opacity-70">
+            Character set information not available for this font.
+          </div>
         )}
       </div>
     </section>
