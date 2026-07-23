@@ -37,7 +37,7 @@ export default function HomeHeaderSearch() {
   };
 
   return (
-    <form onSubmit={submit} className="relative ml-auto min-w-0 w-full max-w-2xl">
+    <form onSubmit={submit} className="relative min-w-0 flex-1">
       <label className="flex min-w-0 items-center gap-3">
         <Search size={20} className="shrink-0 opacity-45" aria-hidden="true" />
         <span className="grid min-w-0 flex-1 items-center">
