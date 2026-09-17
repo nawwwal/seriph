@@ -26,7 +26,7 @@ describe("search document utilities", () => {
     expect(buildLaneEmbeddingText(doc, "text")).toContain("dense editorial systems");
     expect(buildLaneEmbeddingText(doc, "mood")).toContain("warm");
     expect(buildLaneEmbeddingText(doc, "mood")).toContain("quietly authoritative");
-    expect(buildLaneEmbeddingText(doc, "useCase")).toContain("magazine decks");
+    expect(buildLaneEmbeddingText(doc, "useCase")).toContain("headlines");
     expect(buildLaneEmbeddingText(doc, "useCase")).toContain("pairs with high contrast serif");
   });
 
@@ -45,6 +45,8 @@ describe("search document utilities", () => {
     expect(update.searchText).toContain("Atlas Grotesk");
     expect(update.searchTokens).toContain("editorial");
     expect(update.searchTokens).toContain("warm");
+    expect(update.searchTokens).toContain("headlines");
+    expect(update.searchTokens).not.toContain("precise");
     expect(update.searchMeta).toMatchObject({
       embeddingModel: "gemini-embedding-2-preview",
       embeddingVersion: "gemini-embedding-2-preview:768",

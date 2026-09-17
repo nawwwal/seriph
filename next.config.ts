@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
   // ESM, which Vercel's external-module loader cannot execute.
   serverExternalPackages: ["@google-cloud/tasks"],
   transpilePackages: ["firebase-admin", "jwks-rsa", "jose"],
+  async headers() {
+    return [{ source: "/:path*", headers: [{ key: "Permissions-Policy", value: "tools=(self)" }] }];
+  },
   // Shell chrome uses Framer Motion (see lib/motion/catalogDetailStoryboard.ts).
   // View Transitions experimental flag intentionally off.
 };

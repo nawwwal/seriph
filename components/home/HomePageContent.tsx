@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import AlphabetRail from '@/components/home/AlphabetRail';
 import HomeCatalogCanvas from '@/components/home/HomeCatalogCanvas';
 import HomeShell from '@/components/home/HomeShell';
@@ -9,9 +9,12 @@ import DeleteFamiliesDialog from '@/components/home/DeleteFamiliesDialog';
 import MergeUndoToast from '@/components/home/MergeUndoToast';
 import { useShelfScrollRestoration } from '@/lib/hooks/useShelfScrollRestoration';
 import { useHomeShelfView } from './useHomeShelfView';
+import { useSeriphWebMcp } from '@/lib/hooks/useSeriphWebMcp';
 import type { User } from 'firebase/auth';
 
 export default function HomePageContent({ user }: { user: User }) {
+  const getIdToken = useCallback(() => user.getIdToken(), [user]);
+  useSeriphWebMcp(getIdToken);
   const view = useHomeShelfView(user);
   const shelfScrollRef = useRef<HTMLDivElement>(null);
   const saveShelfScroll = useShelfScrollRestoration({

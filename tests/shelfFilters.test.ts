@@ -37,7 +37,7 @@ const index = new Map<string, SearchIndexItem>([
     normalizedName: 'atlas',
     category: 'SANS_SERIF',
     classification: 'Sans Serif',
-    moods: ['neutral', 'modern'],
+    moods: ['neutral', 'warm'],
     styleCount: 4,
     isVariable: true,
     updatedAt: '2026-01-01',
@@ -51,12 +51,12 @@ const index = new Map<string, SearchIndexItem>([
     normalizedName: 'bodoni',
     category: 'SERIF',
     classification: 'Serif',
-    moods: ['editorial'],
+    moods: ['classic'],
     styleCount: 2,
     isVariable: false,
     updatedAt: '2026-01-02',
-    searchText: 'bodoni editorial',
-    searchTokens: ['bodoni', 'editorial'],
+    searchText: 'bodoni classic',
+    searchTokens: ['bodoni', 'classic'],
   }],
 ]);
 
@@ -78,14 +78,14 @@ describe('shelfFilters', () => {
   it('filters by mood using the search index', () => {
     const result = applyShelfFilters(families, {
       ...emptyShelfFilters,
-      moods: ['editorial'],
+      moods: ['classic'],
     }, index);
     expect(result.map((family) => family.id)).toEqual(['serif-b']);
   });
 
   it('derives top moods by frequency', () => {
     expect(deriveShelfMoods([...index.values()])).toEqual(
-      expect.arrayContaining(['editorial', 'modern', 'neutral']),
+      expect.arrayContaining(['classic', 'neutral', 'warm']),
     );
   });
 });

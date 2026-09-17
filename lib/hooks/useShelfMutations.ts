@@ -5,6 +5,7 @@ import type { User } from 'firebase/auth';
 import { hardDeleteFamilies, mergeFamilies, undoFamilyMerge } from '@/lib/api/familyMutations';
 import {
   enterSelectionMode,
+  enterSelectionModeWith,
   exitSelectionMode,
   selectionCanMerge,
   toggleSelectedFamily,
@@ -28,6 +29,11 @@ export function useShelfMutations({ user, refreshShelf }: UseShelfMutationsInput
   const enterSelection = useCallback((familyId: string) => {
     setMutationError(null);
     setSelectionState(enterSelectionMode(familyId));
+  }, []);
+
+  const selectFamilies = useCallback((familyIds: string[]) => {
+    setMutationError(null);
+    setSelectionState(enterSelectionModeWith(familyIds));
   }, []);
 
   const toggleSelection = useCallback((familyId: string) => {
@@ -94,5 +100,5 @@ export function useShelfMutations({ user, refreshShelf }: UseShelfMutationsInput
     }
   }, [mergeUndo, refreshShelf, user]);
 
-  return { selectionState, selectedFamilyIds, pendingDeleteIds, mutationError, deleteError, isMutating, mergeUndo, selectionCanMerge, enterSelection, toggleSelection, cancelSelection, mergeSelected, requestDelete, confirmDelete, undoMerge, setPendingDeleteIds, setMergeUndo };
+  return { selectionState, selectedFamilyIds, pendingDeleteIds, mutationError, deleteError, isMutating, mergeUndo, selectionCanMerge, enterSelection, selectFamilies, toggleSelection, cancelSelection, mergeSelected, requestDelete, confirmDelete, undoMerge, setPendingDeleteIds, setMergeUndo };
 }

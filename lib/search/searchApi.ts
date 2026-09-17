@@ -8,6 +8,7 @@ interface SearchFontsForUserInput {
   getIdToken: () => Promise<string>;
   query: string;
   filters?: SearchFilters;
+  similarTo?: string;
   signal?: AbortSignal;
 }
 
@@ -25,13 +26,14 @@ export async function searchFontsForUser({
   getIdToken,
   query,
   filters,
+  similarTo,
   signal,
 }: SearchFontsForUserInput): Promise<SearchResultItem[]> {
   const idToken = await getIdToken();
   const init: RequestInit = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ q: query, filters }),
+    body: JSON.stringify({ q: query, filters, similarTo }),
   };
   if (signal) init.signal = signal;
   const response = await fetcher('/api/v1/search', init);

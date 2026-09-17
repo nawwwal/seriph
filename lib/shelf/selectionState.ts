@@ -9,7 +9,12 @@ function unique(values: string[]): string[] {
 }
 
 export function enterSelectionMode(familyId: string): SelectingShelfState {
-  return { mode: 'selecting', anchorFamilyId: familyId, selectedFamilyIds: [familyId] };
+  return enterSelectionModeWith([familyId]);
+}
+
+export function enterSelectionModeWith(familyIds: string[]): SelectingShelfState {
+  const selectedFamilyIds = unique(familyIds.filter((id) => id.trim()));
+  return { mode: 'selecting', anchorFamilyId: selectedFamilyIds[0] ?? '', selectedFamilyIds };
 }
 
 export function exitSelectionMode(): ShelfSelectionState {

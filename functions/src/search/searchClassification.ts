@@ -1,4 +1,16 @@
+export const SEARCH_CLASSES = [
+  "Serif",
+  "Sans Serif",
+  "Script & Handwriting",
+  "Monospace",
+  "Display & Decorative",
+  "Symbol & Icon",
+] as const;
+
+export type SearchClass = (typeof SEARCH_CLASSES)[number];
+
 export function canonicalSearchClassification(value: unknown): string | null {
+  if (typeof value === "string" && (SEARCH_CLASSES as readonly string[]).includes(value)) return value;
   if (value === "Serif") return "Serif";
   if (value === "Sans Serif") return "Sans Serif";
   if (value === "Script & Handwriting") return "Script & Handwriting";

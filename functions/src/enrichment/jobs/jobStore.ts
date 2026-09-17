@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import type { Firestore, DocumentReference, Transaction } from "firebase-admin/firestore";
 import { FieldValue } from "firebase-admin/firestore";
-import { catalogFamilyDocId } from "../../storage/catalogIdentity";
+import { catalogFamilyDocCandidates, catalogFamilyDocId } from "../../storage/catalogIdentity";
 import { FAMILIES_COLLECTION } from "../../storage/familyStore";
 import { enrichmentJobId, type EnrichmentJob, type EnrichmentJobKey, type EnrichmentJobProvenance, type EnrichmentJobState } from "./jobTypes";
 
@@ -68,6 +68,17 @@ function canClaim(job: EnrichmentJob, nowMs: number): boolean {
   return REALTIME_LEASED_STATES.has(job.state) && (timestampMs(job.leaseExpiresAt) ?? 0) <= nowMs;
 }
 
+async function familyDocInTx(tx: TransactionLike, db: Firestore, ownerId: string, familyId: string) {
+  const col = db.collection(FAMILIES_COLLECTION);
+  for (const id of catalogFamilyDocCandidates(ownerId, familyId)) {
+    const ref = col.doc(id);
+    const snap = await tx.get(ref);
+    if (snap.exists) return { ref, snap };
+  }
+  const ref = col.doc(catalogFamilyDocId(ownerId, familyId));
+  return { ref, snap: await tx.get(ref) };
+}
+
 /** Claim the job and mark its canonical family in one transaction. */
 export async function claimEnrichmentJob(
   db: Firestore, jobId: string, options: EnrichmentJobClaimOptions = {},
@@ -82,17 +93,16 @@ export async function claimEnrichmentJob(
     const prior = { ...jobSnap.data(), jobId: jobSnap.id } as EnrichmentJob;
     if (!canClaim(prior, now.getTime())) return null;
 
-    const familyRef = db.collection(FAMILIES_COLLECTION).doc(catalogFamilyDocId(prior.ownerId, prior.familyId));
-    const familySnap = await tx.get(familyRef);
+    const { ref: familyRef, snap: familySnap } = await familyDocInTx(tx, db, prior.ownerId, prior.familyId);
     const family = familySnap.data();
-    if (!familySnap.exists) {
+    if (!familySnap.exists || !family) {
       tx.set(jobRef, {
         state: "failed", failureCode: "family_missing", leaseId: FieldValue.delete(), leaseExpiresAt: FieldValue.delete(),
         retryAt: FieldValue.delete(), updatedAt: now, failedAt: now,
       }, { merge: true });
       return null;
     }
-    if (family?.version !== prior.familyVersion || family.hidden === true || family.status === "merged") {
+    if (Number(family?.version ?? 0) !== Number(prior.familyVersion ?? 0) || family.hidden === true || family.status === "merged") {
       tx.set(jobRef, {
         state: "failed", failureCode: "family_stale", leaseId: FieldValue.delete(), leaseExpiresAt: FieldValue.delete(),
         retryAt: FieldValue.delete(), updatedAt: now, failedAt: now,
@@ -130,8 +140,8 @@ export async function releaseClaimedEnrichmentJob(
 ): Promise<boolean> {
   return db.runTransaction(async (tx) => {
     const ref = enrichmentJobRef(db, job.jobId);
-    const familyRef = db.collection(FAMILIES_COLLECTION).doc(catalogFamilyDocId(job.ownerId, job.familyId));
-    const [snap, familySnap] = await Promise.all([tx.get(ref), tx.get(familyRef)]);
+    const { ref: familyRef, snap: familySnap } = await familyDocInTx(tx, db, job.ownerId, job.familyId);
+    const snap = await tx.get(ref);
     if (!snap.exists || snap.data()?.leaseId !== job.leaseId) return false;
     tx.set(ref, {
       state: retry.state, attempt: retry.attempt, failureCode,

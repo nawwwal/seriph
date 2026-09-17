@@ -81,6 +81,19 @@ describe('family shelf API helpers', () => {
     expect(family.classification).toBe('Serif');
   });
 
+  it('prefers Jev searchClass over a stale category voice', () => {
+    const family = mapCatalogDocToShelfFamily({
+      slug: 'roboto-serif-36pt-condensed',
+      name: 'Roboto Serif 36pt Condensed',
+      category: 'SANS_SERIF',
+      classification: 'Sans Serif',
+      enrichment: { searchClass: 'Serif', classification: 'transitional serif' },
+      faces: [],
+    }, 'roboto-serif-36pt-condensed');
+
+    expect(family.classification).toBe('Serif');
+  });
+
   it('repairs stale category voice from enrichment classification text', () => {
     const family = mapCatalogDocToShelfFamily({
       slug: 'ivar-display',

@@ -1,4 +1,4 @@
-import type { StylePrimary, Substyle } from '../models/contracts';
+import type { Mood, StylePrimary, Substyle, UseCase } from '../models/contracts';
 import { SUBSTYLE, MOODS, USE_CASES } from '../models/contracts';
 
 const STYLE_SUBTYPE_MAP: Record<StylePrimary, Substyle[]> = {
@@ -21,10 +21,43 @@ export function isValidSubtype(mainClass: string, subtype: string): boolean {
 	return getValidSubtypes(mainClass).includes(subtype as Substyle);
 }
 
-export function isValidMood(mood: string): mood is typeof MOODS[number] {
+export function isValidMood(mood: string): mood is Mood {
 	return (MOODS as readonly string[]).includes(mood);
 }
 
-export function isValidUseCase(useCase: string): useCase is typeof USE_CASES[number] {
+export function isValidUseCase(useCase: string): useCase is UseCase {
 	return (USE_CASES as readonly string[]).includes(useCase);
+}
+
+export function normalizeTaxonomyToken(value: string): string {
+	return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+export function parseMood(value: string): Mood | undefined {
+	const token = normalizeTaxonomyToken(value);
+	return isValidMood(token) ? token : undefined;
+}
+
+export function parseUseCase(value: string): UseCase | undefined {
+	const token = normalizeTaxonomyToken(value);
+	return isValidUseCase(token) ? token : undefined;
+}
+
+export function taxonomyMoods(values: unknown): Mood[] {
+	return uniqueParsed(values, parseMood);
+}
+
+export function taxonomyUseCases(values: unknown): UseCase[] {
+	return uniqueParsed(values, parseUseCase);
+}
+
+function uniqueParsed<T>(values: unknown, parse: (value: string) => T | undefined): T[] {
+	if (!Array.isArray(values)) return [];
+	const out: T[] = [];
+	for (const value of values) {
+		if (typeof value !== "string") continue;
+		const parsed = parse(value);
+		if (parsed !== undefined && !out.includes(parsed)) out.push(parsed);
+	}
+	return out;
 }

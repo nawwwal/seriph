@@ -18,6 +18,7 @@ import {
   emptyShelfFilters,
   type ShelfFilterState,
 } from './shelfFilters';
+import { useMergeSuggestions } from '@/lib/hooks/useMergeSuggestions';
 import type { User } from 'firebase/auth';
 
 export function useHomeShelfView(user: User) {
@@ -35,6 +36,7 @@ export function useHomeShelfView(user: User) {
     await shelf.reload();
   }, [shelf, user.uid]);
   const mutations = useShelfMutations({ user, refreshShelf });
+  const mergeSuggestions = useMergeSuggestions(user, shelf.families);
 
   useEffect(() => onCompleted(() => { void refreshShelf(); }), [onCompleted, refreshShelf]);
 
@@ -64,6 +66,7 @@ export function useHomeShelfView(user: User) {
   return {
     shelf,
     mutations,
+    mergeSuggestions,
     handleAddFonts: openImport,
     activeInitial,
     setSelectedInitial,

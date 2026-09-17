@@ -14,6 +14,7 @@ export interface SearchScoreBreakdown {
   useCaseSemantic: number;
   exact: number;
   quality: number;
+  rerank?: number;
 }
 
 export interface SearchCandidate {

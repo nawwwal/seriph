@@ -36,12 +36,15 @@ function inStyleRanges(count: number, ranges: SearchStyleRange[] | undefined): b
 
 export function matchesSearchFilters(family: FontFamilyDoc, req: SearchRequest): boolean {
   const variable = variableFilter(req);
-  const classification = canonicalSearchClassification(family.enrichment?.classification) ?? canonicalSearchClassification(family.classification) ?? "";
+  const classification = canonicalSearchClassification(family.enrichment?.searchClass) ?? canonicalSearchClassification(family.enrichment?.classification) ?? canonicalSearchClassification(family.classification) ?? "";
   const moods = family.enrichment?.moods ?? [];
+  const useCases = family.enrichment?.useCases ?? [];
   return isSearchableStatus(family)
     && (variable === undefined || isVariableFamily(family) === variable)
+    && (!req.similarTo || (family.id !== req.similarTo && family.slug !== req.similarTo))
     && (!req.filters?.classifications?.length || req.filters.classifications.includes(classification))
     && (!req.filters?.moods?.length || req.filters.moods.every((mood) => moods.includes(mood)))
+    && (!req.filters?.useCases?.length || req.filters.useCases.every((useCase) => useCases.includes(useCase)))
     && inStyleRanges(family.faces?.length ?? 0, req.filters?.styleRanges);
 }
 

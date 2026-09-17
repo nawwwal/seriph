@@ -11,9 +11,16 @@ export interface FontEnrichment {
   voice?: string;
   useCases?: string[];
   pairingHints?: string[];
+  pairingFamilyIds?: string[];
+  pairingFamilies?: Array<{ id: string; slug: string; name: string }>;
+  searchClass?: string;
+  moodScores?: Record<string, number>;
+  useCaseScores?: Record<string, number>;
   confidence?: number;
   modelId?: string;
   promptVersion?: string;
+  jevModel?: string;
+  jevVersion?: string;
   embeddingModel?: string;
   embeddingVersion?: string;
   enrichedAt?: FirebaseFirestore.Timestamp | Date | string;

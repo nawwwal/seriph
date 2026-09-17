@@ -11,7 +11,7 @@ vi.mock("firebase-admin/firestore", () => ({
 
 vi.mock("../../src/ai/enrichFont", () => ({
   CATALOG_KEY_PREFIX: "Catalog-Key:",
-  parseAnalysis: () => ({ summary: "enriched" }),
+  composeEnrichment: async () => ({ summary: "enriched" }),
   buildEnrichmentUpdate: async () => ({ enrichment: { summary: "enriched" }, status: "ready" }),
 }));
 

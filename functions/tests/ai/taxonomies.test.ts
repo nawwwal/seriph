@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getValidSubtypes, isValidSubtype, isValidMood, isValidUseCase } from '../../src/ai/taxonomies';
+import { getValidSubtypes, isValidSubtype, isValidMood, isValidUseCase, parseMood, parseUseCase } from '../../src/ai/taxonomies';
 
 describe('taxonomies helpers', () => {
   it('returns valid subtypes for main class', () => {
@@ -16,7 +16,8 @@ describe('taxonomies helpers', () => {
   it('validates moods and use cases', () => {
     expect(isValidMood('neutral')).toBe(true);
     expect(isValidMood('made_up_mood')).toBe(false);
-    expect(isValidUseCase('ui')).toBe(true);
+    expect(parseMood("Warm")).toBe("warm");
+    expect(parseUseCase("body text")).toBe("body_text");
     expect(isValidUseCase('made_up_usecase')).toBe(false);
   });
 });

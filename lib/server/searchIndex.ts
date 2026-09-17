@@ -3,6 +3,7 @@ import { mapCatalogDocToShelfFamily } from '@/lib/api/familyShelf';
 import { FAMILIES_COLLECTION } from '@/lib/server/catalogFamilyShared';
 import { getShelfStats } from '@/lib/server/catalogFamilyStats';
 import { isFirestoreIndexUnavailable, sortCatalogDocsByName } from '@/lib/server/firestoreQueryFallback';
+import { isTaxonomyMood } from '@/lib/fontTaxonomy';
 import { normalizeSearchInput } from '@/lib/search/localSearch';
 import type { SearchIndexItem, SearchIndexResponse } from '@/models/search.models';
 
@@ -24,7 +25,7 @@ function mapDoc(doc: QueryDocumentSnapshot): SearchIndexItem {
   const data = doc.data();
   const shelf = mapCatalogDocToShelfFamily(data, doc.id);
   const enrichment = record(data.enrichment);
-  const moods = strings(enrichment.moods);
+  const moods = strings(enrichment.moods).filter(isTaxonomyMood);
   const useCases = strings(enrichment.useCases);
   const summary = typeof enrichment.summary === 'string' ? enrichment.summary : undefined;
   const category = typeof data.category === 'string' ? data.category : shelf.classification;

@@ -50,7 +50,7 @@ export function qualityScore(family: FontFamilyDoc): number {
   return 0.25;
 }
 
-function laneScoreKey(lane: SearchVectorLane): keyof SearchScoreBreakdown {
+function laneScoreKey(lane: SearchVectorLane): "textSemantic" | "moodSemantic" | "useCaseSemantic" {
   if (lane === "mood") return "moodSemantic";
   if (lane === "useCase") return "useCaseSemantic";
   return "textSemantic";

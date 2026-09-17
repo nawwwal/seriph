@@ -1,15 +1,9 @@
-import type { Classification, FontFamily } from '@/models/font.models';
+import type { FontFamily } from '@/models/font.models';
 import type { FamilyEnrichment } from '@/models/font-family.models';
 import { mapCatalogFaces } from '@/lib/db/catalogFaceAdapter';
 import { asRecord, number, text, textArray, toIso, type CatalogRecord } from '@/lib/db/catalogValues';
+import { voiceClassification } from '@/lib/search/searchClassification';
 
-const CATEGORY_TO_CLASS: Record<string, Classification> = {
-  SANS_SERIF: 'Sans Serif',
-  SERIF: 'Serif',
-  DISPLAY: 'Display & Decorative',
-  HANDWRITING: 'Script & Handwriting',
-  MONOSPACE: 'Monospace',
-};
 export function isCatalogDoc(data: unknown): data is CatalogRecord & { faces: unknown[] } {
   return Array.isArray(asRecord(data)?.faces);
 }
@@ -41,13 +35,38 @@ function normalizedDateTime(value: unknown): string | undefined {
   return new Date(date).toISOString();
 }
 
+function pairingFamilies(value: unknown): FamilyEnrichment['pairingFamilies'] {
+  if (!Array.isArray(value)) return undefined;
+  const items = value.flatMap((entry) => {
+    const record = asRecord(entry);
+    const id = record ? populatedText(record, 'id') : undefined;
+    const slug = record ? populatedText(record, 'slug') : undefined;
+    const name = record ? populatedText(record, 'name') : undefined;
+    return id && slug && name ? [{ id, slug, name }] : [];
+  });
+  return items.length ? items : undefined;
+}
+
+function numberRecord(value: unknown): Record<string, number> | undefined {
+  const record = asRecord(value);
+  if (!record) return undefined;
+  const out: Record<string, number> = {};
+  for (const [key, item] of Object.entries(record)) {
+    if (typeof item === 'number' && Number.isFinite(item)) out[key] = item;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function mapEnrichment(data: unknown): FamilyEnrichment {
   const record = asRecord(data) ?? {};
   const confidence = number(record, 'confidence', Number.NaN);
+  const families = pairingFamilies(record.pairingFamilies);
   const entries: FamilyEnrichment = {
     classification: populatedText(record, 'classification'), summary: populatedText(record, 'summary'),
     moods: populatedTextArray(record.moods), voice: populatedText(record, 'voice'),
     useCases: populatedTextArray(record.useCases), pairingHints: populatedTextArray(record.pairingHints),
+    pairingFamilies: families,
+    useCaseScores: numberRecord(record.useCaseScores),
     confidence: Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : undefined,
     enrichedAt: normalizedDateTime(record.enrichedAt),
   };
@@ -62,7 +81,7 @@ export function mapCatalogDoc(data: CatalogRecord, id: string): FontFamily {
   const slug = text(data, 'slug') ?? id;
   const moods = enrichment.moods ?? [];
   const useCases = enrichment.useCases ?? [];
-  const pairingHints = enrichment.pairingHints ?? [];
+  const pairingFamilies = enrichment.pairingFamilies ?? [];
   const voice = enrichment.voice;
   return {
     id: slug,
@@ -72,13 +91,18 @@ export function mapCatalogDoc(data: CatalogRecord, id: string): FontFamily {
     foundry: text(data, 'foundry'),
     description: enrichment.summary ?? '',
     tags: [...moods, ...useCases].slice(0, 10),
-    classification: CATEGORY_TO_CLASS[category] || 'Sans Serif',
+    classification: voiceClassification({
+      searchClass: enrichmentRecord.searchClass,
+      enrichmentClassification: enrichment.classification,
+      storedClassification: data.classification,
+      category,
+    }),
     metadata: {
       foundry: text(data, 'foundry') ?? text(data, 'designer'),
       subClassification: enrichment.classification,
       moods: moods.length ? moods : undefined,
       useCases: useCases.length ? useCases : undefined,
-      similarFamilies: pairingHints.length ? pairingHints : undefined,
+      similarFamilies: pairingFamilies.length ? pairingFamilies.map((item) => item.name) : undefined,
       technicalCharacteristics: voice ? [voice] : undefined,
       enrichment,
     },

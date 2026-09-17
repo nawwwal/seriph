@@ -50,6 +50,7 @@ export default function HomeCatalogCanvas({
           shelf={view.shelf}
           families={view.visibleFamilies}
           mutations={view.mutations}
+          mergeSuggestions={view.mergeSuggestions}
           isEmpty={view.isEmpty}
           showShelfSkeleton={view.showShelfSkeleton}
           onImport={view.handleAddFonts}

@@ -21,8 +21,8 @@ function family(id: string, overrides: Partial<FontFamilyDoc> = {}): FontFamilyD
     searchTokens: id === "garamond-premier" ? ["garamond", "premier", "serif"] : ["warm", "sans", "branding"],
     enrichment: {
       category: id === "garamond-premier" ? "SERIF" : "SANS_SERIF",
-      moods: id === "garamond-premier" ? ["editorial"] : ["warm"],
-      useCases: id === "garamond-premier" ? ["books"] : ["branding"],
+      moods: id === "garamond-premier" ? ["classic"] : ["warm"],
+      useCases: id === "garamond-premier" ? ["editorial"] : ["branding"],
       confidence: 0.9,
     },
     ...overrides,

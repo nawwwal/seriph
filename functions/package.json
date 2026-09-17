@@ -9,6 +9,8 @@
         "logs": "firebase functions:log",
         "lint": "tsc --noEmit",
         "test": "vitest run",
+        "audit:enrichment-labels": "npm run build && node lib/scripts/auditEnrichmentLabels.js",
+        "jev:probe": "npm run build && node lib/scripts/jevMoodProbe.js",
         "backfill:search": "npm run build && node lib/scripts/backfillSearchVectors.js",
         "backfill:enrichment": "npm run build && node lib/scripts/backfillEnrichmentJobs.js",
         "backfill:catalog-summary": "npm run build && node lib/scripts/backfillCatalogSummaries.js",

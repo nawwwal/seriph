@@ -209,6 +209,18 @@ components:
           type: array
           items:
             type: string
+        pairingFamilies:
+          type: array
+          items:
+            type: object
+            required: [id, slug, name]
+            properties:
+              id:
+                type: string
+              slug:
+                type: string
+              name:
+                type: string
         confidence:
           type: number
           minimum: 0
@@ -360,6 +372,41 @@ components:
       properties:
         data:
           $ref: '#/components/schemas/FamilyMergeUndoResponse'
+    FamilyMergeSuggestion:
+      type: object
+      required: [id, familyIds, slugs, names, verdict, score]
+      properties:
+        id:
+          type: string
+        familyIds:
+          type: array
+          items:
+            type: string
+        slugs:
+          type: array
+          items:
+            type: string
+        names:
+          type: array
+          items:
+            type: string
+        verdict:
+          type: string
+          enum: [related, same]
+        score:
+          type: number
+    FamilyMergeSuggestionsEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [suggestions]
+          properties:
+            suggestions:
+              type: array
+              items:
+                $ref: '#/components/schemas/FamilyMergeSuggestion'
     BulkFamilyDeleteRequest:
       type: object
       required: [familyIds, confirm]
@@ -1290,6 +1337,20 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/family-merge-suggestions:
+    get:
+      summary: List same-family merge suggestions for the signed-in owner
+      responses:
+        '200':
+          description: Suggested duplicate or related family pairs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FamilyMergeSuggestionsEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/family-merges:

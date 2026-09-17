@@ -1,7 +1,9 @@
+import { MOODS, USE_CASES } from "../../models/contracts";
 import type { FontEnrichment, FontFamilyDoc } from "../../models/catalog.models";
 import { buildLaneEmbeddingText } from "../../search/searchDocument";
 
-export const PROMPT_VERSION = "enrich-v1";
+export const PROMPT_VERSION = "enrich-v2";
+export const JEV_VERSION = "jev-labels-v3";
 
 /** Line marker used to correlate batch output rows back to a catalog family document. */
 export const CATALOG_KEY_PREFIX = "Catalog-Key:";
@@ -13,9 +15,9 @@ export const ANALYSIS_SCHEMA = {
     suggestedDisplayName: { type: "STRING" },
     classification: { type: "STRING" },
     summary: { type: "STRING" },
-    moods: { type: "ARRAY", items: { type: "STRING" } },
+    moods: { type: "ARRAY", items: { type: "STRING", enum: [...MOODS] } },
     voice: { type: "STRING" },
-    useCases: { type: "ARRAY", items: { type: "STRING" } },
+    useCases: { type: "ARRAY", items: { type: "STRING", enum: [...USE_CASES] } },
     pairingHints: { type: "ARRAY", items: { type: "STRING" } },
     confidence: { type: "NUMBER" },
   },
@@ -40,7 +42,7 @@ export function buildPrompt(family: FontFamilyDoc, hasImage: boolean, withKey = 
     `Variable axes: ${axes}`,
     `Styles: ${family.faces.map((f) => f.styleName).join(", ")}`,
     "",
-    'Return JSON describing: the primary category; an optional suggestedDisplayName; a finer classification (e.g. "humanist sans", "transitional serif", "geometric display"); a 1–2 sentence summary of its character; 4–8 mood/voice adjectives (e.g. warm, technical, editorial, playful); a short "voice" phrase; 3–6 concrete use cases (e.g. body text, branding, UI, editorial headlines); 2–4 pairing hints (kinds of fonts that pair well); and a 0–1 confidence.',
+    `Return JSON describing: the primary category; an optional suggestedDisplayName; a finer classification (e.g. "humanist sans", "transitional serif", "geometric display"); a 1-2 sentence summary of its character; 4-8 moods from [${MOODS.join(", ")}]; a short "voice" phrase; 3-6 use cases from [${USE_CASES.join(", ")}]; 2-4 pairing hints (kinds of fonts that pair well); and a 0-1 confidence.`,
   ].join("\n");
 }
 

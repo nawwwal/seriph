@@ -37,7 +37,7 @@ function family(id: string, overrides: Partial<FontFamilyDoc> = {}): FontFamilyD
       : id === "warm-sans" ? ["warm", "branding", "sans"] : ["editorial", "magazine", "grotesk"],
     enrichment: {
       category: id === "garamond-premier" ? "SERIF" : "SANS_SERIF",
-      moods: id === "warm-sans" ? ["warm"] : ["precise"],
+      moods: id === "warm-sans" ? ["warm"] : ["technical"],
       useCases: id === "editorial-grotesk" ? ["editorial"] : ["branding"],
       confidence: 0.9,
     },
