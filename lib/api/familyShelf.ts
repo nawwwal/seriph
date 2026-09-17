@@ -1,15 +1,6 @@
-import type { Classification } from '@/models/font.models';
 import { mapStoredCoverFace } from '@/lib/api/familyShelfCover';
-import { canonicalSearchClassification } from '@/lib/search/searchClassification';
+import { voiceClassification } from '@/lib/search/searchClassification';
 import type { FamilyCursor, ShelfFamily } from '@/models/shelf.models';
-
-const CATEGORY_TO_CLASS: Record<string, Classification> = {
-  SANS_SERIF: 'Sans Serif',
-  SERIF: 'Serif',
-  DISPLAY: 'Display & Decorative',
-  HANDWRITING: 'Script & Handwriting',
-  MONOSPACE: 'Monospace',
-};
 
 function toIso(value: unknown): string {
   if (!value) return '';
@@ -46,7 +37,12 @@ export function mapCatalogDocToShelfFamily(data: Record<string, unknown>, id: st
     id: typeof data.slug === 'string' ? data.slug : id,
     name: typeof data.name === 'string' ? data.name : id,
     normalizedName: typeof data.slug === 'string' ? data.slug : id,
-    classification: canonicalSearchClassification(enrichment.classification) ?? canonicalSearchClassification(data.classification) ?? CATEGORY_TO_CLASS[category] ?? 'Sans Serif',
+    classification: voiceClassification({
+      searchClass: enrichment.searchClass,
+      enrichmentClassification: enrichment.classification,
+      storedClassification: data.classification,
+      category,
+    }),
     styleCount,
     isVariable,
     updatedAt: toIso(data.updatedAt),

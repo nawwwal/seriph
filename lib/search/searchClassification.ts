@@ -17,3 +17,24 @@ export function canonicalSearchClassification(value: unknown): Classification | 
   if (/\b(display|decorative|ornamental)\b/.test(text)) return 'Display & Decorative';
   return null;
 }
+
+const CATEGORY_TO_CLASS: Record<string, Classification> = {
+  SANS_SERIF: 'Sans Serif',
+  SERIF: 'Serif',
+  DISPLAY: 'Display & Decorative',
+  HANDWRITING: 'Script & Handwriting',
+  MONOSPACE: 'Monospace',
+};
+
+export function voiceClassification(input: {
+  searchClass?: unknown;
+  enrichmentClassification?: unknown;
+  storedClassification?: unknown;
+  category?: unknown;
+}): Classification {
+  return canonicalSearchClassification(input.searchClass)
+    ?? canonicalSearchClassification(input.enrichmentClassification)
+    ?? canonicalSearchClassification(input.storedClassification)
+    ?? (typeof input.category === 'string' ? CATEGORY_TO_CLASS[input.category] : null)
+    ?? 'Sans Serif';
+}

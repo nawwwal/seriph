@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useCallback } from 'react';
 import Link from 'next/link';
 import AppShell from '@/components/layout/AppShell';
 import LoadingSplash from '@/components/ui/LoadingSplash';
@@ -8,6 +8,7 @@ import { buttonClassName } from '@/components/ui/buttonStyles';
 import SearchWorkspaceFallback from '@/components/search/SearchWorkspaceFallback';
 import SearchWorkspace from '@/components/search/SearchWorkspace';
 import { useAuth } from '@/lib/contexts/AuthContext';
+import { useSeriphWebMcp } from '@/lib/hooks/useSeriphWebMcp';
 
 function Gate({ children }: { children: React.ReactNode }) {
   return (
@@ -21,6 +22,8 @@ function Gate({ children }: { children: React.ReactNode }) {
 
 export default function SearchPage() {
   const { user, isLoading } = useAuth();
+  const getIdToken = useCallback(() => user!.getIdToken(), [user]);
+  useSeriphWebMcp(user ? getIdToken : undefined);
 
   if (isLoading) {
     return (

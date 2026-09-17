@@ -1,3 +1,4 @@
+import { taxonomyMoods, taxonomyUseCases } from "../ai/taxonomies";
 import type { FontEnrichment, FontFamilyDoc } from "../models/catalog.models";
 import { normalizeSearchText, tokenizeSearchText } from "./searchTextNormalize";
 import type { SearchVectorLane } from "./searchDocumentTypes";
@@ -24,18 +25,21 @@ export function buildLaneEmbeddingText(family: FontFamilyDoc, lane: SearchVector
   const e = enrichmentFor(family);
   const classification = e?.classification ?? family.classification;
   const category = e?.category ?? family.category;
+  const moods = taxonomyMoods(e?.moods);
+  const useCases = taxonomyUseCases(e?.useCases);
   const shared = cleanParts([family.name, family.fileBase, category, classification, family.foundry, family.designer]);
 
-  if (lane === "mood") return cleanParts([...shared, e?.voice, e?.moods, e?.summary]).join(". ");
-  if (lane === "useCase") return cleanParts([family.name, category, classification, e?.useCases, e?.pairingHints, e?.summary]).join(". ");
+  if (lane === "mood") return cleanParts([...shared, e?.voice, moods, e?.summary]).join(". ");
+  if (lane === "useCase") return cleanParts([family.name, category, classification, useCases, e?.pairingHints, e?.pairingFamilies?.map((item) => item.name), e?.summary]).join(". ");
 
   return cleanParts([
     ...shared,
     e?.summary,
     e?.voice,
-    e?.moods,
-    e?.useCases,
+    moods,
+    useCases,
     e?.pairingHints,
+    e?.pairingFamilies?.map((item) => item.name),
     family.license,
     family.subsets,
     (family.axes ?? []).map((axis) => [axis.tag, axis.name].filter(Boolean).join(" ")),
@@ -71,9 +75,10 @@ export function buildSearchTokens(family: FontFamilyDoc): string[] {
     e?.classification,
     e?.summary,
     e?.voice,
-    ...(e?.moods ?? []),
-    ...(e?.useCases ?? []),
+    ...taxonomyMoods(e?.moods),
+    ...taxonomyUseCases(e?.useCases),
     ...(e?.pairingHints ?? []),
+    ...(e?.pairingFamilies ?? []).map((item) => item.name),
     ...(family.subsets ?? []),
     ...(family.axes ?? []).flatMap((axis) => [axis.tag, axis.name]),
     ...(family.faces ?? []).flatMap((face) => [face.styleName, face.weightName, face.fullName, face.postScriptName]),

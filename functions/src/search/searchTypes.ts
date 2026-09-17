@@ -8,9 +8,11 @@ export interface SearchRequest {
     isVariable?: boolean;
     classifications?: string[];
     moods?: string[];
+    useCases?: string[];
     styleRanges?: Array<"1" | "2-4" | "5-8" | "9+">;
     variable?: "any" | "variable" | "static";
   };
+  similarTo?: string;
   limit?: number;
   debug?: boolean;
 }

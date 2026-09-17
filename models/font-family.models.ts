@@ -22,6 +22,8 @@ export interface FamilyEnrichment {
   voice?: string;
   useCases?: string[];
   pairingHints?: string[];
+  pairingFamilies?: Array<{ id: string; slug: string; name: string }>;
+  useCaseScores?: Record<string, number>;
   confidence?: number;
   enrichedAt?: string;
 }

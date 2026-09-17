@@ -8,10 +8,12 @@ import {
   qualityScore,
   semanticScoreFromDistance,
 } from "./scoring";
-import { SEARCH_VECTOR_LANES } from "./searchDocument";
+import { taxonomyMoods, taxonomyUseCases } from "../ai/taxonomies";
 import { canonicalSearchClassification } from "./searchClassification";
 import { matchesSearchFilters } from "./searchFilters";
+import type { SearchVectorLane } from "./searchDocumentTypes";
 import type { SearchRequest, SearchResultItem } from "./searchTypes";
+import type { SearchWeights } from "./scoringTypes";
 
 export function toSearchItem(family: FontFamilyDoc, score?: number, scoreBreakdown?: SearchResultItem["scoreBreakdown"]): SearchResultItem {
   const cover = family.faces?.find((face) => face.id === family.coverFaceId) || family.faces?.[0];
@@ -20,10 +22,13 @@ export function toSearchItem(family: FontFamilyDoc, score?: number, scoreBreakdo
     slug: family.slug,
     name: family.name,
     category: family.category,
-    classification: canonicalSearchClassification(family.enrichment?.classification) ?? canonicalSearchClassification(family.classification) ?? family.classification,
+    classification: canonicalSearchClassification(family.enrichment?.searchClass)
+      ?? canonicalSearchClassification(family.enrichment?.classification)
+      ?? canonicalSearchClassification(family.classification)
+      ?? family.classification,
     summary: family.enrichment?.summary,
-    moods: family.enrichment?.moods,
-    useCases: family.enrichment?.useCases,
+    moods: taxonomyMoods(family.enrichment?.moods),
+    useCases: taxonomyUseCases(family.enrichment?.useCases),
     coverUrl: cover?.woff2?.url,
     styleCount: family.faces?.length ?? 0,
     isVariable: family.faces?.some((face) => face.isVariable) ?? false,
@@ -39,17 +44,18 @@ export function rankSearchDocs({
   normalizedQuery,
   req,
   topK,
+  weights = DEFAULT_SEARCH_WEIGHTS,
 }: {
-  vectorDocsByLane: QueryDocumentSnapshot[][];
+  vectorDocsByLane: Array<{ lane: SearchVectorLane; docs: QueryDocumentSnapshot[] }>;
   exactDocs: QueryDocumentSnapshot[];
   normalizedQuery: string;
   req: SearchRequest;
   topK: number;
+  weights?: SearchWeights;
 }): SearchResultItem[] {
   const candidates = new Map<string, ReturnType<typeof mergeSearchCandidate>>();
 
-  for (const [index, docs] of vectorDocsByLane.entries()) {
-    const lane = SEARCH_VECTOR_LANES[index];
+  for (const { lane, docs } of vectorDocsByLane) {
     for (const doc of docs) {
       mergeSearchCandidate(candidates, { ...doc.data(), id: doc.id } as FontFamilyDoc, { lane, score: semanticScoreFromDistance(doc.get("_distance")) });
     }
@@ -67,7 +73,7 @@ export function rankSearchDocs({
         exact: Math.max(candidate.scores.exact, exactMatchScore(normalizedQuery, candidate.family)),
         quality: qualityScore(candidate.family),
       };
-      return { family: candidate.family, score: fuseCandidateScore(scores, DEFAULT_SEARCH_WEIGHTS), scores };
+      return { family: candidate.family, score: fuseCandidateScore(scores, weights), scores };
     })
     .filter(({ family }) => matchesSearchFilters(family, req))
     .sort((a, b) => b.score - a.score || a.family.name.localeCompare(b.family.name))

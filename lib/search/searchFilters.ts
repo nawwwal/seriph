@@ -1,3 +1,4 @@
+import { isTaxonomyMood } from '@/lib/fontTaxonomy';
 import type { SearchFacetOption, SearchFacets, SearchFilters, SearchResultItem, SearchStyleRange } from '@/models/search.models';
 
 export const emptySearchFilters: SearchFilters = { classifications: [], moods: [], styleRanges: [], variable: 'any' };
@@ -42,7 +43,7 @@ export function buildSearchFacets(items: SearchResultItem[], filters: SearchFilt
 
   return {
     classifications: countedOptions(classificationBase.map((item) => item.classification), filters.classifications, 8),
-    moods: countedOptions(moodBase.flatMap((item) => item.moods ?? []), filters.moods, 12),
+    moods: countedOptions(moodBase.flatMap((item) => item.moods ?? []).filter(isTaxonomyMood), filters.moods, 12),
     styleRanges: Object.entries(styleRanges).map(([value, range]) => ({
       value,
       label: range.label,

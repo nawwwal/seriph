@@ -3,6 +3,7 @@ import type { ArchiveChild, ArchiveDiscovery } from "./discoverZip";
 import { completeArchiveIfReady, createItemOnce, markArchiveInventoryDurableOnce } from "../store/itemStore";
 import type { ImportArchiveReview } from "../contracts/item";
 import type { ImportTaskPayload } from "../tasks/enqueue";
+import { createArchiveChildPool } from "../archiveWorker/boundedConcurrency";
 
 export interface ArchivePersistenceDependencies {
   stage(child: ArchiveChild): Promise<void>;
@@ -21,13 +22,17 @@ export async function persistArchiveDiscovery(
   db: Firestore, archiveItemId: string, discovery: ArchiveDiscovery, deps: ArchivePersistenceDependencies,
 ): Promise<ArchivePersistenceResult> {
   let createdItems = 0; let stagedChildren = 0; let enqueuedChildren = 0;
+  const pool = createArchiveChildPool();
   for (const child of discovery.children) {
-    const item = await createItemOnce(db, { ...child.inventory, stagingPath: child.staging.path });
-    if (item.kind === "batch_missing") throw new Error("import batch missing while persisting archive child");
-    if (item.kind === "created") createdItems += 1;
-    await deps.stage(child); stagedChildren += 1;
-    await deps.enqueue(child.task); enqueuedChildren += 1;
+    await pool.add(async () => {
+      const item = await createItemOnce(db, { ...child.inventory, stagingPath: child.staging.path });
+      if (item.kind === "batch_missing") throw new Error("import batch missing while persisting archive child");
+      if (item.kind === "created") createdItems += 1;
+      await deps.stage(child); stagedChildren += 1;
+      await deps.enqueue(child.task); enqueuedChildren += 1;
+    });
   }
+  await pool.drain();
   const first = discovery.children[0]?.inventory;
   const ownerId = first?.ownerId ?? deps.ownerId; const batchId = first?.batchId ?? deps.batchId;
   if (ownerId && batchId) {

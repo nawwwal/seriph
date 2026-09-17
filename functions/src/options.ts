@@ -18,6 +18,7 @@ export const ENRICHMENT_COLLECTOR_OPTIONS = {
   timeoutSeconds: 540,
   maxInstances: 1,
   schedule: "every 1 minutes",
+  secrets: ["TYPESAFE_API_KEY"],
 };
 
 export const BATCH_POLL_OPTIONS = {
@@ -26,6 +27,7 @@ export const BATCH_POLL_OPTIONS = {
   timeoutSeconds: 540,
   maxInstances: 1,
   schedule: "every 1 minutes",
+  secrets: ["TYPESAFE_API_KEY"],
 };
 
 export const ENRICHMENT_LEASE_WATCHDOG_OPTIONS = {
@@ -43,6 +45,7 @@ export const SEARCH_FUNCTION_OPTIONS = {
   timeoutSeconds: 90,
   concurrency: 1,
   maxInstances: 4,
+  secrets: ["TYPESAFE_API_KEY"],
 };
 
 export const CDN_FUNCTION_OPTIONS = {

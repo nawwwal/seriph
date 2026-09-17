@@ -1,6 +1,8 @@
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import type { ImportArchiveLifecycle, ImportArchiveReview, ImportItemState } from "../contracts/item";
 import { importItemRef } from "./itemStore";
+import { importBatchRef } from "./paths";
+import { readinessWithDelta } from "./batchStore";
 
 export type ArchiveLifecycleResult = { kind: "updated" | "exists" | "missing" | "not_archive" | "waiting" | "completed" };
 const terminal = new Set<ImportItemState>(["classified", "applied", "duplicate", "review", "discarded", "failed"]);
@@ -24,7 +26,10 @@ export async function markItemTerminalOnce(db: Firestore, input: { ownerId: stri
     if (terminal.has(current.state as ImportItemState)) return { kind: "exists" };
     parentId = (current.archiveLineage as Array<{ archiveItemId: string }> | undefined)?.at(-1)?.archiveItemId;
     const parentRef = parentId ? importItemRef(db, input.ownerId, input.batchId, parentId) : undefined; const parent = parentRef ? await tx.get(parentRef) : undefined;
+    const batchRef = importBatchRef(db, input.ownerId, input.batchId); const batch = await tx.get(batchRef);
     tx.update(ref, { state, updatedAt: FieldValue.serverTimestamp() });
+    const readiness = readinessWithDelta(batch.exists ? batch.data()?.readiness : undefined, { pendingItems: -1 });
+    if (readiness) tx.update(batchRef, { readiness, updatedAt: FieldValue.serverTimestamp() });
     if (parent?.exists && parentRef) { const archive = parent.data()?.archive as ImportArchiveLifecycle | undefined;
       if (archive) tx.update(parentRef, { archive: { ...archive, terminalChildren: archive.terminalChildren + 1 }, updatedAt: FieldValue.serverTimestamp() }); }
     return { kind: "updated" };
@@ -42,7 +47,10 @@ export async function completeArchiveIfReady(db: Firestore, input: { ownerId: st
     const state = archiveDone(archive); if (archive.state === state) return { kind: "completed" }; const now = FieldValue.serverTimestamp() as unknown as string;
     const parentId = (current.archiveLineage as Array<{ archiveItemId: string }> | undefined)?.at(-1)?.archiveItemId;
     const parentRef = parentId ? importItemRef(db, input.ownerId, input.batchId, parentId) : undefined; const parent = parentRef ? await tx.get(parentRef) : undefined;
+    const batchRef = importBatchRef(db, input.ownerId, input.batchId); const batch = await tx.get(batchRef);
     tx.update(ref, { archive: { ...archive, state }, state: state === "review" ? "review" : "classified", updatedAt: now }); propagateParentId = parentId;
+    const readiness = readinessWithDelta(batch.exists ? batch.data()?.readiness : undefined, { pendingItems: -1 });
+    if (readiness) tx.update(batchRef, { readiness, updatedAt: now });
     if (parent?.exists && parentRef) { const parentArchive = parent.data()?.archive as ImportArchiveLifecycle | undefined;
       if (parentArchive) tx.update(parentRef, { archive: { ...parentArchive, terminalChildren: parentArchive.terminalChildren + 1 }, updatedAt: now }); }
     return { kind: "completed" };

@@ -8,6 +8,7 @@ import { ArchiveSourceTooLargeError, drain, defaultParser, observe, sourceLooksL
 import { productionArchiveWorkerDependencies } from "./persistence";
 import type { ArchiveWorkerDependencies, ArchiveWorkerRequest, ArchiveWorkerResult, RegisteredArchiveSource } from "./types";
 import { isMissingStorageObject } from "../tasks/cancellation";
+import { createArchiveChildPool } from "./boundedConcurrency";
 export * from "./types";
 export { productionArchiveWorkerDependencies } from "./persistence";
 
@@ -63,13 +64,14 @@ export async function handleArchive(request: ArchiveWorkerRequest, deps: Archive
   const lease = await deps.lease.claim(payload, name); if (lease.kind !== "claimed") return { status: 204 };
   if (await deps.isCanceled?.(payload.ownerId, payload.batchId)) { await deps.lease.complete(payload, name, lease.attempt); return { status: 204 }; }
   const itemId = archiveId(source); const reviews: ArchiveDecision[] = []; const seen = new Set<string>(); let expanded = 0; let children = 0; let overLimit = false;
+  const pool = createArchiveChildPool();
   try {
     if (source.state === "uploaded") await deps.persistence.transitionSource(source, "uploaded", "discovering");
     await deps.persistence.createArchive(source, itemId); await deps.lease.renew(payload, name, lease.attempt);
     const observed = observe(source.createReadStream(), maxBytes); const parser = deps.parser ?? defaultParser;
     let entryCount = 0;
     for await (const entry of parser(observed.stream)) {
-      if (await deps.isCanceled?.(payload.ownerId, payload.batchId)) { await deps.lease.complete(payload, name, lease.attempt); return { status: 204 }; }
+      if (await deps.isCanceled?.(payload.ownerId, payload.batchId)) { await pool.drain().catch(() => undefined); await deps.lease.complete(payload, name, lease.attempt); return { status: 204 }; }
       entryCount += 1;
       if (entryCount > deps.limits.maxEntries) { if (!overLimit) reviews.push({ ...review("", "entry_limit"), parentItemId: itemId }); overLimit = true; await drain(entry, deps.limits.maxEntryBytes); continue; }
       const decision = assessArchiveEntry({ ...entry, entryPath: entry.path }, deps.limits, expanded);
@@ -80,28 +82,37 @@ export async function handleArchive(request: ArchiveWorkerRequest, deps: Archive
       if (reservation.kind === "exceeded") { reviews.push({ ...review(entry.path, "expanded_size"), parentItemId: itemId }); await drain(entry, deps.limits.maxEntryBytes); continue; }
       const extracted = await extractEntryBounded(entry, deps.limits.maxEntryBytes, reservation.remainingBytes + reservation.reservationBytes);
       if (!Buffer.isBuffer(extracted)) { reviews.push({ ...extracted, parentItemId: itemId }); continue; }
-      if (await deps.isCanceled?.(payload.ownerId, payload.batchId)) { await deps.lease.complete(payload, name, lease.attempt); return { status: 204 }; }
+      if (await deps.isCanceled?.(payload.ownerId, payload.batchId)) { await pool.drain().catch(() => undefined); await deps.lease.complete(payload, name, lease.attempt); return { status: 204 }; }
       const child = childFor(source, itemId, decision.normalizedPath!, extracted); const inventory = await buildInventoryItem(child.input);
       const finalChild = { ...child, inventory: { ...inventory, stagingPath: child.staging.path }, staging: { ...child.staging, contentHash: inventory.sha256 }, task: { ...child.task, resourceId: inventory.itemId } };
-      await deps.persistence.persistChild(finalChild); seen.add(decision.normalizedPath!); expanded += extracted.byteLength; children += 1; await deps.lease.renew(payload, name, lease.attempt);
+      await pool.add(async () => {
+        if (await deps.isCanceled?.(payload.ownerId, payload.batchId)) return;
+        await deps.persistence.persistChild(finalChild);
+      });
+      seen.add(decision.normalizedPath!); expanded += extracted.byteLength; children += 1; await deps.lease.renew(payload, name, lease.attempt);
     }
     const metadata = await observed.complete;
+    await pool.drain();
     if (metadata.byteSize !== expectedSize) { await deps.lease.fail(payload, name, lease.attempt, false); return { status: 400, body: { code: "source_size_mismatch" } }; }
     if (!sourceLooksLikeZip(source, metadata.prefix)) { await deps.lease.fail(payload, name, lease.attempt, false); return { status: 400, body: { code: "source_not_zip" } }; }
+    if (await deps.isCanceled?.(payload.ownerId, payload.batchId)) { await deps.lease.complete(payload, name, lease.attempt); return { status: 204 }; }
+    await deps.lease.renew(payload, name, lease.attempt);
     await deps.persistence.updateArchiveMetadata({ ownerId: source.ownerId, batchId: source.batchId, itemId, sha256: metadata.sha256, byteSize: metadata.byteSize });
     await deps.persistence.completeArchive({ ownerId: source.ownerId, batchId: source.batchId, itemId, expectedChildren: children, reviews });
     await deps.persistence.transitionSource(source, "discovering", "discovered"); await deps.lease.complete(payload, name, lease.attempt); return { status: 204 };
   } catch (error) {
+    let failure = error;
+    try { await pool.drain(); } catch (poolError) { failure = poolError; }
     if (await deps.isCanceled?.(payload.ownerId, payload.batchId)) { await deps.lease.complete(payload, name, lease.attempt); return { status: 204 }; }
-    if (error instanceof ArchiveSourceTooLargeError) {
+    if (failure instanceof ArchiveSourceTooLargeError) {
       await deps.persistence.transitionSource(source, "discovering", "failed"); await deps.lease.fail(payload, name, lease.attempt, false);
-      return { status: 400, body: { code: error.code } };
+      return { status: 400, body: { code: failure.code } };
     }
-    if (isMissingStorageObject(error)) {
+    if (isMissingStorageObject(failure)) {
       await deps.persistence.transitionSource(source, "discovering", "failed"); await deps.lease.fail(payload, name, lease.attempt, false);
       await reconcile(deps, payload.ownerId, payload.batchId);
       return { status: 400, body: { code: "source_object_missing" } };
     }
-    await deps.lease.fail(payload, name, lease.attempt, true); return { status: 503, body: { code: error instanceof Error ? error.message : "archive_worker_failure", retryable: true } };
+    await deps.lease.fail(payload, name, lease.attempt, true); return { status: 503, body: { code: failure instanceof Error ? failure.message : "archive_worker_failure", retryable: true } };
   }
 }

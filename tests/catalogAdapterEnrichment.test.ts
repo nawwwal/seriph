@@ -13,7 +13,7 @@ describe('mapCatalogDoc enrichment', () => {
         moods: ['bold', 'editorial'],
         useCases: ['headlines'],
         voice: 'confident',
-        pairingHints: ['soft serifs'],
+        pairingFamilies: [{ id: 'soft-serif', slug: 'soft-serif', name: 'soft serifs' }],
         classification: 'geometric sans',
       },
     }, 'doc-id');
@@ -24,5 +24,18 @@ describe('mapCatalogDoc enrichment', () => {
     expect(family.metadata.similarFamilies).toEqual(['soft serifs']);
     expect(family.metadata.technicalCharacteristics).toEqual(['confident']);
     expect(family.metadata.subClassification).toBe('geometric sans');
+    expect(family.classification).toBe('Sans Serif');
+  });
+
+  it('uses Jev searchClass when category is wrong', () => {
+    const family = mapCatalogDoc({
+      name: 'Roboto Serif',
+      slug: 'roboto-serif',
+      category: 'SANS_SERIF',
+      classification: 'Sans Serif',
+      faces: [],
+      enrichment: { searchClass: 'Serif', classification: 'transitional serif' },
+    }, 'doc-id');
+    expect(family.classification).toBe('Serif');
   });
 });

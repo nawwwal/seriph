@@ -2,6 +2,46 @@ import { FieldValue, Firestore } from "firebase-admin/firestore";
 import { ImportBatch, ImportBatchCounters } from "../contracts/batch";
 import { importBatchRef } from "./paths";
 
+export interface ImportReadiness {
+  version: 1;
+  pendingSources: number;
+  pendingItems: number;
+  finalizationRequested: boolean;
+}
+
+export const terminalSourceState = (state: unknown): boolean =>
+  ["discovered", "failed", "canceled", "timed_out"].includes(String(state));
+
+export const terminalItemState = (state: unknown): boolean =>
+  ["classified", "applied", "duplicate", "review", "discarded", "failed"].includes(String(state));
+
+export function readImportReadiness(value: unknown): ImportReadiness | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const candidate = value as Partial<ImportReadiness>;
+  if (candidate.version !== 1 || !Number.isSafeInteger(candidate.pendingSources) ||
+    !Number.isSafeInteger(candidate.pendingItems) || typeof candidate.finalizationRequested !== "boolean") return undefined;
+  const pendingSources = candidate.pendingSources as number;
+  const pendingItems = candidate.pendingItems as number;
+  return {
+    version: 1,
+    pendingSources: Math.max(0, pendingSources),
+    pendingItems: Math.max(0, pendingItems),
+    finalizationRequested: candidate.finalizationRequested,
+  };
+}
+
+export function readinessWithDelta(
+  value: unknown, delta: { pendingSources?: number; pendingItems?: number },
+): ImportReadiness | undefined {
+  const current = readImportReadiness(value);
+  if (!current) return undefined;
+  return {
+    ...current,
+    pendingSources: Math.max(0, current.pendingSources + (delta.pendingSources ?? 0)),
+    pendingItems: Math.max(0, current.pendingItems + (delta.pendingItems ?? 0)),
+  };
+}
+
 export type CreateBatchInput = Pick<ImportBatch,
   "ownerId" | "batchId" | "label" | "expectedSourceCount">;
 export type CreateBatchResult = { kind: "created" } | { kind: "exists" };
@@ -20,6 +60,7 @@ export const createBatch = async (
   tx.set(ref, {
     ...input, schemaVersion: 1, sealed: false, planVersion: 0, outcome: "active",
     counters: counters(), createdAt: now, updatedAt: now,
+    readiness: { version: 1, pendingSources: 0, pendingItems: 0, finalizationRequested: false } satisfies ImportReadiness,
     archiveBudget: { reservedBytes: 0, maxBytes: 0, reservations: {} },
     phases: {
       upload: { state: "registered", attempts: 0, updatedAt: now },

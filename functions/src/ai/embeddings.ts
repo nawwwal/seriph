@@ -10,12 +10,13 @@ import { logger } from 'firebase-functions';
 import { getConfigValue, getConfigNumber } from '../config/remoteConfig';
 import { RC_KEYS, RC_DEFAULTS } from '../config/rcKeys';
 
+export type EmbedTask = 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY';
+
 let client: GoogleGenAI | null = null;
 function ai(): GoogleGenAI {
   if (client) return client;
   const project = process.env.GOOGLE_CLOUD_PROJECT || 'seriph';
-  // gemini-embedding-2-preview is not served from asia-southeast1; embeddings use
-  // their own location (default us-central1), independent of the analysis model.
+  // gemini-embedding-2 is Global / us / eu, not asia-southeast1.
   const location = getConfigValue(
     RC_KEYS.embeddingLocationId,
     RC_DEFAULTS[RC_KEYS.embeddingLocationId] || getConfigValue(RC_KEYS.vertexLocationId, RC_DEFAULTS[RC_KEYS.vertexLocationId]),
@@ -32,26 +33,49 @@ export function embeddingDims(): number {
   return getConfigNumber(RC_KEYS.embeddingDimensions, Number(RC_DEFAULTS[RC_KEYS.embeddingDimensions]));
 }
 
+function embedPrompt(text: string, taskType: EmbedTask): string {
+  return taskType === 'RETRIEVAL_QUERY'
+    ? `task: search result | query: ${text}`
+    : `title: none | text: ${text}`;
+}
+
 /**
  * Embed text. `taskType` should be RETRIEVAL_DOCUMENT for stored docs and
  * RETRIEVAL_QUERY for search queries (asymmetric retrieval).
  */
 export async function embedText(
   text: string,
-  taskType: 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY' = 'RETRIEVAL_DOCUMENT'
+  taskType: EmbedTask = 'RETRIEVAL_DOCUMENT'
 ): Promise<number[] | null> {
-  const trimmed = (text || '').trim();
-  if (!trimmed) return null;
+  return (await embedTexts([text], taskType))[0] ?? null;
+}
+
+/** Embed related texts in one provider request while preserving input order. */
+export async function embedTexts(
+  texts: readonly string[],
+  taskType: EmbedTask = 'RETRIEVAL_DOCUMENT'
+): Promise<Array<number[] | null>> {
+  const trimmed = texts.map((text) => (text || '').trim());
+  const present = trimmed.map((text, index) => ({ text, index })).filter(({ text }) => text.length > 0);
+  const result: Array<number[] | null> = texts.map(() => null);
+  if (!present.length) return result;
   try {
     const res = await ai().models.embedContent({
       model: embeddingModelId(),
-      contents: trimmed,
-      config: { outputDimensionality: embeddingDims(), taskType },
+      // Content wrappers return one vector per input; a string list aggregates.
+      contents: present.map(({ text }) => ({
+        role: 'user',
+        parts: [{ text: embedPrompt(text, taskType) }],
+      })),
+      config: { outputDimensionality: embeddingDims() },
     });
-    const values = res.embeddings?.[0]?.values;
-    return values && values.length ? values : null;
+    present.forEach(({ index }, resultIndex) => {
+      const values = res.embeddings?.[resultIndex]?.values;
+      result[index] = values && values.length ? values : null;
+    });
+    return result;
   } catch (e: any) {
-    logger.warn('embedText failed', { message: e?.message });
-    return null;
+    logger.warn('embedTexts failed', { message: e?.message, count: present.length });
+    return result;
   }
 }

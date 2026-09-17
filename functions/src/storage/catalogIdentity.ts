@@ -10,3 +10,8 @@ export function catalogFamilyDocId(ownerId: string | undefined, slug: string): s
 export function catalogFamilyDocIdFor(family: { id?: string; ownerId?: string; slug: string }): string {
   return family.id?.trim() || catalogFamilyDocId(family.ownerId, family.slug);
 }
+
+export function catalogFamilyDocCandidates(ownerId: string | undefined, slug: string): string[] {
+  const canonical = catalogFamilyDocId(ownerId, slug);
+  return canonical === slug ? [slug] : [canonical, slug];
+}

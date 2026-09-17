@@ -31,7 +31,7 @@ describe("provider output reconciliation", () => {
       FieldValue: { delete: () => "deleted", serverTimestamp: () => "timestamp", vector: (value: unknown) => value },
     }));
     vi.doMock("../../src/ai/enrichFont", () => ({
-      CATALOG_KEY_PREFIX: "Catalog-Key:", parseAnalysis: () => ({ category: "SANS_SERIF", summary: "new", moods: [], useCases: [] }),
+      CATALOG_KEY_PREFIX: "Catalog-Key:", composeEnrichment: async () => ({ category: "SANS_SERIF", summary: "new", moods: [], useCases: [] }),
       buildEnrichmentUpdate: async () => ({ status: "ready", searchIndexState: "retry", text_vec: "deleted", mood_vec: "deleted", use_case_vec: "deleted" }),
     }));
     const previousVector = [0.1, 0.2, 0.3];

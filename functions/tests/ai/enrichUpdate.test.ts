@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FontFamilyDoc, FontEnrichment } from "../../src/models/catalog.models";
 
-const embedText = vi.fn();
+const embedTexts = vi.fn();
 
 vi.mock("../../src/ai/embeddings", () => ({
-  embedText: (...args: unknown[]) => embedText(...args),
+  embedTexts: (...args: unknown[]) => embedTexts(...args),
   embeddingModelId: () => "test-embedding",
   embeddingDims: () => 3,
 }));
@@ -32,11 +32,11 @@ const enrichment: FontEnrichment = {
 
 describe("buildEnrichmentUpdate", () => {
   beforeEach(() => {
-    embedText.mockReset();
+    embedTexts.mockReset();
   });
 
   it("marks search ready only when all vector lanes are present", async () => {
-    embedText.mockResolvedValue([0.1, 0.2, 0.3]);
+    embedTexts.mockResolvedValue([[0.1, 0.2, 0.3], [0.1, 0.2, 0.3], [0.1, 0.2, 0.3]]);
     const { buildEnrichmentUpdate } = await import("../../src/ai/enrich/update");
     const update = await buildEnrichmentUpdate(family(), enrichment);
 
@@ -49,7 +49,7 @@ describe("buildEnrichmentUpdate", () => {
   });
 
   it("keeps the family retryable when any vector lane is missing", async () => {
-    embedText.mockResolvedValueOnce([0.1, 0.2, 0.3]).mockResolvedValueOnce(null).mockResolvedValueOnce([0.2, 0.3, 0.4]);
+    embedTexts.mockResolvedValue([[0.1, 0.2, 0.3], null, [0.2, 0.3, 0.4]]);
     const { buildEnrichmentUpdate } = await import("../../src/ai/enrich/update");
     const update = await buildEnrichmentUpdate(family(), enrichment);
 

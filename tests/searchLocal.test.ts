@@ -4,8 +4,8 @@ import { buildSearchFacets, filterSearchResults } from '@/lib/search/searchFilte
 import { buildLocalSearchView } from '@/lib/search/searchView';
 
 const items = [
-  { id: 'ivar', slug: 'ivar', normalizedName: 'ivar', name: 'Ivar Text', category: 'SERIF', classification: 'Serif' as const, styleCount: 4, isVariable: false, updatedAt: '', moods: ['editorial', 'warm'], searchText: 'ivar text editorial serif', searchTokens: ['ivar', 'editorial', 'serif'] },
-  { id: 'aeonik', slug: 'aeonik', normalizedName: 'aeonik', name: 'Aeonik Pro', category: 'SANS_SERIF', classification: 'Sans Serif' as const, styleCount: 8, isVariable: true, updatedAt: '', moods: ['geometric', 'clean'], searchText: 'aeonik geometric sans', searchTokens: ['aeonik', 'geometric', 'sans'] },
+  { id: 'ivar', slug: 'ivar', normalizedName: 'ivar', name: 'Ivar Text', category: 'SERIF', classification: 'Serif' as const, styleCount: 4, isVariable: false, updatedAt: '', moods: ['elegant', 'warm'], searchText: 'ivar text editorial serif', searchTokens: ['ivar', 'editorial', 'serif'] },
+  { id: 'aeonik', slug: 'aeonik', normalizedName: 'aeonik', name: 'Aeonik Pro', category: 'SANS_SERIF', classification: 'Sans Serif' as const, styleCount: 8, isVariable: true, updatedAt: '', moods: ['technical', 'minimalist'], searchText: 'aeonik geometric sans', searchTokens: ['aeonik', 'geometric', 'sans'] },
 ];
 
 describe('rankLocalSearch', () => {
@@ -38,7 +38,7 @@ describe('search filters and facets', () => {
   it('filters results by classification, mood, style range, and variable state', () => {
     expect(filterSearchResults(items, {
       classifications: ['Sans Serif'],
-      moods: ['geometric'],
+      moods: ['technical'],
       styleRanges: ['5-8'],
       variable: 'variable',
     }).map((item) => item.id)).toEqual(['aeonik']);
@@ -48,7 +48,7 @@ describe('search filters and facets', () => {
     const facets = buildSearchFacets(items, { classifications: [], moods: [], styleRanges: [], variable: 'any' });
 
     expect(facets.classifications.map((facet) => [facet.value, facet.count])).toContainEqual(['Serif', 1]);
-    expect(facets.moods.map((facet) => facet.value)).toContain('geometric');
+    expect(facets.moods.map((facet) => facet.value)).toContain('technical');
     expect(facets.variable.find((facet) => facet.value === 'variable')?.count).toBe(1);
   });
 
@@ -58,7 +58,7 @@ describe('search filters and facets', () => {
     expect(view.resultCount).toBe(1);
     expect(view.results.map((item) => item.id)).toEqual(['ivar']);
     expect(view.facets.classifications.map((facet) => [facet.value, facet.count])).toEqual([['Serif', 1]]);
-    expect(view.facets.moods.map((facet) => [facet.value, facet.count])).toEqual([['editorial', 1], ['warm', 1]]);
+    expect(view.facets.moods.map((facet) => [facet.value, facet.count])).toEqual([['elegant', 1], ['warm', 1]]);
     expect(view.facets.variable.find((facet) => facet.value === 'variable')?.count).toBe(0);
   });
 });

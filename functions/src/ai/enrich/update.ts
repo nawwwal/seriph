@@ -2,7 +2,7 @@ import { getStorage } from "firebase-admin/storage";
 import { FieldValue } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { renderSpecimen } from "../../render/specimen";
-import { embedText, embeddingModelId, embeddingDims } from "../embeddings";
+import { embedTexts, embeddingModelId, embeddingDims } from "../embeddings";
 import { publicBucketName } from "../../config/catalogConfig";
 import type { FontEnrichment, FontFamilyDoc } from "../../models/catalog.models";
 import { PROMPT_VERSION, buildEmbeddingText, buildMoodEmbeddingText, buildUseCaseEmbeddingText } from "./schema";
@@ -37,11 +37,11 @@ export async function buildEnrichmentUpdate(
   family: FontFamilyDoc,
   enrichment: FontEnrichment
 ): Promise<Record<string, unknown>> {
-  const [textVec, moodVec, useCaseVec] = await Promise.all([
-    embedText(buildEmbeddingText(family, enrichment), "RETRIEVAL_DOCUMENT"),
-    embedText(buildMoodEmbeddingText(family, enrichment), "RETRIEVAL_DOCUMENT"),
-    embedText(buildUseCaseEmbeddingText(family, enrichment), "RETRIEVAL_DOCUMENT"),
-  ]);
+  const [textVec, moodVec, useCaseVec] = await embedTexts([
+    buildEmbeddingText(family, enrichment),
+    buildMoodEmbeddingText(family, enrichment),
+    buildUseCaseEmbeddingText(family, enrichment),
+  ], "RETRIEVAL_DOCUMENT");
   const embeddingModel = embeddingModelId();
   const embeddingVersion = `${embeddingModel}:${embeddingDims()}`;
   if (!textVec || !moodVec || !useCaseVec) {

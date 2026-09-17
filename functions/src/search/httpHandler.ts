@@ -3,6 +3,7 @@ import { logger } from 'firebase-functions';
 import { getAuth } from 'firebase-admin/auth';
 import { initializeRemoteConfig } from '../config/remoteConfig';
 import { searchFonts } from './searchFonts';
+import { parseHttpSearchFilters } from './httpFilters';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -47,12 +48,13 @@ export async function serveSearchRequest(req: Request, res: Response): Promise<v
   }
   try {
     const payload = payloadFrom(req.body);
-    const filters = isRecord(payload.filters) ? payload.filters : {};
+    const similarTo = typeof payload.similarTo === 'string' ? payload.similarTo.trim() : '';
     const response = await searchFonts({
       q: typeof payload.q === 'string' ? payload.q : '',
       limit: typeof payload.limit === 'number' ? payload.limit : undefined,
       debug: payload.debug === true,
-      filters: { ownerId: uid, category: typeof filters.category === 'string' ? filters.category : undefined },
+      similarTo: similarTo || undefined,
+      filters: parseHttpSearchFilters(payload.filters, uid),
     });
     logger.info('search request complete', { totalMs: Date.now() - started, resultCount: response.results.length });
     res.status(200).json(response);

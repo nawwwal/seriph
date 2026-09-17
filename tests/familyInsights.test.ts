@@ -12,7 +12,7 @@ describe('FamilyInsights', () => {
         moods: ['clear'],
         voice: 'calm and technical',
         useCases: ['product UI'],
-        pairingHints: ['Pair with a literary serif'],
+        pairingFamilies: [{ id: 'literary-serif', slug: 'literary-serif', name: 'Literary Serif' }],
         confidence: 0.91,
         enrichedAt: '2026-07-10T00:00:00.000Z',
       },
@@ -20,7 +20,7 @@ describe('FamilyInsights', () => {
 
     for (const text of [
       'AI Insights', 'A precise neo-grotesk.', 'calm and technical',
-      'clear', 'product UI', 'Pair with a literary serif', 'geometric sans',
+      'clear', 'product UI', 'Literary Serif', 'geometric sans',
       '91%', 'Jul 10, 2026',
     ]) expect(markup).toContain(text);
     expect(markup).not.toContain('modelId');
@@ -49,10 +49,23 @@ describe('FamilyInsights', () => {
 
   it('omits pairing markup without rendering zero for empty pairing hints', () => {
     const markup = renderToStaticMarkup(createElement(FamilyInsights, {
-      enrichment: { summary: 'A precise neo-grotesk.', pairingHints: [] },
+      enrichment: { summary: 'A precise neo-grotesk.', pairingFamilies: [] },
     }));
 
     expect(markup).not.toContain('Pairing');
     expect(markup).not.toContain('>0<');
+  });
+
+  it('shows only primary use cases when scores exist', () => {
+    const markup = renderToStaticMarkup(createElement(FamilyInsights, {
+      enrichment: {
+        summary: 'A precise neo-grotesk.',
+        useCases: ['ui', 'poster', 'editorial'],
+        useCaseScores: { ui: 2, poster: 1, editorial: 2 },
+      },
+    }));
+    expect(markup).toContain('ui');
+    expect(markup).toContain('editorial');
+    expect(markup).not.toContain('poster');
   });
 });

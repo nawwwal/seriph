@@ -1,6 +1,7 @@
 import { FieldValue, Firestore } from "firebase-admin/firestore";
 import { ImportBatchCounters, ImportSource, ImportSourceState } from "../contracts/batch";
 import { importBatchRef, importSourceRef } from "./paths";
+import { readinessWithDelta, terminalSourceState } from "./batchStore";
 
 export type SourceInput = Pick<ImportSource, "ownerId" | "batchId" | "sourceId" |
   "originalPath" | "filename" | "declaredSize" | "declaredMimeType" | "storagePath">;
@@ -24,7 +25,8 @@ export const registerSource = async (db: Firestore, input: SourceInput): Promise
     const now = FieldValue.serverTimestamp() as unknown as string;
     tx.set(ref, { ...input, state: "registered", retryCount: 0, uploadConfirmed: false, createdAt: now, updatedAt: now });
     const counters = batchSnap.data()!.counters as ImportBatchCounters;
-    tx.update(batch, { counters: { ...counters, sources: counters.sources + 1 }, updatedAt: now });
+    const readiness = readinessWithDelta(batchSnap.data()?.readiness, { pendingSources: 1 });
+    tx.update(batch, { counters: { ...counters, sources: counters.sources + 1 }, ...(readiness ? { readiness } : {}), updatedAt: now });
     return { kind: "created" };
   });
 
@@ -35,7 +37,13 @@ export const transitionSource = async (db: Firestore, input: SourceInput, from: 
     if (!snap.exists) return { kind: "batch_missing" }; const current = snap.data()!;
     if (!same(input, current)) return { kind: "source_conflict" };
     if (current.state !== from) return { kind: "state_conflict", expected: from, actual: current.state as ImportSourceState };
-    tx.update(ref, { state: to, updatedAt: FieldValue.serverTimestamp() }); return { kind: "transitioned" };
+    const batch = importBatchRef(db, input.ownerId, input.batchId); const batchSnap = await tx.get(batch);
+    const readiness = !terminalSourceState(from) && terminalSourceState(to)
+      ? readinessWithDelta(batchSnap.exists ? batchSnap.data()?.readiness : undefined, { pendingSources: -1 })
+      : undefined;
+    tx.update(ref, { state: to, updatedAt: FieldValue.serverTimestamp() });
+    if (readiness) tx.update(batch, { readiness, updatedAt: FieldValue.serverTimestamp() });
+    return { kind: "transitioned" };
   });
 
 export const updateBatchSummary = async (db: Firestore, input: SourceInput, expected: ImportSourceState, delta: Partial<ImportBatchCounters>): Promise<{ kind: "updated" } | Conflict> =>

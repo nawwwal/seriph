@@ -15,6 +15,12 @@ export type AssetClaimResult =
   | { kind: "canceled" }
   | { kind: "busy"; retryAt: Date };
 export type CommitClaimResult = { kind: "committed" } | { kind: "committed_duplicate" } | { kind: "not_claimed" };
+export type ReuseCommittedClaimResult =
+  | { kind: "reused"; assetId: string; leaseExpiresAt: Date }
+  | { kind: "conflict"; familyId?: string; logicalFaceKey?: string; assetId?: string }
+  | { kind: "canceled" }
+  | { kind: "busy"; retryAt: Date }
+  | { kind: "not_committed" };
 
 const segment = (value: string, name: string): string => {
   if (!value || value.includes("/")) throw new Error(`invalid ${name}`);
@@ -75,6 +81,41 @@ export async function commitAssetClaim(
     if (current.claimId !== claimId(input) || !expires || expires <= now) return { kind: "not_claimed" };
     tx.set(ref, { ...current, status: "committed", updatedAt: now });
     return { kind: "committed" };
+  });
+}
+
+/**
+ * Reuse a committed byte-identical asset for a later batch without allowing a
+ * different family or face to take ownership of the digest. The previous
+ * claim is retained under `reusedFrom` so the later apply remains auditable.
+ */
+export async function reuseCommittedAsset(
+  db: Firestore, input: AssetClaimInput, now = new Date(), leaseMs = DEFAULT_LEASE_MS,
+): Promise<ReuseCommittedClaimResult> {
+  const sha256 = checkSha(input.sha256);
+  const holder = claimId(input);
+  return db.runTransaction(async (tx) => {
+    const ref = assetClaimRef(db, input.ownerId, sha256);
+    const snap = await tx.get(ref);
+    const batch = await tx.get(importBatchRef(db, input.ownerId, input.batchId));
+    if (batch.exists && batch.data()?.outcome === "canceled") return { kind: "canceled" };
+    const current = snap.exists ? snap.data() as Record<string, any> : undefined;
+    if (current?.status !== "committed") {
+      const expires = leaseDate(current?.leaseExpiresAt);
+      if (expires && expires > now) return { kind: "busy", retryAt: expires };
+      return { kind: "not_committed" };
+    }
+    if (current.familyId !== input.familyId || current.logicalFaceKey !== input.logicalFaceKey) return {
+      kind: "conflict", familyId: current.familyId, logicalFaceKey: current.logicalFaceKey, assetId: current.assetId,
+    };
+    const leaseExpiresAt = new Date(now.getTime() + leaseMs);
+    const reusedFrom = current.reusedFrom ?? {
+      ownerId: current.ownerId, batchId: current.batchId, itemId: current.itemId,
+      familyId: current.familyId, logicalFaceKey: current.logicalFaceKey, assetId: current.assetId,
+      claimId: current.claimId, updatedAt: current.updatedAt,
+    };
+    tx.set(ref, { ...current, ...input, assetId: current.assetId, claimId: holder, status: "leased", leaseExpiresAt, reusedFrom, updatedAt: now });
+    return { kind: "reused", assetId: current.assetId, leaseExpiresAt };
   });
 }
 

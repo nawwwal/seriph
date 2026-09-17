@@ -1,10 +1,11 @@
 import { logger } from "firebase-functions";
 import { embeddingModelId, embeddingDims } from "../embeddings";
 import { RC_KEYS } from "../../config/rcKeys";
-import { getConfigValue } from "../../config/remoteConfig";
+import { getConfigBoolean, getConfigValue } from "../../config/remoteConfig";
 import type { FontEnrichment, FontFamilyDoc } from "../../models/catalog.models";
 import type { GfCategory } from "../../storage/canonicalize";
-import { PROMPT_VERSION } from "./schema";
+import { taxonomyMoods, taxonomyUseCases } from "../taxonomies";
+import { JEV_VERSION, PROMPT_VERSION } from "./schema";
 import { isSearchIndexedAtVersion } from "../../search/searchDocument";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -38,9 +39,9 @@ export function parseAnalysis(family: FontFamilyDoc, text: string | undefined | 
     suggestedDisplayName: stringField(data, "suggestedDisplayName"),
     classification: stringField(data, "classification"),
     summary: stringField(data, "summary"),
-    moods: stringArray(data, "moods"),
+    moods: taxonomyMoods(stringArray(data, "moods")),
     voice: stringField(data, "voice"),
-    useCases: stringArray(data, "useCases"),
+    useCases: taxonomyUseCases(stringArray(data, "useCases")),
     pairingHints: stringArray(data, "pairingHints"),
     confidence: typeof data.confidence === "number" ? data.confidence : undefined,
     modelId: getConfigValue(RC_KEYS.analysisModelName, ""),
@@ -49,12 +50,24 @@ export function parseAnalysis(family: FontFamilyDoc, text: string | undefined | 
 }
 
 /** Current model/prompt/embedding identity — used for the idempotency guard. */
-export function currentEnrichmentVersions(): { analysisModel: string; promptVersion: string; embedVersion: string } {
+export function currentEnrichmentVersions(): { analysisModel: string; promptVersion: string; embedVersion: string; jevVersion: string } {
   return {
     analysisModel: getConfigValue(RC_KEYS.analysisModelName, ""),
     promptVersion: PROMPT_VERSION,
     embedVersion: `${embeddingModelId()}:${embeddingDims()}`,
+    jevVersion: JEV_VERSION,
   };
+}
+
+/** True when Gemini (+ optional Jev labels) already wrote current analysis fields. */
+export function hasCurrentAnalysis(family: FontFamilyDoc): boolean {
+  const prior = family.enrichment;
+  const v = currentEnrichmentVersions();
+  const jevReady = !getConfigBoolean(RC_KEYS.jevEnrichmentEnabled, false) || prior?.jevVersion === v.jevVersion;
+  return Boolean(prior?.summary)
+    && prior?.promptVersion === v.promptVersion
+    && prior?.modelId === v.analysisModel
+    && jevReady;
 }
 
 /** True when the family is already enriched at the current model/prompt/embedding. */
@@ -62,10 +75,9 @@ export function isEnrichedAtCurrentVersion(family: FontFamilyDoc): boolean {
   const prior = family.enrichment;
   const v = currentEnrichmentVersions();
   return (
-    family.status === "enriched" &&
-    prior?.promptVersion === v.promptVersion &&
-    prior?.modelId === v.analysisModel &&
-    prior?.embeddingVersion === v.embedVersion &&
-    isSearchIndexedAtVersion(family, { embeddingVersion: v.embedVersion, promptVersion: v.promptVersion })
+    family.status === "enriched"
+    && hasCurrentAnalysis(family)
+    && prior?.embeddingVersion === v.embedVersion
+    && isSearchIndexedAtVersion(family, { embeddingVersion: v.embedVersion, promptVersion: v.promptVersion })
   );
 }

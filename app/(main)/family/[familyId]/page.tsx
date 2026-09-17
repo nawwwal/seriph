@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppShell from '@/components/layout/AppShell';
@@ -14,6 +14,7 @@ import FontDetailLoader from '@/components/ui/FontDetailLoader';
 import FamilyDetailContent from '@/components/font/FamilyDetailContent';
 import FamilyHeaderActions from '@/components/font/FamilyHeaderActions';
 import FamilyStatusStats from '@/components/font/FamilyStatusStats';
+import { useSeriphWebMcp } from '@/lib/hooks/useSeriphWebMcp';
 
 function ShellMessage({ children }: { children: React.ReactNode }) {
   return (
@@ -33,6 +34,8 @@ export default function FamilyDetailPage() {
   const { upload } = useDurableBatchUpload();
   const { kind, family, isLoading, error, isPreview } = useFamilyDetail(familyId);
   useRegisterFamilyFonts(family || undefined);
+  const getIdToken = useCallback(() => user!.getIdToken(), [user]);
+  useSeriphWebMcp(user ? getIdToken : undefined, familyId);
 
   const testerRef = useRef<HTMLDivElement | null>(null);
   const scrollToTester = () =>

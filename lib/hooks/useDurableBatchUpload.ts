@@ -13,8 +13,14 @@ import type { WalkedFile } from '@/utils/walkDirectoryEntries';
 import { readDurableEnabled } from './durableRemoteConfig';
 import { createSourceProgressBridge } from './durableSourceProgress';
 
-const KEY = 'seriph:durable-import:v1'; const CHUNK = 100; const CONCURRENCY = 4;
+const KEY = 'seriph:durable-import:v1'; const CHUNK = 100; const CONCURRENCY = 8;
 const chunks = <T,>(items: T[]) => Array.from({ length: Math.ceil(items.length / CHUNK) }, (_, i) => items.slice(i * CHUNK, (i + 1) * CHUNK));
+async function pooledMap<T, R>(items: readonly T[], concurrency: number, map: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length); let cursor = 0;
+  const worker = async () => { while (cursor < items.length) { const index = cursor++; results[index] = await map(items[index]!); } };
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
+}
 const detail = (error: unknown) => error instanceof Error ? error.message : 'Storage upload failed';
 const sourceInput = (source: DurableUploadSource): SourceRegistrationInput => ({ sourceId: source.sourceId, originalName: source.file.name, relativePath: source.relativePath, size: source.file.size, declaredContentType: source.file.type || undefined });
 const filename = (name: string) => name.split('/').pop()!.replace(/[^A-Za-z0-9._-]/g, '_').replace(/^\.+$/, '') || 'source';
@@ -39,7 +45,7 @@ export async function runDurableUpload(sources: DurableUploadSource[], deps: Dur
       batchId = (await deps.create({ label: 'Browser import', expectedSourceCount: sources.length, idempotencyKey: identity })).batchId;
       deps.batchReady?.(batchId);
       phase = 'registering';
-      registered = (await Promise.all(chunks(sources).map((chunk) => deps.register(batchId, chunk.map(sourceInput))))).flat();
+      registered = (await pooledMap(chunks(sources), 4, (chunk) => deps.register(batchId, chunk.map(sourceInput)))).flat();
       phase = 'sealing';
       await deps.seal(batchId);
     }
@@ -47,10 +53,11 @@ export async function runDurableUpload(sources: DurableUploadSource[], deps: Dur
     acceptedIds = accepted.map((source) => source.sourceId);
     deps.persist?.({ ownerId: ownerId ?? recovery?.ownerId ?? 'unknown', batchId, idempotencyKey: identity, sourceIds: accepted.map((source) => source.sourceId), sources: accepted.map((source) => ({ sourceId: source.sourceId, originalName: source.originalName, relativePath: source.relativePath, size: source.size })) });
     phase = 'uploading';
+    const filesBySourceId = new Map(sources.map((source) => [source.sourceId, source.file]));
     let cursor = 0;
     let firstFailure: unknown = null;
     const worker = async () => { while (cursor < registered.length) {
-      const source = registered[cursor++]!; const file = sources.find((item) => item.sourceId === source.sourceId)?.file;
+      const source = registered[cursor++]!; const file = filesBySourceId.get(source.sourceId);
       if (!source.accepted || !file) continue;
       try { await deps.upload(source, file, (percent) => deps.progress?.(source.sourceId, percent)); } catch (error) {
         firstFailure ??= error;

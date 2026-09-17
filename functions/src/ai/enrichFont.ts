@@ -16,5 +16,6 @@ export {
   buildMoodEmbeddingText,
   buildUseCaseEmbeddingText,
 } from "./enrich/schema";
-export { parseAnalysis, currentEnrichmentVersions, isEnrichedAtCurrentVersion } from "./enrich/parse";
+export { parseAnalysis, currentEnrichmentVersions, hasCurrentAnalysis, isEnrichedAtCurrentVersion } from "./enrich/parse";
+export { composeEnrichment } from "./enrich/compose";
 export { renderFamilySpecimen, buildEnrichmentUpdate } from "./enrich/update";

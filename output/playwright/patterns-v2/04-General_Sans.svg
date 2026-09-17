@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 100" width="720" height="300">
+  <rect width="240" height="100" fill="#F4F29A"/>
+  <g color="#0D7E6C"><defs>
+    <radialGradient id="rg1059727834" cx="32%" cy="28%" r="72%">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.59"/>
+      <stop offset="0.5" stop-color="currentColor" stop-opacity="0.23"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rg21059727834" cx="70%" cy="75%" r="55%">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lg1059727834" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.47"/>
+      <stop offset="0.55" stop-color="currentColor" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="lgv1059727834" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.06"/>
+      <stop offset="0.5" stop-color="currentColor" stop-opacity="0.23"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0.08"/>
+    </linearGradient>
+    <filter id="blur1059727834" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5.5"/>
+    </filter>
+    <filter id="soft1059727834" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="1.4"/>
+    </filter>
+    <filter id="glow1059727834" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+  </defs><rect x="12.06" y="-4" width="215.87" height="34.67" rx="15.03" fill="url(#lgv1059727834)" filter="url(#soft1059727834)" /><rect x="13.72" y="12.67" width="212.56" height="34.67" rx="13.26" fill="currentColor" opacity="0.14" filter="url(#soft1059727834)" /><rect x="19.06" y="29.33" width="201.88" height="34.67" rx="15.03" fill="url(#lgv1059727834)" filter="url(#soft1059727834)" /><rect x="25.36" y="46" width="189.27" height="34.67" rx="12.09" fill="currentColor" opacity="0.19" filter="url(#soft1059727834)" /><rect x="28.49" y="62.67" width="183.03" height="34.67" rx="10.8" fill="url(#lgv1059727834)" filter="url(#soft1059727834)" /><rect x="31.99" y="79.33" width="176.01" height="34.67" rx="10.68" fill="currentColor" opacity="0.25" filter="url(#soft1059727834)" /></g>
+</svg>

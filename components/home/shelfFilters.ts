@@ -1,3 +1,4 @@
+import { isTaxonomyMood } from '@/lib/fontTaxonomy';
 import type { Classification } from '@/models/font.models';
 import type { SearchIndexItem } from '@/models/search.models';
 import type { ShelfFamily } from '@/models/shelf.models';
@@ -43,7 +44,7 @@ export function deriveShelfMoods(items: readonly SearchIndexItem[], limit = 10):
   for (const item of items) {
     for (const mood of item.moods ?? []) {
       const key = mood.trim();
-      if (!key) continue;
+      if (!key || !isTaxonomyMood(key)) continue;
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
   }

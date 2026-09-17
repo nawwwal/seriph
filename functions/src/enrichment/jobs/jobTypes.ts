@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 
 export interface EnrichmentJobKey {
+  ownerId: string;
   familyId: string;
   familyVersion: number;
   promptVersion: string;
@@ -24,11 +25,24 @@ export interface EnrichmentJob extends EnrichmentJobKey {
   createdAt?: Date | string;
   updatedAt?: Date | string;
   submittedAt?: Date | string;
+  retryAt?: Date | string;
+  leaseId?: string;
+  leaseExpiresAt?: Date | string;
+  provenance?: EnrichmentJobProvenance;
+}
+
+export interface EnrichmentJobProvenance {
+  kind: "backfill";
+  source: string;
+  reason: string;
+  familyVersion: number;
+  requestedAt: string;
 }
 
 /** Stable identity for one family version under one complete enrichment configuration. */
 export function enrichmentJobId(input: EnrichmentJobKey): string {
   const identity = [
+    input.ownerId,
     input.familyId,
     input.familyVersion,
     input.promptVersion,

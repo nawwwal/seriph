@@ -1,9 +1,11 @@
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
-import { parseAnalysis, buildEnrichmentUpdate } from "../../ai/enrichFont";
+import { composeEnrichment, buildEnrichmentUpdate } from "../../ai/enrichFont";
+import { pairFamilyWithJev } from "../../ai/jev/pairing/select";
+import { suggestFamilyMerges } from "../../ai/jev/merge/suggest";
 import { FAMILIES_COLLECTION } from "../../storage/familyStore";
 import { catalogFamilyDocId } from "../../storage/catalogIdentity";
-import type { FontFamilyDoc, FontEnrichment } from "../../models/catalog.models";
+import type { FontFamilyDoc } from "../../models/catalog.models";
 import { parseBatchCatalogKey } from "./key";
 import { catalogKeyFromOutputRow, textFromOutputRow, type BatchOutputRow } from "./outputRows";
 export { readOutputLines } from "./outputRows";
@@ -69,8 +71,8 @@ export async function applyOutputRow(row: BatchOutputRow): Promise<boolean> {
   }
 
   const text = textFromOutputRow(row);
-  const enrichment: FontEnrichment | null = parseAnalysis(family, text);
-  if (!enrichment) {
+  const labeled = await composeEnrichment(family, text);
+  if (!labeled) {
     await ref.set({
       status: "ready",
       enrichmentJobId: FieldValue.delete(),
@@ -81,6 +83,7 @@ export async function applyOutputRow(row: BatchOutputRow): Promise<boolean> {
     return false;
   }
 
+  const enrichment = await pairFamilyWithJev(db, family, labeled);
   const update = await buildEnrichmentUpdate(family, enrichment);
   if (update.searchIndexState === "retry") {
     logger.warn("[batch] incomplete replacement kept prior enrichment", { familyId: key.familyId });
@@ -105,5 +108,6 @@ export async function applyOutputRow(row: BatchOutputRow): Promise<boolean> {
   }
   if (!applied) return false;
   await finalizeIngestsForFamily(key.familyId, providerRunId, familyVersion);
+  await suggestFamilyMerges(db, { ...family, enrichment, status: "enriched" });
   return true;
 }
