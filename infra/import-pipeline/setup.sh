@@ -95,7 +95,7 @@ provision_functions_env IMPORT_TASKS_SERVICE_ACCOUNT "$TASK_SERVICE_ACCOUNT"
 
 if ((DRY_RUN == 1)); then
   run gcloud services enable cloudtasks.googleapis.com run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com --project "$PROJECT"
-  run gcloud tasks queues create "$QUEUE" --location "$REGION" --max-dispatches-per-second 4 --max-concurrent-dispatches 4 --project "$PROJECT"
+  run gcloud tasks queues create "$QUEUE" --location "$REGION" --max-dispatches-per-second 20 --max-concurrent-dispatches 20 --project "$PROJECT"
   run gcloud artifacts repositories create "$REPOSITORY" --location "$REGION" --repository-format docker --project "$PROJECT"
   run gcloud iam service-accounts create "$TASK_SERVICE_ACCOUNT_NAME" --display-name "Seriph import task service account" --project "$PROJECT"
   run gcloud iam service-accounts create "$WORKER_SERVICE_ACCOUNT_NAME" --display-name "Seriph archive worker service account" --project "$PROJECT"
@@ -103,9 +103,9 @@ if ((DRY_RUN == 1)); then
 else
   run gcloud services enable cloudtasks.googleapis.com run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com --project "$PROJECT"
   if ! gcloud tasks queues describe "$QUEUE" --location "$REGION" --project "$PROJECT" >/dev/null 2>&1; then
-    run gcloud tasks queues create "$QUEUE" --location "$REGION" --max-dispatches-per-second 4 --max-concurrent-dispatches 4 --project "$PROJECT"
+    run gcloud tasks queues create "$QUEUE" --location "$REGION" --max-dispatches-per-second 20 --max-concurrent-dispatches 20 --project "$PROJECT"
   else
-    run gcloud tasks queues update "$QUEUE" --location "$REGION" --max-dispatches-per-second 4 --max-concurrent-dispatches 4 --project "$PROJECT"
+    run gcloud tasks queues update "$QUEUE" --location "$REGION" --max-dispatches-per-second 20 --max-concurrent-dispatches 20 --project "$PROJECT"
   fi
   if ! gcloud artifacts repositories describe "$REPOSITORY" --location "$REGION" --project "$PROJECT" >/dev/null 2>&1; then
     run gcloud artifacts repositories create "$REPOSITORY" --location "$REGION" --repository-format docker --project "$PROJECT"

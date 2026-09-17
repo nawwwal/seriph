@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 100" width="720" height="300">
+  <rect width="240" height="100" fill="#F4F29A"/>
+  <g color="#0D7E6C"><defs>
+    <radialGradient id="rg104706566" cx="32%" cy="28%" r="72%">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.62"/>
+      <stop offset="0.5" stop-color="currentColor" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rg2104706566" cx="70%" cy="75%" r="55%">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lg104706566" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.49"/>
+      <stop offset="0.55" stop-color="currentColor" stop-opacity="0.15"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="lgv104706566" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.07"/>
+      <stop offset="0.5" stop-color="currentColor" stop-opacity="0.24"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0.09"/>
+    </linearGradient>
+    <filter id="blur104706566" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5.5"/>
+    </filter>
+    <filter id="soft104706566" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="1.4"/>
+    </filter>
+    <filter id="glow104706566" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+  </defs><rect x="0" y="0" width="240" height="100" rx="0" fill="currentColor" opacity="0.04" /><circle cx="176.26" cy="59.88" r="52" fill="currentColor" opacity="0.12" filter="url(#glow104706566)" /><path d="M 148.51 9.05 L 168.21 32.92 L 171.58 2.16 L 179.87 31.97 L 195.47 5.25 L 190.91 35.85 L 216.03 17.78 L 199.42 43.89 L 229.72 37.59 L 203.92 54.69 L 234.16 61.26 L 203.64 66.39 L 228.59 84.69 L 198.63 76.96 L 213.98 103.83 L 189.75 84.58 L 192.84 115.37 L 178.54 87.93 L 168.84 117.32 L 166.93 86.43 L 146.12 109.33 L 156.94 80.34 L 128.61 92.8 L 150.29 70.71 L 119.35 70.57 L 148.13 59.21 L 119.92 46.5 L 150.84 47.83 L 130.24 24.74 L 157.94 38.53 Z" fill="url(#lg104706566)" filter="url(#soft104706566)" /><circle cx="176.26" cy="59.88" r="19.7" fill="url(#rg104706566)" /><circle cx="176.26" cy="59.88" r="3.14" fill="currentColor" opacity="0.72" /><ellipse cx="176.26" cy="59.88" rx="63.7" ry="3" transform="rotate(241.37 176.26 59.88)" fill="currentColor" opacity="0.2" filter="url(#blur104706566)" /><ellipse cx="176.26" cy="59.88" rx="3" ry="52.12" transform="rotate(241.37 176.26 59.88)" fill="currentColor" opacity="0.15" filter="url(#blur104706566)" /></g>
+</svg>

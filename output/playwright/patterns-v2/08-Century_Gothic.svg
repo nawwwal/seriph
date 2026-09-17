@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 100" width="720" height="300">
+  <rect width="240" height="100" fill="#F4F29A"/>
+  <g color="#0D7E6C"><defs>
+    <radialGradient id="rg4202512780" cx="32%" cy="28%" r="72%">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.66"/>
+      <stop offset="0.5" stop-color="currentColor" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rg24202512780" cx="70%" cy="75%" r="55%">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.43"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lg4202512780" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.52"/>
+      <stop offset="0.55" stop-color="currentColor" stop-opacity="0.17"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="lgv4202512780" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.07"/>
+      <stop offset="0.5" stop-color="currentColor" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0.1"/>
+    </linearGradient>
+    <filter id="blur4202512780" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5.5"/>
+    </filter>
+    <filter id="soft4202512780" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="1.4"/>
+    </filter>
+    <filter id="glow4202512780" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+  </defs><rect x="0" y="0" width="240" height="100" rx="0" fill="currentColor" opacity="0.04" /><circle cx="86.4" cy="61.16" r="36" fill="currentColor" opacity="0.09" filter="url(#glow4202512780)" /><circle cx="92.99" cy="58.86" r="19.78" fill="url(#rg4202512780)" filter="url(#soft4202512780)" /><circle cx="87.17" cy="61.34" r="9.32" fill="currentColor" opacity="0.24" filter="url(#soft4202512780)" /><circle cx="97.07" cy="47.31" r="15.37" fill="url(#rg4202512780)" filter="url(#soft4202512780)" /><circle cx="76.84" cy="39.13" r="15.47" fill="currentColor" opacity="0.3" filter="url(#soft4202512780)" /><circle cx="88.74" cy="58.67" r="9.92" fill="url(#rg4202512780)" filter="url(#soft4202512780)" /><circle cx="87.42" cy="33.36" r="21.17" fill="currentColor" opacity="0.27" filter="url(#soft4202512780)" /><circle cx="182.53" cy="60.08" r="36" fill="currentColor" opacity="0.09" filter="url(#glow4202512780)" /><circle cx="166.57" cy="63.15" r="17.77" fill="url(#rg4202512780)" filter="url(#soft4202512780)" /><circle cx="196.18" cy="44.75" r="17.65" fill="currentColor" opacity="0.22" filter="url(#soft4202512780)" /><circle cx="186.2" cy="55.98" r="17.78" fill="url(#rg4202512780)" filter="url(#soft4202512780)" /><circle cx="186.45" cy="37.07" r="8.97" fill="currentColor" opacity="0.24" filter="url(#soft4202512780)" /><circle cx="192.83" cy="68.99" r="15.18" fill="url(#rg4202512780)" filter="url(#soft4202512780)" /><circle cx="196.92" cy="72.48" r="6.81" fill="currentColor" opacity="0.27" filter="url(#soft4202512780)" /><circle cx="219.13" cy="70.68" r="36" fill="currentColor" opacity="0.09" filter="url(#glow4202512780)" /><circle cx="236.13" cy="48.51" r="11.2" fill="url(#rg4202512780)" filter="url(#soft4202512780)" /><circle cx="230.67" cy="70.31" r="18.88" fill="currentColor" opacity="0.29" filter="url(#soft4202512780)" /><circle cx="205.19" cy="88.89" r="14.6" fill="url(#rg4202512780)" filter="url(#soft4202512780)" /><circle cx="220.64" cy="64.06" r="11.19" fill="currentColor" opacity="0.2" filter="url(#soft4202512780)" /><circle cx="219.38" cy="60.6" r="9.86" fill="url(#rg4202512780)" filter="url(#soft4202512780)" /><circle cx="206.09" cy="50.09" r="12.32" fill="currentColor" opacity="0.29" filter="url(#soft4202512780)" /></g>
+</svg>

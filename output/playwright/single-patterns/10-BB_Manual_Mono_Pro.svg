@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 100" width="480" height="200">
+  <rect width="240" height="100" fill="#d9d4c8"/>
+  <g color="#1c1a16"><path d="M 130.95 25.43 L 153.26 49.23 L 147.14 17.19 L 158.65 47.71 L 165.26 15.77 L 164.21 48.37 L 182.55 21.39 L 169.1 51.11 L 196.36 33.2 L 172.57 55.51 L 204.61 49.39 L 174.09 60.9 L 206.03 67.51 L 173.43 66.46 L 200.41 84.8 L 170.69 71.35 L 188.6 98.61 L 166.29 74.82 L 172.4 106.86 L 160.89 76.34 L 154.28 108.28 L 155.33 75.68 L 137 102.66 L 150.44 72.94 L 123.18 90.85 L 146.98 68.54 L 114.94 74.65 L 145.46 63.14 L 113.52 56.53 L 146.12 57.58 L 119.14 39.25 L 148.86 52.69 Z" fill="currentColor" opacity="0.21" /><circle cx="159.77" cy="62.02" r="7.18" fill="currentColor" opacity="0.17" /><circle cx="159.77" cy="62.02" r="44.25" fill="none" stroke="currentColor" stroke-width="0.94" opacity="0.14" /><circle cx="159.77" cy="62.02" r="10.25" fill="currentColor" opacity="0.24" /></g>
+</svg>

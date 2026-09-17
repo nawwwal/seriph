@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 100" width="720" height="300">
+  <rect width="240" height="100" fill="#F4F29A"/>
+  <g color="#0D7E6C"><defs>
+    <radialGradient id="rg2896469986" cx="32%" cy="28%" r="72%">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.45"/>
+      <stop offset="0.5" stop-color="currentColor" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rg22896469986" cx="70%" cy="75%" r="55%">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.29"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lg2896469986" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.36"/>
+      <stop offset="0.55" stop-color="currentColor" stop-opacity="0.11"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0.04"/>
+    </linearGradient>
+    <linearGradient id="lgv2896469986" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.05"/>
+      <stop offset="0.5" stop-color="currentColor" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0.06"/>
+    </linearGradient>
+    <filter id="blur2896469986" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="5.5"/>
+    </filter>
+    <filter id="soft2896469986" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="1.4"/>
+    </filter>
+    <filter id="glow2896469986" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+  </defs><rect x="0" y="0" width="240" height="100" rx="0" fill="currentColor" opacity="0.04" /><circle cx="177.29" cy="57.76" r="50" fill="currentColor" opacity="0.06" filter="url(#glow2896469986)" /><path d="M 177.29 57.76 L 174.91 5.78 A 52.04 52.04 0 0 1 206.53 14.71 Z" fill="url(#lg2896469986)" filter="url(#soft2896469986)" /><path d="M 177.29 57.76 L 208.89 16.41 A 52.04 52.04 0 0 1 227.36 43.58 Z" fill="currentColor" opacity="0.12" filter="url(#soft2896469986)" /><path d="M 177.29 57.76 L 228.07 46.4 A 52.04 52.04 0 0 1 224.76 79.09 Z" fill="url(#lg2896469986)" filter="url(#soft2896469986)" /><path d="M 177.29 57.76 L 223.5 81.7 A 52.04 52.04 0 0 1 199.95 104.61 Z" fill="currentColor" opacity="0.1" filter="url(#soft2896469986)" /><path d="M 177.29 57.76 L 197.3 105.81 A 52.04 52.04 0 0 1 164.53 108.22 Z" fill="url(#lg2896469986)" filter="url(#soft2896469986)" /><path d="M 177.29 57.76 L 161.74 107.43 A 52.04 52.04 0 0 1 135.08 88.22 Z" fill="currentColor" opacity="0.15" filter="url(#soft2896469986)" /><path d="M 177.29 57.76 L 133.45 85.81 A 52.04 52.04 0 0 1 125.38 53.97 Z" fill="url(#lg2896469986)" filter="url(#soft2896469986)" /><path d="M 177.29 57.76 L 125.68 51.07 A 52.04 52.04 0 0 1 139.97 21.49 Z" fill="currentColor" opacity="0.12" filter="url(#soft2896469986)" /><path d="M 177.29 57.76 L 142.05 19.46 A 52.04 52.04 0 0 1 172.01 5.99 Z" fill="url(#lg2896469986)" filter="url(#soft2896469986)" /><circle cx="177.29" cy="57.76" r="12" fill="url(#rg2896469986)" /></g>
+</svg>
