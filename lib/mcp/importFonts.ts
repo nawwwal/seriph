@@ -46,6 +46,11 @@ export function importFontsTool(getIdToken: () => Promise<string>): WebMcpTool {
       const sources = files.map((file) => ({ file, relativePath: file.name, sourceId: crypto.randomUUID() }));
       const result = await runDurableUpload(sources, {
         ...api,
+        resume: async (session, rows) => rows.map((row) => ({
+          ...row,
+          accepted: true,
+          storagePath: `intake/${session.ownerId}/${session.batchId}/${row.sourceId}/${row.originalName.split('/').pop() || 'source'}`,
+        })),
         upload: (source, file, progress) => new Promise((resolve, reject) => {
           const task = uploadBytesResumable(ref(storage, source.storagePath!), file);
           task.on('state_changed', (snap) => progress(snap.totalBytes ? Math.round(snap.bytesTransferred / snap.totalBytes * 100) : 0), reject, () => { progress(100); resolve(); });
