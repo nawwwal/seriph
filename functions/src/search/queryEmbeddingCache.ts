@@ -6,6 +6,9 @@ import { normalizeSearchText } from "./searchDocument";
 
 const CACHE_COLLECTION = "searchQueryCache";
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MEMORY_CACHE_LIMIT = 100;
+const memoryCache = new Map<string, { vector: number[]; expiresAt: number }>();
+const inFlight = new Map<string, Promise<number[] | null>>();
 
 export interface QueryEmbeddingCacheInput {
   db: Firestore;
@@ -35,10 +38,9 @@ function isFreshCacheDoc(data: FirebaseFirestore.DocumentData | undefined, now: 
   return Array.isArray(data?.vector) && data.vector.length > 0 && expiresAtMs > now;
 }
 
-export async function getOrCreateQueryEmbedding(input: QueryEmbeddingCacheInput): Promise<number[] | null> {
+async function loadQueryEmbedding(input: QueryEmbeddingCacheInput, key: string): Promise<number[] | null> {
   const started = Date.now();
   const { embeddingModel, embeddingVersion } = queryEmbeddingVersion();
-  const key = queryCacheKey({ query: input.query, embeddingVersion });
   const ref = input.db.collection(CACHE_COLLECTION).doc(key);
   const now = Date.now();
 
@@ -47,6 +49,7 @@ export async function getOrCreateQueryEmbedding(input: QueryEmbeddingCacheInput)
     const lookupMs = Date.now() - started;
     const data = snap.data();
     if (snap.exists && isFreshCacheDoc(data, now)) {
+      memoryCache.set(key, { vector: data.vector, expiresAt: now + TTL_MS });
       logger.info("search embedding cache hit", { lookupMs });
       return data.vector;
     }
@@ -59,9 +62,10 @@ export async function getOrCreateQueryEmbedding(input: QueryEmbeddingCacheInput)
   const vector = await embedText(input.query, "RETRIEVAL_QUERY");
   logger.info("search embedding generated", { embeddingMs: Date.now() - embeddingStarted });
   if (!vector) return null;
+  memoryCache.set(key, { vector, expiresAt: now + TTL_MS });
+  if (memoryCache.size > MEMORY_CACHE_LIMIT) memoryCache.delete(memoryCache.keys().next().value!);
 
-  try {
-    await ref.set(
+  void ref.set(
       {
         key,
         normalizedQuery: normalizeSearchText(input.query),
@@ -72,9 +76,18 @@ export async function getOrCreateQueryEmbedding(input: QueryEmbeddingCacheInput)
         expiresAt: Timestamp.fromMillis(now + TTL_MS),
       },
       { merge: true }
-    );
-  } catch (e: any) {
-    logger.warn("search embedding cache write failed", { message: e?.message });
-  }
+    ).catch((e: any) => logger.warn("search embedding cache write failed", { message: e?.message }));
   return vector;
+}
+
+export async function getOrCreateQueryEmbedding(input: QueryEmbeddingCacheInput): Promise<number[] | null> {
+  const { embeddingVersion } = queryEmbeddingVersion();
+  const key = queryCacheKey({ query: input.query, embeddingVersion });
+  const cached = memoryCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.vector;
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+  const work = loadQueryEmbedding(input, key).finally(() => inFlight.delete(key));
+  inFlight.set(key, work);
+  return work;
 }

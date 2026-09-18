@@ -42,8 +42,20 @@ export function buildLaneEmbeddingText(family: FontFamilyDoc, lane: SearchVector
     e?.pairingFamilies?.map((item) => item.name),
     family.license,
     family.subsets,
-    (family.axes ?? []).map((axis) => [axis.tag, axis.name].filter(Boolean).join(" ")),
-    (family.faces ?? []).map((face) => [face.styleName, face.weightName, face.fullName, face.postScriptName].filter(Boolean).join(" ")),
+    (family.axes ?? []).map((axis) => [axis.tag, axis.name, axis.min, axis.max, axis.default].filter((value) => value !== undefined).join(" ")),
+    (family.faces ?? []).map((face) => [
+      face.styleName,
+      face.weightName,
+      face.fullName,
+      face.postScriptName,
+      face.format,
+      face.technology,
+      face.meta?.characterSetCoverage,
+      face.meta?.openTypeFeatures,
+      face.meta?.languageSupport,
+      face.meta?.version,
+      face.meta?.license,
+    ]),
   ]).join(". ");
 }
 
@@ -81,6 +93,18 @@ export function buildSearchTokens(family: FontFamilyDoc): string[] {
     ...(e?.pairingFamilies ?? []).map((item) => item.name),
     ...(family.subsets ?? []),
     ...(family.axes ?? []).flatMap((axis) => [axis.tag, axis.name]),
-    ...(family.faces ?? []).flatMap((face) => [face.styleName, face.weightName, face.fullName, face.postScriptName]),
+    ...(family.faces ?? []).flatMap((face) => [
+      face.styleName,
+      face.weightName,
+      face.fullName,
+      face.postScriptName,
+      face.format,
+      face.technology,
+      ...(face.meta?.characterSetCoverage ?? []),
+      ...(face.meta?.openTypeFeatures ?? []),
+      ...(face.meta?.languageSupport ?? []),
+      face.meta?.version,
+      face.meta?.license,
+    ]),
   ]);
 }

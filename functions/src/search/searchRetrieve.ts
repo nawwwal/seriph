@@ -24,20 +24,26 @@ async function similarVector(db: Firestore, req: SearchRequest): Promise<number[
   return getOrCreateQueryEmbedding({ db, query: req.similarTo });
 }
 
-export async function retrieveSearchDocs(req: SearchRequest, normalizedQuery: string, intent: SearchIntent | undefined, topK: number): Promise<SearchResultItem[]> {
+export async function retrieveSearchDocs(
+  req: SearchRequest,
+  normalizedQuery: string,
+  intentPromise: Promise<SearchIntent | undefined>,
+  topK: number,
+  queryVectorPromise?: Promise<number[] | null>,
+): Promise<SearchResultItem[]> {
   const db = getFirestore();
   const base = applyStructuredFilters(db.collection(FAMILIES_COLLECTION), req);
   const exactPromise = normalizedQuery ? runExactLane(base, normalizedQuery, topK) : Promise.resolve([]);
+  const intent = await intentPromise;
   const lanes: SearchVectorLane[] = req.similarTo ? ["text"] : lanesForIntent(intent);
   const vector = req.similarTo
     ? await similarVector(db, req)
     : lanes.length
-      ? await getOrCreateQueryEmbedding({ db, query: normalizedQuery })
+      ? await (queryVectorPromise ?? getOrCreateQueryEmbedding({ db, query: normalizedQuery }))
       : null;
-  const vectorDocsByLane: Array<{ lane: SearchVectorLane; docs: QueryDocumentSnapshot[] }> = [];
-  for (const lane of lanes) {
-    vectorDocsByLane.push({ lane, docs: vector ? await runVectorLane(base, lane, vector, topK) : [] });
-  }
+  const vectorDocsByLane: Array<{ lane: SearchVectorLane; docs: QueryDocumentSnapshot[] }> = vector
+    ? await Promise.all(lanes.map(async (lane) => ({ lane, docs: await runVectorLane(base, lane, vector, topK) })))
+    : [];
   const ranked = rankSearchDocs({
     vectorDocsByLane, exactDocs: await exactPromise, normalizedQuery, req, topK, weights: weightsForIntent(req.similarTo ? "similar" : intent),
   });

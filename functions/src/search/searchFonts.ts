@@ -8,6 +8,8 @@ import { RC_KEYS, RC_DEFAULTS } from "../config/rcKeys";
 import { FAMILIES_COLLECTION } from "../storage/familyStore";
 import { interpretSearchQuery } from "../ai/jev/search/interpret";
 import { rerankSearchResults } from "../ai/jev/search/rerank";
+import { getOrCreateQueryEmbedding } from "./queryEmbeddingCache";
+import { searchCatalogWithJev } from "./jevCatalogSearch";
 import { normalizeSearchText } from "./searchDocument";
 import { applyStructuredFilters, fetchSearchableListing } from "./searchFilters";
 import { retrieveSearchDocs } from "./searchRetrieve";
@@ -34,8 +36,26 @@ export async function searchFonts(req: SearchRequest): Promise<{ results: Search
     return { results: listing.map((family) => toSearchItem(family)) };
   }
 
-  const interpreted = normalizedQuery ? await interpretSearchQuery(normalizedQuery, req.filters) : { filters: req.filters };
-  const ranked = await retrieveSearchDocs({ ...req, filters: interpreted.filters }, normalizedQuery, interpreted.intent, topK);
+  const jevResults = await searchCatalogWithJev(db, req, normalizedQuery, topK);
+  if (jevResults !== null) {
+    logger.info("JEEV catalog search complete", { results: jevResults.length, totalMs: Date.now() - totalStarted });
+    return { results: jevResults };
+  }
+
+  const interpretedPromise = normalizedQuery
+    ? interpretSearchQuery(normalizedQuery, req.filters)
+    : Promise.resolve({ filters: req.filters, intent: undefined });
+  const queryVectorPromise = normalizedQuery && !req.similarTo
+    ? getOrCreateQueryEmbedding({ db, query: normalizedQuery })
+    : undefined;
+  const ranked = await retrieveSearchDocs(
+    req,
+    normalizedQuery,
+    interpretedPromise.then((value) => value.intent),
+    topK,
+    queryVectorPromise,
+  );
+  const interpreted = await interpretedPromise;
   const results = await rerankSearchResults(normalizedQuery, interpreted.intent, ranked, req.debug);
   logger.info("search complete", { results: results.length, totalMs: Date.now() - totalStarted });
   return { results };

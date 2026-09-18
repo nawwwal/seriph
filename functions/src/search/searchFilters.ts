@@ -6,7 +6,7 @@ import type { SearchRequest } from "./searchTypes";
 type SearchStyleRange = NonNullable<NonNullable<SearchRequest["filters"]>["styleRanges"]>[number];
 
 export function isVariableFamily(family: FontFamilyDoc): boolean {
-  return family.faces?.some((face) => face.isVariable) ?? false;
+  return family.isVariable ?? family.faces?.some((face) => face.isVariable) ?? false;
 }
 
 export function isAliasFamily(family: FontFamilyDoc): boolean {
@@ -45,7 +45,7 @@ export function matchesSearchFilters(family: FontFamilyDoc, req: SearchRequest):
     && (!req.filters?.classifications?.length || req.filters.classifications.includes(classification))
     && (!req.filters?.moods?.length || req.filters.moods.every((mood) => moods.includes(mood)))
     && (!req.filters?.useCases?.length || req.filters.useCases.every((useCase) => useCases.includes(useCase)))
-    && inStyleRanges(family.faces?.length ?? 0, req.filters?.styleRanges);
+    && inStyleRanges(family.styleCount ?? family.faces?.length ?? 0, req.filters?.styleRanges);
 }
 
 export function applyStructuredFilters(query: Query, req: SearchRequest): Query {

@@ -50,7 +50,11 @@ export async function rerankSearchResults(
       },
     };
     for (const item of shortlist) questions[questionId("r", item.id)] = matchNoul(item);
-    const judged = await evaluateSystemOne({ query, candidates: shortlist.map(compactHit) }, questions);
+    const judged = await evaluateSystemOne(
+      { query, candidates: shortlist.map(compactHit) },
+      questions,
+      { maxAttempts: 1, timeoutMs: 350 },
+    );
     const ranked = noulValue(judged, HAS_MATCH) > 0.5
       ? [...shortlist].sort((a, b) => {
         const delta = noulValue(judged, questionId("r", b.id)) - noulValue(judged, questionId("r", a.id));

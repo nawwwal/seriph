@@ -1,4 +1,5 @@
 import { isRecord, isSearchIndexItem, normalizeSearchResult } from '@/lib/search/searchApiParsing';
+import { browserSearchFunctionUrl } from '@/lib/search/searchEndpoint';
 import type { SearchFilters, SearchIndexResponse, SearchResultItem } from '@/models/search.models';
 
 type Fetcher = typeof fetch;
@@ -32,11 +33,18 @@ export async function searchFontsForUser({
   const idToken = await getIdToken();
   const init: RequestInit = {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({ q: query, filters, similarTo }),
+    // text/plain keeps this a simple cross-origin request, avoiding a CORS
+    // preflight. The function verifies the token from the encrypted body.
+    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+    body: JSON.stringify({ q: query, filters, similarTo, idToken }),
   };
   if (signal) init.signal = signal;
-  const response = await fetcher('/api/v1/search', init);
+  // The function already authenticates the Firebase bearer token. Calling it
+  // directly avoids a second auth pass and the browser -> Next -> function hop.
+  const endpoint = browserSearchFunctionUrl({
+    NEXT_PUBLIC_SEARCH_FUNCTION_URL: process.env.NEXT_PUBLIC_SEARCH_FUNCTION_URL,
+  });
+  const response = await fetcher(endpoint, init);
   const data = await readSearchResponse(response);
 
   if (!response.ok) {

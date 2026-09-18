@@ -1,7 +1,9 @@
 import type { Request, Response } from 'express';
 import { logger } from 'firebase-functions';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 import { initializeRemoteConfig } from '../config/remoteConfig';
+import { primeSearchCatalog } from './jevCatalogSearch';
 import { searchFonts } from './searchFonts';
 import { parseHttpSearchFilters } from './httpFilters';
 
@@ -9,10 +11,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-async function uidFromBearer(authHeader: string | undefined): Promise<string | null> {
-  if (!authHeader?.startsWith('Bearer ')) return null;
+async function uidFromToken(token: string | undefined): Promise<string | null> {
+  if (!token) return null;
   try {
-    return (await getAuth().verifyIdToken(authHeader.slice('Bearer '.length))).uid;
+    return (await getAuth().verifyIdToken(token)).uid;
   } catch {
     return null;
   }
@@ -38,16 +40,23 @@ export async function serveSearchRequest(req: Request, res: Response): Promise<v
     return;
   }
   const started = Date.now();
-  try {
-    await initializeRemoteConfig();
-  } catch {}
-  const uid = await uidFromBearer(req.headers.authorization);
+  const payload = payloadFrom(req.body);
+  const bearer = req.headers.authorization?.startsWith('Bearer ')
+    ? req.headers.authorization.slice('Bearer '.length)
+    : undefined;
+  const bodyToken = typeof payload.idToken === 'string' ? payload.idToken : undefined;
+  const [, uid] = await Promise.all([
+    Promise.all([
+      initializeRemoteConfig().catch(() => undefined),
+      primeSearchCatalog(getFirestore()).catch(() => undefined),
+    ]),
+    uidFromToken(bearer || bodyToken),
+  ]);
   if (!uid) {
     res.status(401).json({ error: 'Unauthorized' });
     return;
   }
   try {
-    const payload = payloadFrom(req.body);
     const similarTo = typeof payload.similarTo === 'string' ? payload.similarTo.trim() : '';
     const response = await searchFonts({
       q: typeof payload.q === 'string' ? payload.q : '',

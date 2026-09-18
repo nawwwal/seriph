@@ -8,6 +8,30 @@ const VECTOR_FIELD_BY_LANE: Record<SearchVectorLane, "text_vec" | "mood_vec" | "
   useCase: "use_case_vec",
 };
 
+// Search ranking needs the enriched description and compact display metadata,
+// not the stored vectors or the full face/asset graph. The latter can make a
+// 96-result query transfer several megabytes from Firestore.
+export const SEARCH_RESULT_FIELDS = [
+  "ownerId",
+  "slug",
+  "name",
+  "category",
+  "classification",
+  "foundry",
+  "designer",
+  "enrichment",
+  "searchTokens",
+  "searchText",
+  "styleCount",
+  "isVariable",
+  "coverFace",
+  "status",
+  "hidden",
+  "mergedInto",
+  "aliasOf",
+  "updatedAt",
+] as const;
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -25,6 +49,7 @@ export async function runVectorLane(
   const started = Date.now();
   try {
     const snap = await base
+      .select(...SEARCH_RESULT_FIELDS, "_distance")
       .findNearest({
         vectorField: VECTOR_FIELD_BY_LANE[lane],
         queryVector: vector,
@@ -46,7 +71,11 @@ export async function runExactLane(base: Query, q: string, topK: number): Promis
   const tokens = tokenizeSearchText([q]).slice(0, 30);
   if (tokens.length === 0) return [];
   try {
-    const snap = await base.where("searchTokens", "array-contains-any", tokens).limit(laneFetchLimit(topK)).get();
+    const snap = await base
+      .where("searchTokens", "array-contains-any", tokens)
+      .select(...SEARCH_RESULT_FIELDS)
+      .limit(laneFetchLimit(topK))
+      .get();
     logger.info("search exact lane complete", { count: snap.docs.length, ms: Date.now() - started });
     return snap.docs;
   } catch (error) {

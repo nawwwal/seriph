@@ -7,7 +7,7 @@ import { buildSemanticSearchCacheKey, readPersistentSemanticSearch, writePersist
 import { searchFiltersKey } from '@/lib/search/searchFilterUrl';
 import type { SearchFilters, SearchResultItem } from '@/models/search.models';
 
-const REMOTE_SEARCH_DEBOUNCE_MS = 250;
+const REMOTE_SEARCH_DEBOUNCE_MS = 0;
 
 interface SemanticSearchState {
   query: string;

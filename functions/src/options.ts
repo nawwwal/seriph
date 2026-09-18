@@ -43,7 +43,7 @@ export const SEARCH_FUNCTION_OPTIONS = {
   cors: true,
   memory: "1GiB" as const,
   timeoutSeconds: 90,
-  concurrency: 1,
+  concurrency: 16,
   maxInstances: 4,
   secrets: ["TYPESAFE_API_KEY"],
 };
