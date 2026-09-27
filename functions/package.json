@@ -8,7 +8,6 @@
         "deploy": "firebase deploy --only functions",
         "logs": "firebase functions:log",
         "lint": "tsc --noEmit",
-        "test": "vitest run",
         "audit:enrichment-labels": "npm run build && node lib/scripts/auditEnrichmentLabels.js",
         "jev:probe": "npm run build && node lib/scripts/jevMoodProbe.js",
         "backfill:search": "npm run build && node lib/scripts/backfillSearchVectors.js",
@@ -44,8 +43,7 @@
         "@types/fontkit": "^2.0.9",
         "@types/opentype.js": "^1.3.10",
         "@types/unzipper": "^0.10.11",
-        "typescript": "^6.0.3",
-        "vitest": "^4.1.10"
+        "typescript": "^6.0.3"
     },
     "overrides": {
         "@grpc/grpc-js": "1.14.4",

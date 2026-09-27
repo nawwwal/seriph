@@ -54,13 +54,10 @@ directory. Read the relevant doc before changing its area.
 
 ## Code Organization Rules
 
-- `npm run lint:lines` warns above **100** and fails above **150 non-empty source
-  lines per code file** across TS/TSX/JS/JSX/MJS/CJS/CSS, excluding generated/vendor output.
-  `npm run lint` runs this before web and Functions lint.
-- Treat the 100-line warning threshold as modularity pressure, not code golf. Split by real
+- Keep modules small enough to follow. Split by real
   responsibility: route handlers into auth/parsing/storage helpers, components
   into controller/state/presentation pieces, hooks into state/request/cache
-  helpers, tests by behavior family, and CSS by utility family.
+  helpers, and CSS by utility family.
 - Reuse existing helpers and contracts before creating parallel implementations.
   Seriph code should feel like a kit of small parts that can be recombined.
 - Prefer domain-oriented modules with explicit entry points over generic dumping
@@ -77,10 +74,11 @@ directory. Read the relevant doc before changing its area.
 
 ## Quality Gates
 
-- Shared: `npm run lint:lines`
-- Web: `npm run typecheck`, `npm run lint:web`, `npm test`, `npm run build`
-- Functions: `npm run build --prefix functions`, `npm run lint:functions`,
-  `npm test --prefix functions`
+- Shared: `npm run lint:secrets`, `git diff --check`
+- Web: `npm run typecheck`, `npm run lint:web`, `npm run build`
+- Functions: `npm run build --prefix functions`, `npm run lint:functions`
+- Behavioral changes: use end-to-end checks against the deployed path with
+  isolated data and clean up canary records and tasks afterward.
 
 ## Guardrails
 

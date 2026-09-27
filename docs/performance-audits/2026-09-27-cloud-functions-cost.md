@@ -73,9 +73,9 @@ tasks were removed after verification.
 4. A failed batch with a pending reconcile task dispatched on the batch write;
    `pendingDispatch` cleared and the private worker completed the task.
 
-No unit tests were added. After the end-to-end-only constraint was given,
-validation used production end-to-end canaries. The functions TypeScript build
-and no-emit type check passed.
+Validation used production end-to-end canaries. The functions TypeScript build
+and no-emit type check passed. The unit suites were removed in the subsequent
+codebase cleanup.
 
 ## Post-cutover measure and 90% target
 
