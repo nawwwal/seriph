@@ -13,7 +13,7 @@ confirmFinalizedImportSource  (onObjectFinalized, registered source path)
         ↓ enqueue durable archive/parse/plan/apply tasks
 importTaskWorker → dispatches idempotent stages → canonical catalogue mutations
         ↓
-submitEnrichmentBatch / pollEnrichmentBatch → enrich canonical families
+queueEnrichmentJob → Cloud Task → importTaskWorker → enrich canonical families
 ```
 
 Why recursive: extracted entries re-enter `intake/**`, so nested zips and deep
@@ -47,6 +47,11 @@ with the API as its fallback, mapping durable `ImportBatchSummary` records and
 their upload, planning, and enrichment phases. Enrichment is a separate batch
 lane and never blocks catalogue visibility.
 
+Source registration and active batch writes schedule idempotent delayed Cloud
+Tasks through `queueSourceExpiry` and `queueBatchRecovery`. The private
+`importTaskWorker` handles their HTTP callbacks. A callback checks the current
+Firestore document version before changing it, so old timers are harmless.
+
 ## Global import surface
 
 - `lib/contexts/UploadContext.tsx` (`UploadProvider`, wired in `app/layout.tsx`
@@ -59,17 +64,18 @@ lane and never blocks catalogue visibility.
   the shelf, sidebar, and footer do not duplicate that state.
 
 ## Deploy / ops notes (required for Part B to run)
-- Deploy the durable source-finalization, task-worker, and timeout functions
-  (gen2, `asia-southeast1`).
+- Deploy source finalization, `importTaskWorker`, and the three Firestore queue
+  triggers (gen2, `asia-southeast1`).
 - Storage rules must allow authed users to write `intake/**` (resumable client
   uploads). Confirm/extend `storage.rules`.
 - Add Remote Config key `intake_bucket_path` (default `intake`) if overriding.
 - `confirmFinalizedImportSource` validates finalized intake objects and enqueues
-  canonical work for `importTaskWorker`; `timeoutAbandonedImportSources` expires
-  stale source records. Deploy all three functions together.
+  canonical work for `importTaskWorker`. `queueSourceExpiry` schedules expiry
+  callbacks, and `queueBatchRecovery` dispatches pending batch work immediately
+  while scheduling recovery for active batches.
 - Deploy the current `firestore.indexes.json` entries for `importBatches`,
   `sources`, `families`, `items`, and the top-level `fontfamilies` vector
   queries. Vector definitions belong in `indexes`, not `fieldOverrides`.
-- **Phase 3 (not built):** Cloud Run job for zips > 150MB (currently skipped +
-  ledgered `oversized`) and Cloud Tasks/Pub-Sub backpressure on enrichment.
-  Configure rates via Remote Config; no hardcoded values.
+- **Deferred:** Cloud Run job for zips > 150MB (currently skipped + ledgered
+  `oversized`) and separate enrichment queue rate controls. Event callbacks
+  currently share the private `seriph-import` Cloud Tasks queue.

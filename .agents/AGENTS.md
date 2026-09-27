@@ -33,9 +33,11 @@ directory. Read the relevant doc before changing its area.
 - **GCP project:** `seriph` (#277527180126).
 - **Live app:** Vercel production aliases include `https://seriph.naw.al`.
 - **Font CDN:** `https://seriph.web.app` serves `/s/**`, `/d/**`, and `/css2`.
-- **Deployed functions:** `confirmFinalizedImportSource`, `timeoutAbandonedImportSources`,
-  `importTaskWorker`, `submitEnrichmentBatch`, `pollEnrichmentBatch`,
-  `searchFontsHttpUs`, `css2`, and `serveFont`.
+- **Import and enrichment functions:** `confirmFinalizedImportSource`,
+  `importTaskWorker`, `queueSourceExpiry`, `queueBatchRecovery`,
+  `queueEnrichmentJob`, and `syncEnrichmentBatchStatus`. Firestore events
+  enqueue delayed Cloud Tasks for retry and recovery; no Scheduler jobs remain.
+- **Search and CDN functions:** `searchFontsHttpUs`, `css2`, and `serveFont`.
 - **Search backend URL:** `https://us-central1-seriph.cloudfunctions.net/searchFontsHttpUs`.
 - **Remote Config:** all AI/config flags and model names belong there. Do not
   hardcode model names or rollout flags.

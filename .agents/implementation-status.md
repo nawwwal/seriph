@@ -2,7 +2,24 @@
 
 > Living record of what's actually built vs. the target in
 > [architecture.md](./architecture.md) / [models-and-stack.md](./models-and-stack.md).
-> Last updated: 2026-07-01. Update this whenever the build state changes.
+> Last updated: 2026-09-27. Update this whenever the build state changes.
+
+## Event-driven import and enrichment recovery (2026-09-27)
+
+The current production path uses Firestore events to enqueue named Cloud Tasks
+for new enrichment jobs, retry deadlines, expired leases, source expiry, and
+stalled batch recovery. Pending batch work dispatches on the batch write.
+`importTaskWorker` is the authenticated HTTP callback.
+Its handlers re-read Firestore state and use transactional claims or guarded
+updates, so duplicate deliveries and superseded timers do not repeat work.
+
+The four periodic functions (`submitEnrichmentBatch`, `pollEnrichmentBatch`,
+`watchdogEnrichmentLeases`, `timeoutAbandonedImportSources`) and their Cloud
+Scheduler jobs were removed after checking that no live provider batch jobs,
+enrichment jobs, import sources, or import batches required migration. TypeSafe
+Jev remains available for typed enrichment/search judgments; the Cloud Run
+cost reduction comes from removing idle function invocations.
+
 
 ## Status at a glance
 
@@ -278,9 +295,9 @@ Live endpoints:
 - `config/catalogConfig.ts` + extended `config/rcKeys.ts` — CDN base, public
   bucket, path builders, new RC keys.
 - `index.ts` — exports `confirmFinalizedImportSource` (intake finalization),
-  `importTaskWorker`, `timeoutAbandonedImportSources`,
-  `submitEnrichmentBatch`, `pollEnrichmentBatch`, `searchFontsHttpUs`, `css2`,
-  and `serveFont`.
+  `importTaskWorker`, `queueSourceExpiry`, `queueBatchRecovery`,
+  `queueEnrichmentJob`, `syncEnrichmentBatchStatus`, `searchFontsHttpUs`,
+  `css2`, and `serveFont`.
 - `ingest/batchEnrich.ts` — **all-batch enrichment lane.** Replaced the realtime
   `enrichFontOnReady` Firestore trigger (removed). On a schedule, collect `ready`
   families → render specimens → one GCS JSONL → Vertex **Batch API** job for the

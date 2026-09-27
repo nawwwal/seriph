@@ -11,31 +11,10 @@ export const INGEST_FUNCTION_OPTIONS = {
   maxInstances: 2,
 };
 
-export const ENRICHMENT_COLLECTOR_OPTIONS = {
+export const DUE_EVENT_OPTIONS = {
   region: "asia-southeast1",
-  memory: "1GiB" as const,
-  cpu: 2,
-  timeoutSeconds: 540,
-  maxInstances: 1,
-  schedule: "every 1 minutes",
-  secrets: ["TYPESAFE_API_KEY"],
-};
-
-export const BATCH_POLL_OPTIONS = {
-  region: "asia-southeast1",
-  memory: "512MiB" as const,
-  timeoutSeconds: 540,
-  maxInstances: 1,
-  schedule: "every 1 minutes",
-  secrets: ["TYPESAFE_API_KEY"],
-};
-
-export const ENRICHMENT_LEASE_WATCHDOG_OPTIONS = {
-  region: "asia-southeast1",
-  memory: "512MiB" as const,
-  timeoutSeconds: 540,
-  maxInstances: 1,
-  schedule: "every 5 minutes",
+  memory: "256MiB" as const,
+  retry: true,
 };
 
 export const SEARCH_FUNCTION_OPTIONS = {
@@ -61,16 +40,11 @@ export const IMPORT_TASK_WORKER_OPTIONS = {
   timeoutSeconds: 540,
   maxInstances: 4,
   invoker: "import-task-service-account@seriph.iam.gserviceaccount.com",
+  secrets: ["TYPESAFE_API_KEY"],
 };
 
 export const IMPORT_SOURCE_FINALIZED_OPTIONS = {
   ...INGEST_FUNCTION_OPTIONS,
   maxInstances: 4,
   retry: true,
-};
-
-export const IMPORT_SOURCE_TIMEOUT_OPTIONS = {
-  region: "asia-southeast1",
-  schedule: "every 15 minutes",
-  maxInstances: 1,
 };

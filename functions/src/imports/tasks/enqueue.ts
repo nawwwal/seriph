@@ -6,15 +6,20 @@ import { archiveWorkerUrl } from "./workerConfig";
 import { getImportConfig } from "../config/importConfig";
 
 export interface ImportTaskPayload {
-  kind: "discover_source" | "discover_item" | "finalize_plan" | "apply_family" | "reconcile_batch";
+  kind: "discover_source" | "discover_item" | "finalize_plan" | "apply_family" | "reconcile_batch"
+    | "enrich_job" | "expire_source" | "recover_batch";
   ownerId: string;
   batchId: string;
   resourceId: string;
   planVersion?: number;
   archiveBudgetKey?: string;
   sourceSize?: number;
+  eventId?: string;
+  observedAtMs?: number;
+  dueAtMs?: number;
 }
-const KINDS = new Set<ImportTaskPayload["kind"]>(["discover_source", "discover_item", "finalize_plan", "apply_family", "reconcile_batch"]);
+const KINDS = new Set<ImportTaskPayload["kind"]>(["discover_source", "discover_item", "finalize_plan", "apply_family", "reconcile_batch", "enrich_job", "expire_source", "recover_batch"]);
+const DELAYED_KINDS = new Set<ImportTaskPayload["kind"]>(["enrich_job", "expire_source", "recover_batch"]);
 type Task = protos.google.cloud.tasks.v2.ITask;
 type CreateTaskRequest = protos.google.cloud.tasks.v2.ICreateTaskRequest;
 type TaskClient = Pick<CloudTasksClient, "createTask">;
@@ -28,7 +33,7 @@ function requiredString(value: unknown, field: string): string {
 export function canonicalizeImportTaskPayload(input: unknown): ImportTaskPayload {
   if (!input || typeof input !== "object" || Array.isArray(input)) return rejectPayload("object required");
   const source = input as Record<PropertyKey, unknown>;
-  const allowed = new Set(["kind", "ownerId", "batchId", "resourceId", "planVersion", "archiveBudgetKey", "sourceSize"]);
+  const allowed = new Set(["kind", "ownerId", "batchId", "resourceId", "planVersion", "archiveBudgetKey", "sourceSize", "eventId", "observedAtMs", "dueAtMs"]);
   if (Reflect.ownKeys(source).some((key) => typeof key !== "string" || !allowed.has(key))) return rejectPayload("unknown field");
   for (const field of ["kind", "ownerId", "batchId", "resourceId"]) {
     if (!Object.prototype.hasOwnProperty.call(source, field)) return rejectPayload(`${field} must be an own property`);
@@ -47,6 +52,15 @@ export function canonicalizeImportTaskPayload(input: unknown): ImportTaskPayload
   if (Object.prototype.hasOwnProperty.call(source, "sourceSize")) {
     if (!Number.isSafeInteger(source.sourceSize) || (source.sourceSize as number) < 0) return rejectPayload("sourceSize must be a non-negative safe integer");
     payload.sourceSize = source.sourceSize as number;
+  }
+  if (DELAYED_KINDS.has(payload.kind)) {
+    payload.eventId = requiredString(source.eventId, "eventId");
+    for (const field of ["observedAtMs", "dueAtMs"] as const) {
+      if (!Number.isSafeInteger(source[field]) || (source[field] as number) < 1) return rejectPayload(`${field} must be a positive safe integer`);
+      payload[field] = source[field] as number;
+    }
+  } else if (["eventId", "observedAtMs", "dueAtMs"].some((field) => Object.prototype.hasOwnProperty.call(source, field))) {
+    return rejectPayload("timer fields require an event task");
   }
   return payload;
 }
@@ -70,7 +84,7 @@ export function buildHttpTask(input: unknown, name?: string): Task {
   const url = archive ? archiveWorkerUrl() : workerUrl();
   const expectedName = taskResourceName(payload, serialized);
   if (name !== undefined && name !== expectedName) throw new Error("Task name does not match canonical payload identity");
-  return { name: expectedName, httpRequest: { httpMethod: "POST", url, headers: { "Content-Type": "application/json" },
+  return { name: expectedName, ...(payload.dueAtMs && payload.dueAtMs > Date.now() ? { scheduleTime: { seconds: Math.floor(payload.dueAtMs / 1000), nanos: (payload.dueAtMs % 1000) * 1_000_000 } } : {}), httpRequest: { httpMethod: "POST", url, headers: { "Content-Type": "application/json" },
     body: Buffer.from(serialized, "utf8").toString("base64"), oidcToken: { serviceAccountEmail: workerServiceAccount(), audience: archive ? new URL(url).origin : url } } };
 }
 let defaultClient: CloudTasksClient | undefined;
