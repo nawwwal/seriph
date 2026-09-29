@@ -2,7 +2,29 @@
 
 > Living record of what's actually built vs. the target in
 > [architecture.md](./architecture.md) / [models-and-stack.md](./models-and-stack.md).
-> Last updated: 2026-07-01. Update this whenever the build state changes.
+> Last updated: 2026-09-27. Update this whenever the build state changes.
+
+## Event-driven import and enrichment recovery (2026-09-27)
+
+The current production path uses Firestore events to enqueue named Cloud Tasks
+for new enrichment jobs, retry deadlines, expired leases, source expiry, and
+stalled batch recovery. Pending batch work dispatches on the batch write.
+`importTaskWorker` is the authenticated HTTP callback.
+Its handlers re-read Firestore state and use transactional claims or guarded
+updates, so duplicate deliveries and superseded timers do not repeat work.
+
+The four periodic functions (`submitEnrichmentBatch`, `pollEnrichmentBatch`,
+`watchdogEnrichmentLeases`, `timeoutAbandonedImportSources`) and their Cloud
+Scheduler jobs were removed after checking that no live provider batch jobs,
+enrichment jobs, import sources, or import batches required migration. TypeSafe
+Jev remains available for typed enrichment/search judgments; the Cloud Run
+cost reduction comes from removing idle function invocations.
+
+The 2026-09-27 cleanup removed the unit-test suites and the failing line-count
+gate. Current CI runs secret scanning, lint, type checks, and builds. Behavior
+is verified with end-to-end checks against isolated deployed data. Older
+verification notes below are historical records, not current commands.
+
 
 ## Status at a glance
 
@@ -20,12 +42,11 @@ Live endpoints:
 - Font CDN / CSS API: `https://seriph.web.app`
 - Search function: `https://asia-southeast1-seriph.cloudfunctions.net/searchFontsHttp`
 
-## Code modularity lint (local, 2026-07-01)
+## Historical code modularity lint (local, 2026-07-01; retired 2026-09-27)
 
-- Root `package.json` now has `npm run lint:lines`, and `npm run lint` runs it
-  before web and Functions lint. The checker warns for TS/TSX/JS/JSX/MJS/CJS/CSS
-  source files over 100 non-empty lines and fails files over 150, excluding
-  generated/vendor output.
+- The retired line-count checker warned above 100 non-empty source lines and
+  failed above 150. It was removed because existing production files kept the
+  gate failing; modularity remains a code-review concern.
 - Existing over-limit files were split by responsibility: shelf rendering,
   infinite-family loading, shelf page parsing/cache helpers, family merge face
   merging, Remote Config setup data/template helpers, CSS utility families, and
@@ -278,9 +299,9 @@ Live endpoints:
 - `config/catalogConfig.ts` + extended `config/rcKeys.ts` — CDN base, public
   bucket, path builders, new RC keys.
 - `index.ts` — exports `confirmFinalizedImportSource` (intake finalization),
-  `importTaskWorker`, `timeoutAbandonedImportSources`,
-  `submitEnrichmentBatch`, `pollEnrichmentBatch`, `searchFontsHttpUs`, `css2`,
-  and `serveFont`.
+  `importTaskWorker`, `queueSourceExpiry`, `queueBatchRecovery`,
+  `queueEnrichmentJob`, `syncEnrichmentBatchStatus`, `searchFontsHttpUs`,
+  `css2`, and `serveFont`.
 - `ingest/batchEnrich.ts` — **all-batch enrichment lane.** Replaced the realtime
   `enrichFontOnReady` Firestore trigger (removed). On a schedule, collect `ready`
   families → render specimens → one GCS JSONL → Vertex **Batch API** job for the

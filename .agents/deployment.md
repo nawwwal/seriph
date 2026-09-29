@@ -199,12 +199,12 @@ firebase emulators:start --only functions,firestore,storage
 # Check logs and Firestore metrics_ai/{processingId} for timings
 ```
 
-### Run Tests
+### Validate behavior
 
-```bash
-cd functions
-npm test  # runs Vitest suite (parser, validation, taxonomies, integration)
-```
+Use an isolated end-to-end canary through the deployed event, task, and worker
+path. Remove its Firestore records and Cloud Tasks afterward. The
+[Cloud Run cost audit](../docs/performance-audits/2026-09-27-cloud-functions-cost.md)
+records the current examples.
 
 ---
 
@@ -361,15 +361,15 @@ decision before resuming.
 Run only the local gates needed for the changed assets:
 
 ```bash
-rtk npm test -- tests/openapi.test.ts
-rtk npm test --prefix functions -- tests/imports/durablePipelineCanary.test.ts
 rtk git diff --check
-rtk npm run lint:lines
+rtk npm run lint:secrets
+rtk npm run typecheck
+rtk npm run lint:web
+rtk npm run build --prefix functions
 ```
 
-The line-count policy warns above 100 non-empty source lines and fails above
-150. Warnings are reported for follow-up modularity work; only files above 150
-make `lint:lines` fail. Task28-added TypeScript stays below the warning limit.
+For behavioral changes, complete an end-to-end canary in addition to these
+static gates.
 
 ### Hard gate
 

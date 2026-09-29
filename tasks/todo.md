@@ -1,5 +1,9 @@
 # Seriph Durable Batch Import Pipeline Tasks
 
+Historical plan: its test commands refer to suites removed in 2026-09-27.
+Use the current quality gates in [AGENTS.md](../.agents/AGENTS.md) and verify
+behavior through end-to-end checks.
+
 Canonical details, interfaces, code snippets, dependency graph, and commands: [implementation plan](../docs/superpowers/plans/2026-07-18-seriph-durable-import-pipeline.md).
 
 ## Phase 0: Current production recovery

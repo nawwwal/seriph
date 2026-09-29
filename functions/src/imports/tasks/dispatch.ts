@@ -11,6 +11,7 @@ import { applyFamilyImportStage } from "../apply/applyFamilyStage";
 import { reconcileBatchTask } from "../reconcile/reconcileBatch";
 import { finalizePlanTask } from "../planning/finalizePlan";
 import { isImportBatchCanceled } from "./cancellation";
+import { runEnrichmentJob, expireSourceTask, recoverBatchTask } from "./dueStages";
 
 export interface TaskHttpRequest {
   body: unknown;
@@ -37,6 +38,7 @@ export interface DispatchDependencies {
 }
 
 export const importTaskStages: ImportStageRegistry = {};
+const EVENT_TASKS = new Set<ImportTaskPayload["kind"]>(["enrich_job", "expire_source", "recover_batch"]);
 
 /** Register a durable stage once; archive children use the existing discover_item lane. */
 export function registerImportStage(kind: ImportTaskPayload["kind"], handler: ImportStageHandler): void {
@@ -63,6 +65,9 @@ export function registerDefaultImportStages(runtime: () => DiscoveryRuntime = pr
     finalize_plan: (payload) => finalizePlanTask(payload, getFirestore()),
     apply_family: applyFamilyImportStage,
     reconcile_batch: (payload) => reconcileBatchTask(payload, getFirestore()),
+    enrich_job: runEnrichmentJob,
+    expire_source: expireSourceTask,
+    recover_batch: recoverBatchTask,
   };
   Object.assign(importTaskStages, stages);
   return stages;
@@ -102,6 +107,10 @@ export async function dispatchImportTask(
   const stages = dependencies.stages ?? importTaskStages;
   const handler = Object.prototype.hasOwnProperty.call(stages, payload.kind) ? stages[payload.kind] : undefined;
   if (!handler) return { status: 503, code: "stage_not_registered", retryable: true };
+  if (EVENT_TASKS.has(payload.kind)) {
+    try { return await handler(payload, { kind: "claimed", attempt: 1 }); }
+    catch (error) { console.error("Event task failed", error); return { status: 503, retryable: true }; }
+  }
   const claimLease = dependencies.claimLease ?? claimPayloadLease;
   const lease = await claimLease(payload, request.cloudTaskName);
   if (lease.kind !== "claimed") return { status: 204 };
