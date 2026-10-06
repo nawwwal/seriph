@@ -81,7 +81,16 @@ checkout's unrelated unfinished search changes are not part of the release.
 - Archive worker image build `6cdb671c-4ecb-4af6-9b19-3427b817ba6d` succeeded;
   revision `seriph-archive-worker-00004-c6q` serves 100% of traffic with the
   new Node 24 image pinned by digest.
-- Remaining Functions runtime rollout and service smoke checks: pending.
+- All 12 existing Cloud Functions are ACTIVE on `nodejs24`; all nine remaining
+  function updates completed successfully.
+- Live authenticated `/api/v1/families`, `/api/v1/search-index`, and the search
+  function returned HTTP 200. Unauthenticated app API/search requests returned
+  HTTP 401. The font CDN returned HTTP 200 with `@font-face` CSS.
+- The private archive worker rejected anonymous requests with HTTP 403, and an
+  authorized request with missing task metadata returned its expected HTTP 400.
+  The upgraded Cloud Tasks SDK read the RUNNING `seriph-import` queue.
+- These smoke checks cover login, API authentication, SDK initialization, and
+  service readiness. A full font-upload/enrichment/import workload was not run.
 
 ## Sources
 
