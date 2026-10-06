@@ -69,7 +69,19 @@ checkout's unrelated unfinished search changes are not part of the release.
   advisories. Full web audit: five high entries from one unpatched `braces`
   advisory in Next's development ESLint dependency chain. `braces@3.0.3` is
   still its latest release; downgrading Next's lint configuration is not a fix.
-- Production rollout and real Identity Platform sign-in checks: pending.
+- All three auth hooks deployed successfully on Node 24. A real cold-start
+  sign-in hook returned HTTP 200 in **2.713120023 seconds** (previously 7.8558 s).
+  The full Firebase REST sign-in round trip was 3,348 ms, then 362 ms when warm.
+  Uninvited sign-in and signup were rejected, and invited signup succeeded.
+  All three temporary Auth users and both temporary invitation documents were
+  deleted after verification. No reset emails were sent.
+- Vercel production deployment `dpl_4juBYhNHpkNnAXDDSF12UUEyJD2N` is ready
+  and aliased to `https://seriph.naw.al`; its build completed with Next 16.3.8.
+  The browser rendered the login form successfully.
+- Archive worker image build `6cdb671c-4ecb-4af6-9b19-3427b817ba6d` succeeded;
+  revision `seriph-archive-worker-00004-c6q` serves 100% of traffic with the
+  new Node 24 image pinned by digest.
+- Remaining Functions runtime rollout and service smoke checks: pending.
 
 ## Sources
 
