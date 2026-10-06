@@ -27,7 +27,7 @@ directory. Read the relevant doc before changing its area.
 ## Operational Quick Facts
 
 - **Stack:** Next.js App Router, React 19, TypeScript, Tailwind 4 on Vercel;
-  Firebase Auth, Firestore, Storage; Cloud Functions gen2 on nodejs22 in
+  Firebase Auth, Firestore, Storage; Cloud Functions gen2 on nodejs24 in
   `asia-southeast1`; Firebase Hosting CDN routes for `/s`, `/d`, and `/css2`;
   Vertex AI / Gemini for AI enrichment and embeddings.
 - **GCP project:** `seriph` (#277527180126).
@@ -83,7 +83,7 @@ directory. Read the relevant doc before changing its area.
 ## Guardrails
 
 - ESLint is intentionally pinned to 9.x.
-- `firebase-admin` is intentionally pinned to 13.x inside `functions/`.
+- `firebase-admin` 14.x is supported by `firebase-functions` 7.4.x.
 - The vector index dimension is 1536; if `embedding_dimensions` changes, recreate
   the Firestore vector indexes to match.
 - Existing old-schema fonts should be migrated with the admin workflow in

@@ -6,6 +6,8 @@ import { isBetaEmailAllowedInStore } from "./betaAllowlistStore";
 /** User-facing message for blocked sign-up / sign-in / email flows. */
 export const BETA_ACCESS_DENIED_MESSAGE =
   "Seriph is in closed beta. This email is not on the invite list.";
+export const BETA_ACCESS_UNAVAILABLE_MESSAGE =
+  "Sign-in is temporarily unavailable. Please try again in a moment.";
 
 /**
  * Throws permission-denied when the email is missing or not allowlisted.
@@ -22,7 +24,7 @@ export async function assertBetaAccess(
     logger.error("beta allowlist lookup failed; denying access", {
       message: error instanceof Error ? error.message : String(error),
     });
-    throw new HttpsError("permission-denied", BETA_ACCESS_DENIED_MESSAGE);
+    throw new HttpsError("unavailable", BETA_ACCESS_UNAVAILABLE_MESSAGE);
   }
   throw new HttpsError("permission-denied", BETA_ACCESS_DENIED_MESSAGE);
 }

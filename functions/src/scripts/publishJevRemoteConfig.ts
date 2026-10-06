@@ -27,7 +27,7 @@ async function run(): Promise<void> {
 }
 
 if (require.main === module) {
-  import("../bootstrap/adminApp")
+  import("../bootstrap/adminApp.js")
     .then(() => run())
     .catch((error) => {
       console.error(error);

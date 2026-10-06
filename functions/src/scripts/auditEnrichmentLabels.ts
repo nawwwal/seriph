@@ -66,7 +66,7 @@ export function parseCensusArgs(argv: string[]): { ownerId?: string; limit?: num
 }
 
 if (require.main === module) {
-  import("./auditEnrichmentLabelsRunner")
+  import("./auditEnrichmentLabelsRunner.js")
     .then(({ runEnrichmentLabelCensus }) => runEnrichmentLabelCensus())
     .catch((error) => {
       console.error(error);

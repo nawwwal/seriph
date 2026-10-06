@@ -117,7 +117,7 @@ export async function runBackfillEnrichment(
 }
 
 if (require.main === module) {
-  import("../bootstrap/adminApp").then(() => {
+  import("../bootstrap/adminApp.js").then(() => {
     const args = parseBackfillEnrichmentArgs(process.argv.slice(2));
     return runBackfillEnrichment(args);
   }).then((report) => {

@@ -61,7 +61,7 @@ function initializeFirebaseAdminApp(): void {
 // Side effect: initialize the app on import, before any getFirestore()/getStorage() call.
 initializeFirebaseAdminApp();
 try {
-  getFirestore().settings({ ignoreUndefinedProperties: true });
+  getFirestore().settings({ ignoreUndefinedProperties: true, preferRest: true });
 } catch {
   // already applied or not ready
 }

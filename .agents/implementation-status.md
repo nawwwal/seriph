@@ -492,8 +492,10 @@ currently using code defaults (`seriph-fonts`, `gemini-2.5-flash`,
 
 ## Dependency pins (don't bump blindly)
 ESLint pinned to **9.x** (Next config has no ESLint 10–compatible
-`eslint-plugin-react`). `firebase-admin` **13.x in `functions/`** (peer of
-`firebase-functions@7`), **14.x in the web app**. Tailwind 4 / flat ESLint config.
+`eslint-plugin-react`). `firebase-admin` **14.5.x** in both packages (supported by `firebase-functions@7.4`).
+Node 24 is the stable deployment runtime. TypeScript 7 handles CLI checks/builds;
+the web app aliases `@typescript/typescript6` for Next/ESLint compiler API compatibility.
+Tailwind 4 / flat ESLint config.
 
 ## Cache-first detail and App Router composition (local, 2026-07-10)
 
