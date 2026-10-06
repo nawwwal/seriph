@@ -10,7 +10,7 @@ export type {
 } from "./mergeSplitFamiliesTypes";
 
 if (require.main === module) {
-  import("./mergeSplitFamiliesRunner").then(({ runMergeSplitFamilies }) => runMergeSplitFamilies()).catch((error) => {
+  import("./mergeSplitFamiliesRunner.js").then(({ runMergeSplitFamilies }) => runMergeSplitFamilies()).catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });

@@ -13,7 +13,7 @@ export function parseCatalogSummaryBackfillArgs(argv: string[]): CatalogSummaryB
 }
 
 if (require.main === module) {
-  import('./backfillCatalogSummariesRunner')
+  import('./backfillCatalogSummariesRunner.js')
     .then(({ runCatalogSummaryBackfill }) => runCatalogSummaryBackfill())
     .catch((error) => {
       console.error(error);

@@ -13,7 +13,7 @@ export { parseMigrationArgs } from "./migrateOldSchemaTypes";
 export type { LegacyFontSource, MigrationArgs } from "./migrateOldSchemaTypes";
 
 if (require.main === module) {
-  import("./migrateOldSchemaRunner").then(({ runMigration }) => runMigration()).catch((error) => {
+  import("./migrateOldSchemaRunner.js").then(({ runMigration }) => runMigration()).catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });

@@ -88,7 +88,7 @@ const counts = (snapshot: RecoverySnapshot, actions: RecoveryAction[]) => ({ fam
 const actionKinds = (actions: RecoveryAction[]) => actions.reduce<Record<string, number>>((result, action) => ({ ...result, [action.kind]: (result[action.kind] ?? 0) + 1 }), {});
 
 export async function runReconcileImportPipeline(argv = process.argv.slice(2), dependencies: ReconcileDependencies = {}): Promise<void> {
-  const args = parseReconcileArgs(argv); if (!dependencies.readSnapshot && !getApps().length) await import("../bootstrap/adminApp");
+  const args = parseReconcileArgs(argv); if (!dependencies.readSnapshot && !getApps().length) await import("../bootstrap/adminApp.js");
   const read = dependencies.readSnapshot ?? readSnapshot; const apply = dependencies.applyAction ?? ((action, snapshot) => applyRecoveryAction(action, snapshot));
   const before = await read(args.ownerId); const actions = planPipelineRecovery(before); if (args.apply) for (const action of actions) await apply(action, before);
   const after = args.apply ? await read(args.ownerId) : before; const summary = { mode: args.apply ? "apply" : "dryRun", ownerId: args.ownerId ?? null, before: counts(before, actions), actionCount: actions.length, actionKinds: actionKinds(actions), sampleActions: actions.slice(0, 20), after: counts(after, planPipelineRecovery(after)) };

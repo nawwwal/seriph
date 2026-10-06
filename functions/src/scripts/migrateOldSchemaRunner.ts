@@ -16,7 +16,7 @@ function ensureAdminEnvDefaults(): void {
 
 export async function runMigration(argv = process.argv.slice(2)): Promise<void> {
   ensureAdminEnvDefaults();
-  if (!getApps().length) await import("../bootstrap/adminApp");
+  if (!getApps().length) await import("../bootstrap/adminApp.js");
   const args = parseMigrationArgs(argv);
   const summary = { scanned: 0, migrated: 0, catalogSkipped: 0, skipped: 0, failed: 0, catalogUpdated: 0, dryRun: args.dryRun };
   for (const doc of await listLegacyDocs(args)) {

@@ -13,7 +13,7 @@ function ensureAdminEnvDefaults(): void {
 
 export async function runMergeSplitFamilies(argv = process.argv.slice(2)): Promise<void> {
   ensureAdminEnvDefaults();
-  if (!getApps().length) await import("../bootstrap/adminApp");
+  if (!getApps().length) await import("../bootstrap/adminApp.js");
   const args = parseMergeArgs(argv);
   const storedFamilies = await listCatalogFamilies(args);
   const families = args.reparseOriginals

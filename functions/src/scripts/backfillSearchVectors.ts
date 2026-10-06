@@ -43,7 +43,7 @@ export async function buildBackfillUpdate(family: FontFamilyDoc): Promise<Record
   return buildVersionedBackfillUpdate(family, currentSearchBackfillVersion());
 }
 if (require.main === module) {
-  import("./backfillSearchVectorsRunner").then(({ runBackfillSearchVectors }) => runBackfillSearchVectors()).catch((error) => {
+  import("./backfillSearchVectorsRunner.js").then(({ runBackfillSearchVectors }) => runBackfillSearchVectors()).catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });

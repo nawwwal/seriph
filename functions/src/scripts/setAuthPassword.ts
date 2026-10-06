@@ -51,7 +51,7 @@ function ensureAdminEnvDefaults(): void {
 
 export async function runSetAuthPassword(argv = process.argv.slice(2)): Promise<void> {
   ensureAdminEnvDefaults();
-  if (!getApps().length) await import("../bootstrap/adminApp");
+  if (!getApps().length) await import("../bootstrap/adminApp.js");
 
   const request = validateSetAuthPasswordArgs(parseSetAuthPasswordArgs(argv));
   const auth = getAuth();

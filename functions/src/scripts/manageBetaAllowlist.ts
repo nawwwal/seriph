@@ -50,8 +50,8 @@ function ensureAdminEnvDefaults(): void {
 
 export async function runManageBetaAllowlist(argv = process.argv.slice(2)): Promise<void> {
   ensureAdminEnvDefaults();
-  if (!getApps().length) await import("../bootstrap/adminApp");
-  const { db } = await import("../bootstrap/adminApp");
+  if (!getApps().length) await import("../bootstrap/adminApp.js");
+  const { db } = await import("../bootstrap/adminApp.js");
   const args = validateManageBetaArgs(parseManageBetaArgs(argv));
   const col = db.collection(BETA_ALLOWLIST_COLLECTION);
 

@@ -41,7 +41,7 @@ async function writePlan(db: Firestore, plan: HistoricalBatchPlan): Promise<"cre
 }
 
 export async function runHistoricalImportMigration(argv = process.argv.slice(2)): Promise<void> {
-  if (!getApps().length) await import("../bootstrap/adminApp");
+  if (!getApps().length) await import("../bootstrap/adminApp.js");
   const args = parseHistoricalMigrationArgs(argv); const records = await listRecords(getFirestore(), args.ownerId, args.limit, args.allOwners); const plans = planHistoricalImportMigration(records);
   const summary = { migration: HISTORICAL_IMPORT_MIGRATION, dryRun: args.dryRun, scanned: records.length, plannedBatches: plans.length, plannedSources: plans.reduce((sum, plan) => sum + plan.sources.length, 0), created: 0, alreadyComplete: 0 };
   if (!args.dryRun) for (const plan of plans) { if (await writePlan(getFirestore(), plan) === "created") summary.created += 1; else summary.alreadyComplete += 1; }

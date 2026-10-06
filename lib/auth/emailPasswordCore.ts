@@ -27,6 +27,14 @@ export function validateEmailPassword(params: { email: string; password: string 
 }
 
 export function mapFirebaseAuthError(error: unknown): string {
+  const message = isRecord(error) && typeof error.message === 'string' ? error.message : '';
+  // Identity Platform wraps blocking-function failures as auth/internal-error.
+  if (errorCode(error) === 'auth/internal-error') {
+    if (message.includes('This email is not on the invite list.')) {
+      return 'Seriph is in closed beta. This email is not on the invite list.';
+    }
+    return 'Sign-in is temporarily unavailable. Please try again in a moment.';
+  }
   switch (errorCode(error)) {
     case 'auth/invalid-credential':
     case 'auth/invalid-login-credentials':
