@@ -35,7 +35,8 @@ invitation denials.
 | --- | --- |
 | Node | 24.21.0 locally; `nodejs24` on Cloud Functions; Node 24 Docker base |
 | npm | 12.2.0 |
-| Next / eslint-config-next | 16.3.8 |
+| Next | 16.3.8 |
+| eslint-config-next | 16.4.0 |
 | React / React DOM | 19.3.0 |
 | Firebase web | 12.19.0 |
 | Firebase Admin | 14.5.0 |
@@ -75,8 +76,8 @@ checkout's unrelated unfinished search changes are not part of the release.
   Uninvited sign-in and signup were rejected, and invited signup succeeded.
   All three temporary Auth users and both temporary invitation documents were
   deleted after verification. No reset emails were sent.
-- Vercel production deployment `dpl_4juBYhNHpkNnAXDDSF12UUEyJD2N` is ready
-  and aliased to `https://seriph.naw.al`; its build completed with Next 16.3.8.
+- The Vercel production rollout completed for `https://seriph.naw.al`;
+  its build completed with Next 16.3.8.
   The browser rendered the login form successfully.
 - Archive worker image build `6cdb671c-4ecb-4af6-9b19-3427b817ba6d` succeeded;
   revision `seriph-archive-worker-00004-c6q` serves 100% of traffic with the
