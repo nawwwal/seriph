@@ -42,7 +42,7 @@ const Modal: React.FC<ModalProps> = ({
           <Dialog.Popup
             aria-labelledby={titleId}
             aria-describedby={describedById}
-            className={`bg-[var(--surface)] text-[var(--on-surface)] rule rounded-[var(--radius)] theme-shadow-xl transform transition-all duration-300 ease-in-out w-full ${sizeClasses} p-6 relative theme-focus-ring pointer-events-auto`}
+            className={`bg-[var(--surface)] text-[var(--on-surface)] rule rounded-[var(--radius)] theme-shadow-xl transform transition-all duration-300 ease-in-out w-full ${sizeClasses} max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:p-6 relative theme-focus-ring pointer-events-auto`}
             tabIndex={0}
           >
             <Dialog.Close

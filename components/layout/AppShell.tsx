@@ -3,11 +3,11 @@
 import type { CSSProperties, ReactNode } from 'react';
 import AppStatusStrip from '@/components/layout/AppStatusStrip';
 import AppShellHeader from '@/components/layout/AppShellHeader';
+import ShellFilterRail from '@/components/layout/ShellFilterRail';
 import ScrollableRailAppShell from '@/components/layout/ScrollableRailAppShell';
 import {
   MotionBody,
   MotionCanvas,
-  MotionRail,
   useShellMove,
 } from '@/components/motion/shellMotion';
 import { useShellMotionParams } from '@/components/motion/ShellMotionParamsContext';
@@ -61,10 +61,8 @@ export default function AppShell({
               railOpen={railOpen}
             />
 
-            <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col md:flex-row">
-              <MotionRail open={railOpen} move={move}>
-                {sidebar}
-              </MotionRail>
+            <div className="flex min-h-0 min-w-0 w-full flex-1 flex-col lg:flex-row">
+              {railOpen && <ShellFilterRail move={move}>{sidebar}</ShellFilterRail>}
 
               <MotionCanvas
                 className="relative min-h-0 min-w-0 w-full max-w-full flex-1 overflow-hidden bg-[var(--paper)]"
@@ -78,7 +76,7 @@ export default function AppShell({
 
         <footer
           data-status-strip
-          className="h-10 min-h-10 shrink-0 overflow-visible border-t border-[var(--ink)] bg-[var(--paper)]"
+          className="min-h-12 shrink-0 sm:h-10 sm:min-h-10 overflow-visible border-t border-[var(--ink)] bg-[var(--paper)]"
         >
           {statusStrip ?? <AppStatusStrip />}
         </footer>

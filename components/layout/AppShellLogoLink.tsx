@@ -39,7 +39,7 @@ export default function AppShellLogoLink({
         move={move}
         className={
           logoClassName
-          ?? (compact ? 'block w-14 sm:w-16 leading-none' : 'block w-[140px] sm:w-[193px]')
+          ?? (compact ? 'block w-14 sm:w-16 leading-none' : 'block w-[112px] lg:w-[193px]')
         }
         label="Seriph"
       />
