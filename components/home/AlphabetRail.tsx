@@ -31,8 +31,8 @@ export default function AlphabetRail({
       aria-label="Filter families by initial"
       className="seriph-scrollbar h-full min-w-0 w-full max-w-full overflow-x-hidden overflow-y-auto md:h-auto md:overflow-visible"
     >
-      <div className="min-w-0 w-full px-3 pb-3 pt-[0px] sm:px-4 md:px-5 md:pb-4">
-        <div className="grid w-full grid-cols-5 border-t border-l border-[var(--ink)]">
+      <div className="min-w-0 w-full px-3 pb-3 pt-3 md:pt-0 sm:px-4 md:px-5 md:pb-4">
+        <div className="grid w-full grid-cols-7 md:grid-cols-5 border-t border-l border-[var(--ink)]">
           {LETTER_INITIALS.map((initial) => {
             const isSelected = initial === selected;
             const isPresent = presentInitials.has(initial);
@@ -43,7 +43,7 @@ export default function AlphabetRail({
                 aria-pressed={isSelected}
                 disabled={!isPresent}
                 onClick={() => onSelect(toggleAlphabetInitial(selected, initial))}
-                className={`theme-focus-ring flex aspect-square items-center justify-center border-r border-b border-[var(--ink)] text-sm uppercase transition-colors sm:text-base ${
+                className={`theme-focus-ring flex min-h-11 md:aspect-square items-center justify-center border-r border-b border-[var(--ink)] text-sm uppercase transition-colors sm:text-base ${
                   isSelected
                     ? 'ink-bg'
                     : isPresent

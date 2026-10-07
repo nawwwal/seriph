@@ -19,7 +19,7 @@ export default function SearchWorkspaceFallback() {
       }
     >
       <main
-        className="h-full min-h-0 w-full overflow-auto px-5 py-6 sm:px-6 md:px-8 md:py-8"
+        className="@container h-full min-h-0 w-full overflow-auto px-5 py-6 sm:px-6 md:px-8 md:py-8"
         aria-hidden="true"
       >
         <Block className="mb-6 h-14 w-full max-w-xl sm:h-16" />
@@ -28,7 +28,7 @@ export default function SearchWorkspaceFallback() {
           <Block className="h-10 w-24 rule" />
         </div>
         <Block className="mt-6 h-3 w-32" />
-        <div className="mt-4 grid grid-cols-1 grid-poster-gap auto-rows-fr content-start sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="mt-4 grid grid-cols-1 grid-poster-gap auto-rows-fr content-start @min-[34rem]:grid-cols-2 @min-[54rem]:grid-cols-3 @min-[74rem]:grid-cols-4">
           {Array.from({ length: 8 }, (_, index) => (
             <div key={index} className="min-h-72 overflow-hidden rounded-[var(--radius)] rule">
               <Block className="h-44 rounded-[var(--radius-sharp)]" />

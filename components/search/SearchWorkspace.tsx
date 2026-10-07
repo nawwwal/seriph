@@ -38,7 +38,7 @@ export default function SearchWorkspace() {
         </nav>
       }
     >
-      <main className="h-full min-h-0 w-full overflow-auto px-5 py-6 sm:px-6 md:px-8 md:py-8">
+      <main className="@container h-full min-h-0 w-full overflow-auto px-5 py-6 sm:px-6 md:px-8 md:py-8">
         <h1 className="cap-tight mb-5 text-[clamp(32px,4.5vw,56px)] font-black uppercase leading-[0.9] tracking-tight">
           Find the right voice
         </h1>
@@ -65,7 +65,7 @@ export default function SearchWorkspace() {
           {refining ? ' · refining' : ''}
         </p>
 
-        <div className="mt-4 grid grid-cols-1 grid-poster-gap auto-rows-fr content-start sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        <div className="mt-4 grid grid-cols-1 grid-poster-gap auto-rows-fr content-start @min-[34rem]:grid-cols-2 @min-[54rem]:grid-cols-3 @min-[74rem]:grid-cols-4">
           {results.map((r) => (
             <SearchResultCard key={r.slug || r.id} r={r} />
           ))}

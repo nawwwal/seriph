@@ -45,7 +45,7 @@ export function MotionRail({
       aria-hidden={paintOpen ? undefined : true}
       className={cn(
         paintOpen
-          ? 'min-w-0 shrink-0 overflow-hidden border-b border-[var(--ink)] bg-[var(--paper)] md:border-b-0 md:border-r'
+          ? 'min-w-0 shrink-0 overflow-hidden border-b border-[var(--ink)] bg-[var(--paper)] lg:border-b-0 lg:border-r'
           : 'pointer-events-none min-w-0 shrink-0 overflow-hidden border-0 p-0',
         className,
       )}

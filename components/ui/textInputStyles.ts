@@ -11,7 +11,7 @@ const sizeClasses: Record<TextInputSize, string> = {
   confirm: 'mt-4 w-full rule rounded-[var(--radius)] bg-[var(--surface)] px-3 py-2 font-bold theme-focus-ring',
   form: 'w-full rule rounded-[var(--radius)] bg-[var(--paper)] px-3 py-2 text-base theme-focus-ring',
   navSearch: 'h-8 w-full rule rounded-[var(--radius)] bg-[var(--paper)] px-3 py-1 text-sm theme-focus-ring',
-  search: 'flex-1 rule rounded-[var(--radius)] bg-[var(--paper)] px-4 py-2 text-sm theme-focus-ring',
+  search: 'min-w-0 w-full flex-1 rule rounded-[var(--radius)] bg-[var(--paper)] px-4 py-2 text-base sm:text-sm theme-focus-ring',
 };
 
 export function textInputClassName({ className, size = 'form' }: TextInputStyleOptions = {}): string {

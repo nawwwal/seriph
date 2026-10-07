@@ -1,0 +1,21 @@
+/* Motion supplies desktop rail dimensions; phone filters occupy a bounded row. */
+@media (width < 64rem) {
+  .mobile-filter-rail > div {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto;
+  }
+  .mobile-filter-rail nav {
+    height: auto;
+    overflow: visible;
+  }
+  [data-status-strip] {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* Desktop inspection tools otherwise cover the phone's import/profile actions. */
+  [data-interface-kit],
+  [data-agentation-portal],
+  [data-react-grab] {
+    display: none !important;
+  }
+}

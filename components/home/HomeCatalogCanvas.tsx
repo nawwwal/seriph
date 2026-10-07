@@ -26,7 +26,7 @@ export default function HomeCatalogCanvas({
       onPointerDownCapture={onScrollInteraction}
       onClickCapture={onScrollInteraction}
       onKeyDownCapture={onScrollInteraction}
-      className="h-full min-w-0 w-full max-w-full overflow-x-hidden overflow-y-auto p-4 sm:p-5 md:p-6"
+      className="@container h-full min-w-0 w-full max-w-full overflow-x-hidden overflow-y-auto p-4 sm:p-5 md:p-6"
     >
       {view.mutations.selectionState.mode === 'selecting' && (
         <ShelfSelectionBar

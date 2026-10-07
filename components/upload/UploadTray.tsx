@@ -79,12 +79,12 @@ export default function UploadTray() {
   const active = status === 'Uploading' || status === 'Processing' || status === 'Enriching';
 
   const miniLabel = status === 'Needs attention' ? 'Import issue' : status === 'Done' ? 'Imported' : status === 'Uploading' ? 'Uploading' : status === 'Processing' ? 'Inspecting' : 'Enriching';
-  return <div className="relative flex h-full items-center normal-case" data-upload-tray>
-    <button type="button" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} className="flex h-full items-center gap-1.5 border-x border-[var(--ink)] px-3 text-[10px] font-bold uppercase hover:bg-[var(--control-track)]" title={`${presentation.title}: ${presentation.detail}`}>
+  return <div className="sm:relative flex h-full items-center normal-case" data-upload-tray>
+    <button type="button" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} aria-label={`${miniLabel}: ${presentation.detail}`} className="flex h-full items-center gap-1.5 border-x border-[var(--ink)] px-3 text-[10px] font-bold uppercase hover:bg-[var(--control-track)]" title={`${presentation.title}: ${presentation.detail}`}>
       {status === 'Done' ? <Check size={13} className="text-[var(--success)]" aria-hidden /> : status === 'Needs attention' ? <AlertTriangle size={13} className="text-[var(--danger)]" aria-hidden /> : <LoaderCircle size={13} className="animate-spin" aria-hidden />}
-      <span>{miniLabel}</span>{presentation.progress !== undefined && <span className="opacity-60">{presentation.progress}%</span>}
+      <span className="hidden sm:inline">{miniLabel}</span>{presentation.progress !== undefined && <span className="opacity-60">{presentation.progress}%</span>}
     </button>
-    {expanded && <aside className="absolute bottom-full right-0 z-40 mb-2 w-[min(92vw,42rem)] rule rounded-[var(--radius)] bg-[var(--surface)] text-[var(--on-surface)] theme-shadow-lg">
+    {expanded && <aside className="absolute bottom-full inset-x-2 sm:left-auto sm:right-0 z-40 mb-2 sm:w-[min(92vw,42rem)] rule rounded-[var(--radius)] bg-[var(--surface)] text-[var(--on-surface)] theme-shadow-lg">
     <div className="flex items-center gap-3 px-4 py-3">
       {status === 'Done' ? <Check size={17} className="text-[var(--success)]" aria-hidden /> : status === 'Needs attention' ? <AlertTriangle size={17} className="text-[var(--danger)]" aria-hidden /> : <LoaderCircle size={17} className="animate-spin" aria-hidden />}
       <div className="min-w-0 flex-1" role="status" aria-live="polite"><p className="truncate text-sm font-bold">{presentation.title}</p><p className="truncate text-xs opacity-70">{presentation.detail}{presentation.progress === undefined ? '' : ` · ${presentation.progress}%`}</p></div>

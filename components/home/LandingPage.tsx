@@ -6,7 +6,7 @@ import { DEMO_SPECIMENS, VALUE_PROPS } from './landingContent';
 
 export default function LandingPage() {
   return (
-    <div className="flex-1 min-h-0 w-full p-8 sm:p-10 md:p-12 lg:p-16 overflow-auto">
+    <div className="flex-1 min-h-0 w-full p-4 sm:p-10 md:p-12 lg:p-16 overflow-auto">
         {/* Hero */}
         <header className="w-full rule-b pb-6 sm:pb-8">
           <h1><SeriphLogo className="w-full max-w-[724px]" label="Seriph" /></h1>
@@ -32,7 +32,7 @@ export default function LandingPage() {
                 key={spec.label}
                 className="rule rounded-[var(--radius)] overflow-hidden flex flex-col"
               >
-                <div className="flex-1 flex items-end p-6 min-h-[140px]">
+                <div className="flex-1 flex items-end p-3 sm:p-6 min-h-[110px] sm:min-h-[140px]">
                   <div
                     className="leading-none font-black uppercase tracking-tight text-[18vw] sm:text-[10vw] lg:text-[5vw]"
                     style={{ fontWeight: spec.weight, fontStyle: spec.italic ? 'italic' : 'normal' }}

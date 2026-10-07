@@ -2,12 +2,12 @@
 
 import type { ReactNode } from 'react';
 import HomeHeaderSearch from '@/components/home/HomeHeaderSearch';
+import ShellFilterRail from '@/components/layout/ShellFilterRail';
 import AppShellLogoLink from '@/components/layout/AppShellLogoLink';
 import {
   MotionBody,
   MotionCanvas,
   MotionHeader,
-  MotionRail,
   MotionSlot,
 } from '@/components/motion/shellMotion';
 
@@ -27,27 +27,23 @@ export default function ScrollableRailAppShell({
   sidebar: ReactNode;
 }) {
   return (
-    <div className="grid min-h-0 min-w-0 w-full flex-1 grid-cols-[auto_minmax(0,1fr)] grid-rows-[6rem_auto_minmax(0,1fr)] md:flex md:flex-row">
-      <div className="seriph-scrollbar contents md:flex md:h-full md:min-h-0 md:w-[var(--shell-rail-width)] md:shrink-0 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:border-r md:border-[var(--ink)]">
-        <div className="col-start-1 row-start-1 flex h-24 min-h-24 min-w-0 shrink-0 items-center border-b border-[var(--ink)] px-4 sm:px-6 md:border-b-0 md:px-6">
+    <div className="grid min-h-0 min-w-0 w-full flex-1 grid-cols-1 grid-rows-[3.5rem_3.5rem_auto_minmax(0,1fr)] lg:flex lg:flex-row">
+      <div className="seriph-scrollbar contents lg:flex lg:h-full lg:min-h-0 lg:w-[var(--shell-rail-width)] lg:shrink-0 lg:flex-col lg:overflow-x-hidden lg:overflow-y-auto lg:border-r lg:border-[var(--ink)]">
+        <div className="col-start-1 row-start-1 flex h-14 min-h-14 lg:h-24 lg:min-h-24 min-w-0 shrink-0 items-center border-b border-[var(--ink)] px-4 sm:px-6 lg:border-b-0 lg:px-6">
           <AppShellLogoLink
             compact={false}
-            logoClassName="block w-[160px] max-w-full leading-none"
+            logoClassName="block w-[112px] lg:w-[160px] max-w-full leading-none"
             move={move}
           />
         </div>
-        <MotionRail
-          open
-          move={move}
-          className="col-span-2 row-start-2 max-w-full overflow-x-hidden md:overflow-visible md:border-r-0 [&>div]:!w-full [&>div]:!min-w-0"
-        >
+        <ShellFilterRail move={move} className="col-start-1 row-start-3" railClassName="lg:!basis-auto lg:overflow-visible lg:border-r-0 [&>div]:!w-full [&>div]:!min-w-0">
           {sidebar}
-        </MotionRail>
+        </ShellFilterRail>
       </div>
 
-      <div className="contents md:flex md:min-h-0 md:min-w-0 md:flex-1 md:flex-col">
+      <div className="contents lg:flex lg:min-h-0 lg:min-w-0 lg:flex-1 lg:flex-col">
         <MotionHeader
-          className="col-start-2 row-start-1 flex h-16 min-h-16 min-w-0 items-center border-b border-[var(--ink)] px-4 sm:px-6"
+          className="relative z-40 col-start-1 row-start-2 flex h-14 min-h-14 lg:h-16 lg:min-h-16 min-w-0 items-center border-b border-[var(--ink)] px-4 sm:px-6"
           move={move}
         >
           <MotionSlot show id="header-search" className="relative min-w-0 flex-1">
@@ -55,7 +51,7 @@ export default function ScrollableRailAppShell({
           </MotionSlot>
         </MotionHeader>
         <MotionCanvas
-          className="relative col-span-2 row-start-3 min-h-0 min-w-0 w-full max-w-full flex-1 overflow-hidden bg-[var(--paper)]"
+          className="relative col-start-1 row-start-4 min-h-0 min-w-0 w-full max-w-full flex-1 overflow-hidden bg-[var(--paper)]"
           move={move}
         >
           <MotionBody>{children}</MotionBody>

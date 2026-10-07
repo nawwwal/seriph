@@ -34,7 +34,7 @@ export default function TypePlaygroundStyleSelect({
       <Select.Trigger
         type="button"
         aria-label="Font style"
-        className="flex min-w-0 max-w-full flex-1 items-center gap-2 rounded-[var(--radius)] rule bg-[var(--paper)] px-3 py-2 text-left outline-none theme-focus-ring sm:max-w-md"
+        className="flex min-w-0 max-w-full basis-full sm:basis-auto flex-1 items-center gap-2 rounded-[var(--radius)] rule bg-[var(--paper)] px-3 py-2 text-left outline-none theme-focus-ring sm:max-w-md"
       >
         <Select.Value className="min-w-0 flex-1 truncate text-sm font-extrabold uppercase tracking-tight">
           {selected.label}

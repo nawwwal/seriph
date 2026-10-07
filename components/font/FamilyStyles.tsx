@@ -28,9 +28,9 @@ export default function FamilyStyles({ family }: { family: FontFamily }) {
 
   return (
     <section className="mt-6">
-      <div className="flex justify-between items-center rule-b pb-4">
+      <div className="flex flex-wrap gap-3 justify-between items-center rule-b pb-4">
         <h2 className="uppercase font-black text-2xl sm:text-3xl">Styles</h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {FILTERS.map((filter) => (
             <Button
               key={filter}

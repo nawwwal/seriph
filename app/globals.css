@@ -5,6 +5,7 @@
 @import '../styles/utilities-scrollbar.css';
 /* Shell motion is Framer; settle staggers remain CSS */
 @import '../styles/view-transitions-settle.css';
+@import '../styles/responsive-shell.css';
 
 @import 'tailwindcss';
 @config '../tailwind.config.ts';

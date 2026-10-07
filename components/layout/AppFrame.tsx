@@ -28,7 +28,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     return (
       <div
         data-app-frame="loading"
-        className="flex h-screen flex-col overflow-hidden bg-[var(--paper)]"
+        className="flex h-dvh flex-col overflow-hidden bg-[var(--paper)]"
       >
         {children}
       </div>
@@ -39,7 +39,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
     return (
       <div
         data-app-frame="workspace"
-        className="flex h-screen flex-col overflow-hidden"
+        className="flex h-dvh flex-col overflow-hidden"
       >
         {isDev ? (
           <ShellMotionRuntime>{children}</ShellMotionRuntime>
@@ -51,7 +51,7 @@ export default function AppFrame({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div data-app-frame="public" className="flex min-h-screen flex-col">
+    <div data-app-frame="public" className="flex min-h-dvh flex-col">
       <NavBar />
       {children}
     </div>

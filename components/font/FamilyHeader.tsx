@@ -13,7 +13,7 @@ export default function FamilyHeader({ family }: FamilyHeaderProps) {
 
   return (
     <header className="w-full rule-b pb-4 sm:pb-5 md:pb-6">
-      <h1 className="cap-tight uppercase font-black tracking-tight text-[clamp(40px,6vw,80px)] leading-[0.9]">
+      <h1 className="cap-tight [overflow-wrap:anywhere] uppercase font-black tracking-tight text-[clamp(40px,6vw,80px)] leading-[0.9]">
         {family.name}
       </h1>
       {family.description && (

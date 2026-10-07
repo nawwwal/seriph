@@ -21,18 +21,18 @@ export default function AppShellHeader({
 }) {
   const height = compact
     ? 'h-10 min-h-10'
-    : 'h-20 min-h-20 gap-4 sm:h-24 sm:min-h-24 sm:gap-6';
+    : 'h-28 min-h-28 gap-2 lg:h-24 lg:min-h-24 lg:gap-6';
 
   if (!compact && railOpen) {
     return (
       <MotionHeader
-        className={`flex w-full shrink-0 items-center gap-3 border-b border-[var(--ink)] px-4 sm:px-6 md:grid md:grid-cols-[var(--shell-rail-width)_minmax(0,1fr)] md:gap-0 md:border-b-0 md:px-0 ${height}`}
+        className={`relative z-40 flex flex-col lg:flex-row w-full shrink-0 items-stretch lg:items-center gap-2 border-b border-[var(--ink)] px-4 sm:px-6 lg:grid lg:grid-cols-[var(--shell-rail-width)_minmax(0,1fr)] lg:gap-0 lg:border-b-0 lg:px-0 ${height}`}
         move={move}
       >
-        <div className="flex h-full min-w-0 items-center md:border-r md:border-[var(--ink)] md:px-6">
+        <div className="flex h-12 lg:h-full min-w-0 items-center lg:border-r lg:border-[var(--ink)] lg:px-6">
           <AppShellLogoLink compact={false} move={move} />
         </div>
-        <div className="flex h-full min-w-0 flex-1 items-center md:border-b md:border-[var(--ink)] md:px-6">
+        <div className="flex min-h-0 lg:h-full min-w-0 flex-1 items-center lg:border-b lg:border-[var(--ink)] lg:px-6">
           <MotionSlot show id="header-search" className="relative min-w-0 flex-1">
             <HomeHeaderSearch />
           </MotionSlot>
@@ -43,7 +43,7 @@ export default function AppShellHeader({
 
   return (
     <MotionHeader
-      className={`rule-b flex w-full shrink-0 items-center gap-3 px-4 sm:px-6 ${height}`}
+      className={`relative z-40 rule-b flex w-full shrink-0 items-center gap-3 px-4 sm:px-6 ${height}`}
       move={move}
     >
       <AppShellLogoLink compact={compact} move={move} />
