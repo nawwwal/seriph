@@ -47,8 +47,8 @@ export default function ProfileMenu() {
         )}
       </Menu.Trigger>
       <Menu.Portal>
-        <Menu.Positioner side="bottom" align="end" sideOffset={12} className="z-20">
-          <Menu.Popup className="w-44 rounded-[var(--radius)] bg-[var(--paper)] rule theme-shadow-lg overflow-hidden z-20">
+        <Menu.Positioner side="top" align="end" sideOffset={12} className="z-50">
+          <Menu.Popup className="w-44 rounded-[var(--radius)] bg-[var(--paper)] rule theme-shadow-lg overflow-hidden z-50">
             <div className="px-3 py-2 text-xs uppercase font-bold tracking-wide opacity-70">
               {user.displayName || user.email || 'Account'}
             </div>

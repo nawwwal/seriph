@@ -45,9 +45,13 @@ export async function expireSources(store: SourceTimeoutStore, clock: Clock, tim
 
 export interface FirestoreSourceTimeoutDeps { db: Firestore; enqueue?: (task: ImportTaskPayload) => Promise<unknown>; }
 const millis = (value: unknown) => typeof value === "number" ? value : value && typeof (value as { toMillis?: () => number }).toMillis === "function" ? (value as { toMillis: () => number }).toMillis() : 0;
-const reconcileDispatch = (batch: Pick<TimeoutBatch, "ownerId" | "batchId">): PendingImportDispatch => ({
-  token: `reconcile:${batch.batchId}`, task: { kind: "reconcile_batch", ownerId: batch.ownerId, batchId: batch.batchId, resourceId: batch.batchId },
-});
+const reconcileDispatch = (batch: Pick<TimeoutBatch, "ownerId" | "batchId">): PendingImportDispatch => {
+  const observedAtMs = Date.now();
+  return {
+    token: `reconcile:${batch.batchId}:${observedAtMs}`,
+    task: { kind: "reconcile_batch", ownerId: batch.ownerId, batchId: batch.batchId, resourceId: batch.batchId, observedAtMs },
+  };
+};
 
 export function firestoreSourceTimeoutStore(deps: FirestoreSourceTimeoutDeps): SourceTimeoutStore {
   const enqueue = deps.enqueue ?? ((task) => enqueueImportTask(task));
@@ -107,7 +111,7 @@ export function firestoreSourceTimeoutStore(deps: FirestoreSourceTimeoutDeps): S
         tx.update(batch, { reconciliation: { state: "scheduled", requestedAt: FieldValue.serverTimestamp() }, pendingDispatch: reconcileDispatch(source), updatedAt: FieldValue.serverTimestamp() }); return true;
       });
     },
-    enqueueReconcile: async (batch) => enqueue({ kind: "reconcile_batch", ownerId: batch.ownerId, batchId: batch.batchId, resourceId: batch.batchId }),
+    enqueueReconcile: async (batch) => enqueue({ kind: "reconcile_batch", ownerId: batch.ownerId, batchId: batch.batchId, resourceId: batch.batchId, observedAtMs: Date.now() }),
     async dispatchReconcile(batch) {
       if (!batch.documentPath || !batch.pendingDispatch) return;
       await deliverPendingDispatch(deps.db, deps.db.doc(batch.documentPath), batch.pendingDispatch, enqueue);

@@ -1,9 +1,10 @@
 import type { Firestore, QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { getFirestore } from "firebase-admin/firestore";
 import { getOrCreateQueryEmbedding } from "./queryEmbeddingCache";
-import { applyStructuredFilters, fetchSearchableListing } from "./searchFilters";
+import { analyzeQueryIntent } from "./queryIntent";
+import { applyStructuredFilters, isAliasFamily } from "./searchFilters";
 import { runExactLane, runVectorLane } from "./searchLanes";
-import { rankSearchDocs, toSearchItem } from "./searchResults";
+import { rankSearchDocs } from "./searchResults";
 import { FAMILIES_COLLECTION } from "../storage/familyStore";
 import { catalogFamilyDocCandidates } from "../storage/catalogIdentity";
 import { asNumberVector } from "./vectorValue";
@@ -13,15 +14,29 @@ import type { SearchRequest, SearchResultItem } from "./searchTypes";
 import type { SearchVectorLane } from "./searchDocumentTypes";
 
 async function similarVector(db: Firestore, req: SearchRequest): Promise<number[] | null> {
-  if (!req.similarTo) return null;
-  for (const id of catalogFamilyDocCandidates(req.filters?.ownerId, req.similarTo)) {
+  const target = req.similarTo?.trim();
+  const ownerId = req.filters?.ownerId;
+  if (!target || target === "." || target === ".." || target.includes("/")) return null;
+  for (const id of catalogFamilyDocCandidates(ownerId, target)) {
     const snap = await db.collection(FAMILIES_COLLECTION).doc(id).get();
     if (!snap.exists) continue;
     const family = { ...snap.data(), id: snap.id } as FontFamilyDoc;
-    const stored = asNumberVector(family.text_vec);
+    if ((ownerId && family.ownerId !== ownerId) || isAliasFamily(family)) continue;
+    const stored = asNumberVector(family.text_vec) ?? asNumberVector(family.image_vec);
     if (stored) return stored;
   }
-  return getOrCreateQueryEmbedding({ db, query: req.similarTo });
+  return getOrCreateQueryEmbedding({ db, query: target });
+}
+
+function withQueryConstraints(req: SearchRequest, analyzed: ReturnType<typeof analyzeQueryIntent>): SearchRequest {
+  const filters = { ...req.filters };
+  if (!filters.classifications?.length && analyzed.inferredClass) {
+    filters.classifications = [analyzed.inferredClass];
+  }
+  if ((!filters.variable || filters.variable === "any") && filters.isVariable === undefined && analyzed.requiresVariable) {
+    filters.variable = "variable";
+  }
+  return { ...req, filters };
 }
 
 export async function retrieveSearchDocs(
@@ -32,10 +47,12 @@ export async function retrieveSearchDocs(
   queryVectorPromise?: Promise<number[] | null>,
 ): Promise<SearchResultItem[]> {
   const db = getFirestore();
-  const base = applyStructuredFilters(db.collection(FAMILIES_COLLECTION), req);
+  const analyzed = analyzeQueryIntent(normalizedQuery);
+  const constrainedReq = req.similarTo ? req : withQueryConstraints(req, analyzed);
+  const base = applyStructuredFilters(db.collection(FAMILIES_COLLECTION), constrainedReq);
   const exactPromise = normalizedQuery ? runExactLane(base, normalizedQuery, topK) : Promise.resolve([]);
-  const intent = await intentPromise;
-  const lanes: SearchVectorLane[] = req.similarTo ? ["text"] : lanesForIntent(intent);
+  const intent = (await intentPromise) ?? analyzed.intent;
+  const lanes: SearchVectorLane[] = req.similarTo ? ["image", "text"] : lanesForIntent(intent);
   const vector = req.similarTo
     ? await similarVector(db, req)
     : lanes.length
@@ -44,10 +61,12 @@ export async function retrieveSearchDocs(
   const vectorDocsByLane: Array<{ lane: SearchVectorLane; docs: QueryDocumentSnapshot[] }> = vector
     ? await Promise.all(lanes.map(async (lane) => ({ lane, docs: await runVectorLane(base, lane, vector, topK) })))
     : [];
-  const ranked = rankSearchDocs({
-    vectorDocsByLane, exactDocs: await exactPromise, normalizedQuery, req, topK, weights: weightsForIntent(req.similarTo ? "similar" : intent),
+  return rankSearchDocs({
+    vectorDocsByLane,
+    exactDocs: await exactPromise,
+    normalizedQuery,
+    req: constrainedReq,
+    topK,
+    weights: weightsForIntent(req.similarTo ? "similar" : intent),
   });
-  if (ranked.length) return ranked;
-  const fallback = await fetchSearchableListing(base, req, topK);
-  return fallback.map((family) => toSearchItem(family)).filter((item) => item.name || item.slug);
 }

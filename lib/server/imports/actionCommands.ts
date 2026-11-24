@@ -1,5 +1,5 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
-import { canonicalizeImportTaskPayload, enqueueImportTask, importTaskName, type ImportTaskPayload } from '@/functions/src/imports/tasks/enqueue';
+import { canonicalizeImportTaskPayload, importTaskName, type ImportTaskPayload } from '@/functions/src/imports/tasks/enqueue';
 import type { RetryTarget } from '@/models/import-batch.models';
 
 export type { RetryTarget } from '@/models/import-batch.models';
@@ -27,17 +27,33 @@ const id = (target: RetryTarget) => target.kind === 'source' ? target.sourceId :
 const ref = (target: RetryTarget) => ({ kind: target.kind, id: id(target) });
 const fingerprint = (command: ImportActionCommand | CancelImportBatchCommand) => JSON.stringify({ ownerId: command.ownerId, batchId: command.batchId, target: 'target' in command ? command.target : null });
 const conflict = (code: ActionConflictCode): RetryActionResult => ({ kind: 'conflict', code });
-const applied = (target: ImportBatchActionTarget) => target.applied === true || ['applied', 'committed', 'duplicate'].includes(target.state);
+const applied = (target: ImportBatchActionTarget) => target.applied === true || ['applied', 'committed', 'duplicate', 'complete'].includes(target.state);
 const integer = (value: unknown, fallback: number) => value === undefined ? fallback : Number.isSafeInteger(value) && (value as number) >= 0 ? value as number : null;
 const version = (value: unknown) => Number.isSafeInteger(value) && (value as number) > 0 ? value as number : null;
 const lease = (value: unknown): Date | null | undefined => value === undefined || value === null ? null : value instanceof Date ? Number.isNaN(value.getTime()) ? undefined : value : typeof value === 'number' && Number.isFinite(value) ? new Date(value) : typeof value === 'string' && value.trim() ? (() => { const date = new Date(value); return Number.isNaN(date.getTime()) ? undefined : date; })() : value && typeof (value as { toDate?: unknown }).toDate === 'function' ? lease((value as { toDate: () => unknown }).toDate()) : undefined;
-const payload = (target: ImportBatchActionTarget, command: ImportActionCommand): ImportTaskPayload | null => {
+
+const payload = (target: ImportBatchActionTarget, command: ImportActionCommand, nextAttempt: number): ImportTaskPayload | null => {
   try {
-    const plain: unknown = target.kind === 'source' ? { kind: 'discover_source', ownerId: command.ownerId, batchId: command.batchId, resourceId: target.id } : target.kind === 'item' ? { kind: 'discover_item', ownerId: command.ownerId, batchId: command.batchId, resourceId: target.id } : target.kind === 'family' ? target.payload : null;
-    const task = plain === null ? null : canonicalizeImportTaskPayload(plain); return task && task.ownerId === command.ownerId && task.batchId === command.batchId && task.resourceId === target.id && (target.kind !== 'family' || task.kind === 'apply_family' && task.planVersion === target.planVersion) ? task : null;
+    const plain: unknown = target.kind === 'source'
+      ? { kind: 'discover_source', ownerId: command.ownerId, batchId: command.batchId, resourceId: target.id, retryAttempt: nextAttempt }
+      : target.kind === 'item'
+        ? { kind: 'discover_item', ownerId: command.ownerId, batchId: command.batchId, resourceId: target.id, retryAttempt: nextAttempt }
+        : target.kind === 'family' && target.payload && typeof target.payload === 'object'
+          ? { ...(target.payload as Record<string, unknown>), retryAttempt: nextAttempt }
+          : target.kind === 'enrichment'
+            ? { kind: 'enrich_job', ownerId: command.ownerId, batchId: command.batchId, resourceId: target.id, eventId: `retry-${nextAttempt}`, observedAtMs: Date.now(), dueAtMs: Date.now() }
+            : null;
+    const task = plain === null ? null : canonicalizeImportTaskPayload(plain);
+    return task && task.ownerId === command.ownerId && task.batchId === command.batchId && task.resourceId === target.id && (target.kind !== 'family' || (task.kind === 'apply_family' && task.planVersion === target.planVersion)) ? task : null;
   } catch { return null; }
 };
-const reset = (target: ImportBatchActionTarget, attempts: number) => target.kind === 'source' ? { state: 'uploaded', retryCount: attempts, leaseExpiresAt: null } : target.kind === 'item' ? { state: 'discovered', attempts, leaseExpiresAt: null } : { state: 'pending', status: 'pending', attempts, leaseExpiresAt: null };
+const reset = (target: ImportBatchActionTarget, attempts: number) => target.kind === 'source'
+  ? { state: 'uploaded', retryCount: attempts, leaseExpiresAt: null }
+  : target.kind === 'item'
+    ? { state: 'discovered', attempts, leaseExpiresAt: null }
+    : target.kind === 'enrichment'
+      ? { state: 'queued', attempt: attempts, leaseId: FieldValue.delete(), leaseExpiresAt: FieldValue.delete(), failureCode: FieldValue.delete() }
+      : { state: 'pending', status: 'pending', attempts, leaseExpiresAt: null };
 
 export async function retryImportTarget(store: ImportActionStore, command: ImportActionCommand, now = new Date()): Promise<RetryActionResult> {
   let deliver = false;
@@ -49,15 +65,22 @@ export async function retryImportTarget(store: ImportActionStore, command: Impor
     const target = await tx.getTarget(command.ownerId, command.batchId, ref(command.target), planVersion ?? undefined);
     if (!target || target.ownerId !== command.ownerId || target.batchId !== command.batchId) return conflict('target_not_found');
     if (applied(target)) return conflict('already_applied');
-    if (!['failed', 'error', 'timed_out'].includes(target.state) || (!target.retryable && (target as { error?: { retryable?: unknown } }).error?.retryable !== true)) return conflict('not_retryable');
+    if (!['failed', 'error', 'timed_out'].includes(target.state) || (!target.retryable && (target as { error?: { retryable?: unknown } }).error?.retryable !== true && target.kind !== 'enrichment')) return conflict('not_retryable');
     const attempts = integer(target.attempts, 0); const max = integer(target.maxAttempts, 3); const expires = lease(target.leaseExpiresAt); if (attempts === null || max === null || expires === undefined) return conflict('invalid_retry_state');
     if (attempts >= max) return conflict('attempts_exhausted'); if (expires && expires > now) return conflict('lease_active');
-    const taskPayload = payload(target, command); if (!taskPayload) return conflict(command.target.kind === 'enrichment' ? 'unsupported_target' : 'invalid_retry_state');
-    const task: ImportStageTask = { taskId: importTaskName(taskPayload), payload: taskPayload }; await tx.updateTarget(target, reset(target, attempts + 1)); const queued: RetryActionResult = { kind: 'queued', task };
-    await tx.setReceipt(command.ownerId, command.idempotencyKey, { fingerprint: mark, result: queued, delivered: false }); deliver = true; return queued;
+    const nextAttempt = attempts + 1;
+    const taskPayload = payload(target, command, nextAttempt); if (!taskPayload) return conflict('invalid_retry_state');
+    const task: ImportStageTask = { taskId: importTaskName(taskPayload), payload: taskPayload };
+    await tx.updateTarget(target, reset(target, nextAttempt));
+    const queued: RetryActionResult = { kind: 'queued', task };
+    await tx.setReceipt(command.ownerId, command.idempotencyKey, { fingerprint: mark, result: queued, delivered: false });
+    deliver = true;
+    return queued;
   });
-  if (result.kind === 'conflict' || !deliver) return result; await store.enqueue(result.task.payload);
-  await store.transaction(async (tx) => { const receipt = await tx.getReceipt(command.ownerId, command.idempotencyKey); if (receipt?.fingerprint === fingerprint(command)) await tx.setReceipt(command.ownerId, command.idempotencyKey, { ...receipt, delivered: true }); }); return result;
+  if (result.kind === 'conflict' || !deliver) return result;
+  await store.enqueue(result.task.payload);
+  await store.transaction(async (tx) => { const receipt = await tx.getReceipt(command.ownerId, command.idempotencyKey); if (receipt?.fingerprint === fingerprint(command)) await tx.setReceipt(command.ownerId, command.idempotencyKey, { ...receipt, delivered: true }); });
+  return result;
 }
 
 const terminal = new Set(['succeeded', 'partial', 'needs_review', 'failed', 'canceled']);
@@ -74,17 +97,56 @@ export async function cancelImportBatch(store: ImportActionStore, command: Cance
   });
 }
 
-const owner = (db: Firestore, ownerId: string) => db.collection('users').doc(ownerId); const batch = (db: Firestore, ownerId: string, batchId: string) => owner(db, ownerId).collection('importBatches').doc(batchId);
-const doc = (db: Firestore, ownerId: string, batchId: string, target: { kind: ActionTargetKind; id: string }, planVersion?: number) => target.kind === 'family' && planVersion ? batch(db, ownerId, batchId).collection('plans').doc(String(planVersion)).collection('applyTasks').doc(target.id) : target.kind === 'family' ? null : batch(db, ownerId, batchId).collection(target.kind === 'source' ? 'sources' : target.kind === 'item' ? 'items' : 'enrichmentJobs').doc(target.id);
-const mapped = (data: Record<string, unknown>, ownerId: string, batchId: string, kind: ActionTargetKind, id: string, planVersion?: number): ImportBatchActionTarget => ({ ...data, ownerId, batchId, kind, id, state: String(data.status ?? data.state ?? ''), attempts: kind === 'source' ? data.retryCount : data.attempts, planVersion });
+const isDocId = (value: string) => Boolean(value) && value !== '.' && value !== '..' && !value.includes('/');
+const owner = (db: Firestore, ownerId: string) => {
+  if (!isDocId(ownerId)) throw new Error('Invalid ownerId');
+  return db.collection('users').doc(ownerId);
+};
+const batch = (db: Firestore, ownerId: string, batchId: string) => {
+  if (!isDocId(batchId)) throw new Error('Invalid batchId');
+  return owner(db, ownerId).collection('importBatches').doc(batchId);
+};
+const docRef = (db: Firestore, ownerId: string, batchId: string, target: { kind: ActionTargetKind; id: string }, planVersion?: number) => {
+  if (!isDocId(target.id)) return null;
+  return target.kind === 'family' && planVersion
+    ? batch(db, ownerId, batchId).collection('plans').doc(String(planVersion)).collection('applyTasks').doc(target.id)
+    : target.kind === 'family'
+      ? null
+      : target.kind === 'enrichment'
+        ? db.collection('enrichmentJobs').doc(target.id)
+        : batch(db, ownerId, batchId).collection(target.kind === 'source' ? 'sources' : 'items').doc(target.id);
+};
+const mapped = (data: Record<string, unknown>, ownerId: string, batchId: string, kind: ActionTargetKind, id: string, planVersion?: number): ImportBatchActionTarget => ({
+  ...data,
+  ownerId: kind === 'enrichment' ? String(data.ownerId ?? '') : ownerId,
+  batchId: kind === 'enrichment' ? String(data.batchId ?? '') : batchId,
+  kind,
+  id,
+  state: String(data.status ?? data.state ?? ''),
+  attempts: kind === 'source' ? data.retryCount : kind === 'enrichment' ? data.attempt : data.attempts,
+  planVersion,
+});
 export function createFirestoreImportActionStore(db: Firestore): ImportActionStore {
-  return { transaction: (run) => db.runTransaction(async (tx) => run({
-    getBatch: async (ownerId, batchId) => { const snap = await tx.get(batch(db, ownerId, batchId)); return snap.exists ? { ...snap.data() } : null; },
-    getTarget: async (ownerId, batchId, target, planVersion) => { const ref = doc(db, ownerId, batchId, target, planVersion); const snap = ref && await tx.get(ref); return snap?.exists ? mapped((snap.data() ?? {}) as Record<string, unknown>, ownerId, batchId, target.kind, target.id, planVersion) : null; },
-    listTargets: async (ownerId, batchId, kind, planVersion) => { const parent = kind === 'family' && planVersion ? batch(db, ownerId, batchId).collection('plans').doc(String(planVersion)).collection('applyTasks') : kind === 'family' ? null : batch(db, ownerId, batchId).collection(kind === 'source' ? 'sources' : kind === 'item' ? 'items' : 'enrichmentJobs'); if (!parent) return []; const snap = await tx.get(parent); return snap.docs.map((row) => mapped(row.data(), ownerId, batchId, kind, row.id, planVersion)); },
-    getReceipt: async (ownerId, key) => { const snap = await tx.get(owner(db, ownerId).collection('importBatchActionReceipts').doc(Buffer.from(key).toString('base64url'))); return snap.exists ? snap.data() as ImportActionReceipt : null; },
-    setReceipt: async (ownerId, key, value) => { tx.set(owner(db, ownerId).collection('importBatchActionReceipts').doc(Buffer.from(key).toString('base64url')), { ...value, createdAt: FieldValue.serverTimestamp() }); },
-    updateTarget: async (target, patch) => { const ref = doc(db, target.ownerId, target.batchId, target, target.planVersion); if (ref) tx.update(ref, { ...patch, updatedAt: FieldValue.serverTimestamp() }); },
-    updateBatch: async (ownerId, batchId, patch) => { tx.update(batch(db, ownerId, batchId), { ...patch, updatedAt: FieldValue.serverTimestamp() }); },
-  })), enqueue: (task) => enqueueImportTask(task) };
+  return {
+    transaction: (run) => db.runTransaction(async (tx) => run({
+      getBatch: async (ownerId, batchId) => { const snap = await tx.get(batch(db, ownerId, batchId)); return snap.exists ? { ...snap.data() } : null; },
+      getTarget: async (ownerId, batchId, target, planVersion) => { const ref = docRef(db, ownerId, batchId, target, planVersion); const snap = ref && await tx.get(ref); return snap?.exists ? mapped((snap.data() ?? {}) as Record<string, unknown>, ownerId, batchId, target.kind, target.id, planVersion) : null; },
+      listTargets: async (ownerId, batchId, kind, planVersion) => {
+        if (kind === 'enrichment') { const snap = await tx.get(db.collection('enrichmentJobs').where('batchId', '==', batchId)); return snap.docs.filter((r) => r.data()?.ownerId === ownerId).map((row) => mapped(row.data(), ownerId, batchId, kind, row.id, planVersion)); }
+        const parent = kind === 'family' && planVersion ? batch(db, ownerId, batchId).collection('plans').doc(String(planVersion)).collection('applyTasks') : kind === 'family' ? null : batch(db, ownerId, batchId).collection(kind === 'source' ? 'sources' : 'items');
+        if (!parent) return []; const snap = await tx.get(parent); return snap.docs.map((row) => mapped(row.data(), ownerId, batchId, kind, row.id, planVersion));
+      },
+      getReceipt: async (ownerId, key) => { const snap = await tx.get(owner(db, ownerId).collection('importBatchActionReceipts').doc(Buffer.from(key).toString('base64url'))); return snap.exists ? snap.data() as ImportActionReceipt : null; },
+      setReceipt: async (ownerId, key, value) => { tx.set(owner(db, ownerId).collection('importBatchActionReceipts').doc(Buffer.from(key).toString('base64url')), { ...value, createdAt: FieldValue.serverTimestamp() }); },
+      updateTarget: async (target, patch) => { const ref = docRef(db, target.ownerId, target.batchId, target, target.planVersion); if (ref) tx.update(ref, { ...patch, updatedAt: FieldValue.serverTimestamp() }); },
+      updateBatch: async (ownerId, batchId, patch) => { tx.update(batch(db, ownerId, batchId), { ...patch, updatedAt: FieldValue.serverTimestamp() }); },
+    })),
+    // Deliver via durable pendingDispatch on the batch doc so Functions queueBatchRecovery dispatches it without Vercel needing Cloud Tasks ADC.
+    enqueue: async (task) => {
+      await batch(db, task.ownerId, task.batchId).set({
+        pendingDispatch: { token: `retry:${task.kind}:${task.resourceId}:${task.retryAttempt ?? 1}`, task },
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    },
+  };
 }

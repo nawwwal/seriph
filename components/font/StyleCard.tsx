@@ -1,7 +1,8 @@
 'use client';
 
-import { Font as FontVariant } from '@/models/font.models';
-import { useRegisterFamilyFonts } from '@/lib/hooks/useRegisterFamilyFonts';
+import type { Font as FontVariant } from '@/models/font.models';
+import { quoteCssFontFamily } from '@/lib/utils/cssFont';
+import { isItalicFace } from './typePlaygroundState';
 
 interface StyleCardProps {
   subfamilyName: string;
@@ -10,57 +11,30 @@ interface StyleCardProps {
 }
 
 export default function StyleCard({ subfamilyName, variants, familyName }: StyleCardProps) {
-  // Register fonts for this family to ensure the style card renders correctly
-  useRegisterFamilyFonts({
-    // Minimal object to satisfy hook, avoids prop drilling the whole family
-    id: familyName,
-    name: familyName,
-    normalizedName: familyName,
-    description: '',
-    tags: [],
-    classification: 'Sans Serif' as any,
-    metadata: {},
-    fonts: variants as any,
-    uploadDate: '',
-    lastModified: '',
-  } as any);
   const primaryVariant = variants[0];
+  if (!primaryVariant) return null;
   const weight = primaryVariant.weight || 400;
-  const isItalic = subfamilyName.toLowerCase().includes('italic');
+  const isItalic = isItalicFace(primaryVariant);
   const isVariable = variants.some((v) => v.isVariable);
+  const cssFamily = quoteCssFontFamily(familyName);
 
   return (
     <div className="style-card seriph-card-hover rule rounded-[var(--radius)] overflow-hidden">
-      <div className="p-4 pb-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="uppercase text-xs font-bold opacity-80">{subfamilyName}</div>
-          {isVariable && (
-            <span className="uppercase text-[10px] font-bold rule px-1.5 py-0.5 rounded-[var(--radius)] btn-ink shrink-0">
-              Variable
-            </span>
-          )}
-        </div>
-        <div className="text-sm opacity-70">Weight: {weight}</div>
+      <div className="flex items-center justify-between gap-2 p-4 pb-2">
+        <div className="truncate uppercase text-xs font-bold opacity-80">{subfamilyName}</div>
+        {isVariable ? (
+          <span className="uppercase text-[10px] font-bold rule px-1.5 py-0.5 rounded-[var(--radius)] btn-ink shrink-0">
+            Variable
+          </span>
+        ) : (
+          <span className="shrink-0 text-xs font-bold opacity-60">{weight}</span>
+        )}
       </div>
       <div className="px-4 pb-4">
-        <div
-          className="text-5xl leading-tight"
-          style={{
-            fontFamily: familyName,
-            fontWeight: weight,
-            fontStyle: isItalic ? 'italic' : 'normal',
-          }}
-        >
+        <div className="text-5xl leading-tight" style={{ fontFamily: cssFamily, fontWeight: weight, fontStyle: isItalic ? 'italic' : 'normal' }}>
           Aa
         </div>
-        <div
-          className="mt-2 text-lg"
-          style={{
-            fontFamily: familyName,
-            fontWeight: weight,
-            fontStyle: isItalic ? 'italic' : 'normal',
-          }}
-        >
+        <div className="mt-2 text-lg" style={{ fontFamily: cssFamily, fontWeight: weight, fontStyle: isItalic ? 'italic' : 'normal' }}>
           ABCDEFGHIJKLM
           <br />
           abcdefghijklm

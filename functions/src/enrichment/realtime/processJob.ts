@@ -2,7 +2,7 @@ import { FieldValue, type Firestore } from "firebase-admin/firestore";
 import { enrichmentUpdateForRealtime } from "./analyzeFamily";
 import { suggestFamilyMerges } from "../../ai/jev/merge/suggest";
 import type { FontFamilyDoc } from "../../models/catalog.models";
-import { catalogFamilyDocId } from "../../storage/catalogIdentity";
+import { catalogFamilyDocCandidates, catalogFamilyDocId } from "../../storage/catalogIdentity";
 import { FAMILIES_COLLECTION } from "../../storage/familyStore";
 import { claimEnrichmentJob, enrichmentJobRef, releaseClaimedEnrichmentJob, updateClaimedEnrichmentJob } from "../jobs/jobStore";
 import type { EnrichmentJob } from "../jobs/jobTypes";
@@ -10,12 +10,22 @@ import { retryState } from "../jobs/retryPolicy";
 
 const failureMessage = (error: unknown) => error instanceof Error ? error.message : "realtime_enrichment_failed";
 
+async function resolveFamilyDoc(db: Firestore, ownerId: string, familyId: string) {
+  const col = db.collection(FAMILIES_COLLECTION);
+  for (const id of catalogFamilyDocCandidates(ownerId, familyId)) {
+    const ref = col.doc(id);
+    const snap = await ref.get();
+    if (snap.exists) return { ref, snap };
+  }
+  const ref = col.doc(catalogFamilyDocId(ownerId, familyId));
+  return { ref, snap: await ref.get() };
+}
+
 export async function processRealtimeEnrichmentJob(db: Firestore, job: EnrichmentJob): Promise<boolean> {
   const claimed = await claimEnrichmentJob(db, job.jobId);
   if (!claimed) return false;
-  const familyRef = db.collection(FAMILIES_COLLECTION).doc(catalogFamilyDocId(claimed.ownerId, claimed.familyId));
   const jobRef = enrichmentJobRef(db, claimed.jobId);
-  const familySnap = await familyRef.get();
+  const { ref: familyRef, snap: familySnap } = await resolveFamilyDoc(db, claimed.ownerId, claimed.familyId);
   if (!familySnap.exists) {
     await releaseClaimedEnrichmentJob(db, claimed, "family_missing", { state: "failed", attempt: Number(claimed.attempt ?? 0), delayMs: null });
     return false;
@@ -28,6 +38,7 @@ export async function processRealtimeEnrichmentJob(db: Firestore, job: Enrichmen
   if (!(await updateClaimedEnrichmentJob(db, claimed, "analyzing"))) return false;
   try {
     const update = await enrichmentUpdateForRealtime(db, family);
+    if (update.searchIndexState === "retry") throw new Error("embedding_failed");
     await db.runTransaction(async (tx) => {
       const current = await tx.get(familyRef);
       const currentJob = await tx.get(jobRef);

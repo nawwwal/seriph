@@ -64,7 +64,7 @@ export async function rerankSearchResults(
     const rest = results.slice(RERANK_LIMIT);
     return [...ranked, ...rest].map((item) => {
       if (!debug) return item;
-      const base = item.scoreBreakdown ?? { textSemantic: 0, moodSemantic: 0, useCaseSemantic: 0, exact: 0, quality: 0 };
+      const base = item.scoreBreakdown ?? { textSemantic: 0, moodSemantic: 0, useCaseSemantic: 0, imageSemantic: 0, exact: 0, quality: 0 };
       return { ...item, scoreBreakdown: { ...base, rerank: noulValue(judged, questionId("r", item.id)) } };
     });
   } catch {

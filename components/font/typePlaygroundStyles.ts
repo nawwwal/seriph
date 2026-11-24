@@ -1,4 +1,5 @@
 import type { Font } from '@/models/font.models';
+import { escapeCssString, fontFormatFromUrl } from '@/lib/utils/cssFont';
 import { isItalicFace } from './typePlaygroundState';
 
 export interface PlaygroundFaceOption {
@@ -55,27 +56,15 @@ export function buildPlaygroundFaceOptions(fonts: Font[]): PlaygroundFaceOption[
   });
 }
 
-function cssString(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-}
-
-function cssFormat(font: Font, src: string): string {
-  const extension = (src.split('?')[0].split('.').pop() || '').toLowerCase();
-  if (extension === 'ttf') return 'truetype';
-  if (extension === 'otf') return 'opentype';
-  if (extension) return extension;
-  return font.format === 'TTF' ? 'truetype' : font.format === 'OTF' ? 'opentype' : font.format.toLowerCase();
-}
-
 export function buildPlaygroundFaceRegistration(
   familyName: string,
   font: Font
 ): PlaygroundFaceRegistration | null {
-  const cdn = typeof font.metadata.cdnUrl === 'string' ? font.metadata.cdnUrl : undefined;
-  const src = cdn;
+  const src = typeof font.metadata.cdnUrl === 'string' ? font.metadata.cdnUrl : undefined;
   if (!src) return null;
   const safeName = `${familyName}_${font.id}`.replace(/[^a-z0-9_-]+/gi, '_');
   const cssFamily = `SeriphPlayground_${safeName}`;
-  const rule = `@font-face { font-family: '${cssString(cssFamily)}'; src: url('${cssString(src)}') format('${cssFormat(font, src)}'); font-weight: ${font.weight || 400}; font-style: ${isItalicFace(font) ? 'italic' : 'normal'}; font-display: swap; }`;
+  const format = fontFormatFromUrl(src, font.format);
+  const rule = `@font-face { font-family: '${escapeCssString(cssFamily)}'; src: url('${escapeCssString(src)}') format('${escapeCssString(format)}'); font-weight: ${font.weight || 400}; font-style: ${isItalicFace(font) ? 'italic' : 'normal'}; font-display: swap; }`;
   return { cssFamily, rule, styleId: `seriph-playground-face-${safeName}` };
 }

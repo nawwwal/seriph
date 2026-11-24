@@ -13,7 +13,9 @@ interface BackfillVersion {
   promptVersion: string;
 }
 
-const VECTOR_FIELDS: Record<SearchVectorLane, "text_vec" | "mood_vec" | "use_case_vec"> = {
+type TextLane = Exclude<SearchVectorLane, "image">;
+
+const VECTOR_FIELDS: Record<TextLane, "text_vec" | "mood_vec" | "use_case_vec"> = {
   text: "text_vec",
   mood: "mood_vec",
   useCase: "use_case_vec",
@@ -55,7 +57,7 @@ export async function buildVersionedBackfillUpdate(
     updatedAt: FieldValue.serverTimestamp(),
   };
   const vectors = await Promise.all(
-    (Object.keys(VECTOR_FIELDS) as SearchVectorLane[]).map(async (lane) => ({
+    (Object.keys(VECTOR_FIELDS) as TextLane[]).map(async (lane) => ({
       lane,
       vector: await embedText(buildLaneEmbeddingText(familyForSearch, lane), "RETRIEVAL_DOCUMENT"),
     }))

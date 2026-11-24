@@ -11,6 +11,7 @@ import {
 } from '@/lib/server/familyMutationTypes';
 import { isRecord } from '@/lib/server/familyMutationUtils';
 import { docIdMap, getFamilyInputs, type ResolvedFamilyInput } from '@/lib/server/familyMutationStore';
+import { cleanupSuggestionsForFamilies } from '@/lib/server/mergeSuggestions';
 
 async function listAliasInputsForTargets(db: Firestore, uid: string, targetIds: string[]): Promise<ResolvedFamilyInput[]> {
   const snap = await db.collection(FAMILIES_COLLECTION).where('ownerId', '==', uid).get();
@@ -65,6 +66,7 @@ export async function applyFamilyHardDelete({
   const batch = db.batch();
   for (const familyId of plan.value.docIds) batch.delete(db.collection(FAMILIES_COLLECTION).doc(ids.get(familyId) ?? familyId));
   await batch.commit();
+  await cleanupSuggestionsForFamilies(db, uid, plan.value.docIds).catch(() => undefined);
   await cleanupStorage(storage, plan.value.storagePaths);
   return plan;
 }

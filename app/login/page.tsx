@@ -11,13 +11,17 @@ export default function LoginPage() {
   const { user, isLoading } = useAuth();
 
   useEffect(() => {
+    router.prefetch('/');
+  }, [router]);
+
+  useEffect(() => {
     if (!isLoading && user) router.replace('/');
   }, [isLoading, router, user]);
 
-  if (isLoading || user) {
+  if (user) {
     return (
       <main className="flex-1 flex items-center justify-center p-8">
-        <LoadingSplash text="Loading Seriph..." />
+        <LoadingSplash text="Opening Seriph..." />
       </main>
     );
   }

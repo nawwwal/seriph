@@ -29,16 +29,16 @@ export function intentQuestions(): Record<string, unknown> {
 }
 
 export function lanesForIntent(intent: SearchIntent | undefined): SearchVectorLane[] {
-  if (intent === "vibe") return ["mood", "text"];
-  if (intent === "job") return ["useCase", "text"];
-  if (intent === "name") return [];
-  return ["text"];
+  if (intent === "vibe") return ["mood", "text", "image", "useCase"];
+  if (intent === "job") return ["useCase", "text", "mood", "image"];
+  if (intent === "name") return ["text"];
+  return ["text", "mood", "useCase", "image"];
 }
 
 export function weightsForIntent(intent: SearchIntent | undefined): SearchWeights {
-  if (intent === "name") return { textSemantic: 0.1, moodSemantic: 0, useCaseSemantic: 0, exact: 0.8, quality: 0.1 };
-  if (intent === "vibe") return { textSemantic: 0.2, moodSemantic: 0.5, useCaseSemantic: 0.1, exact: 0.1, quality: 0.1 };
-  if (intent === "job") return { textSemantic: 0.2, moodSemantic: 0.1, useCaseSemantic: 0.5, exact: 0.1, quality: 0.1 };
+  if (intent === "name") return { textSemantic: 0.15, moodSemantic: 0, useCaseSemantic: 0, imageSemantic: 0.05, exact: 0.72, quality: 0.08 };
+  if (intent === "vibe") return { textSemantic: 0.22, moodSemantic: 0.43, useCaseSemantic: 0.15, imageSemantic: 0.12, exact: 0.05, quality: 0.03 };
+  if (intent === "job") return { textSemantic: 0.22, moodSemantic: 0.15, useCaseSemantic: 0.43, imageSemantic: 0.1, exact: 0.07, quality: 0.03 };
   return DEFAULT_SEARCH_WEIGHTS;
 }
 

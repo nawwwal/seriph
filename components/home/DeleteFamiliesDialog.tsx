@@ -23,8 +23,8 @@ export default function DeleteFamiliesDialog({ count, isDeleting, error, onCance
   return (
     <AlertDialog.Root
       open
-      onOpenChange={(open, eventDetails) => {
-        if (open || eventDetails.reason === 'escape-key') return;
+      onOpenChange={(open) => {
+        if (open) return;
         if (!isDeleting) onCancel();
       }}
     >
@@ -56,6 +56,12 @@ export default function DeleteFamiliesDialog({ count, isDeleting, error, onCance
               ref={confirmationRef}
               value={confirmation}
               onChange={(event) => setConfirmation(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && canConfirm) {
+                  event.preventDefault();
+                  onConfirm();
+                }
+              }}
               size="confirm"
               autoFocus
             />

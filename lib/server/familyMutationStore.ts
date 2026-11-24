@@ -18,13 +18,16 @@ export function docToFamilyInput(doc: DocumentSnapshot, familyId = doc.id): Fami
 }
 
 export async function resolveFamilyInput(db: Firestore, uid: string, familyId: string): Promise<ResolvedFamilyInput> {
+  if (!familyId || familyId === '.' || familyId === '..' || familyId.includes('/')) {
+    return { input: { familyId, data: null }, docId: familyId };
+  }
   const collection = db.collection(FAMILIES_COLLECTION);
   const direct = await collection.doc(familyId).get();
   if (direct.exists && direct.data()?.ownerId === uid) {
     return { input: docToFamilyInput(direct, familyId), docId: direct.id };
   }
-  const slugSnap = await collection.where('ownerId', '==', uid).where('slug', '==', familyId).limit(1).get();
-  const slugDoc = slugSnap.docs[0];
+  const slugSnap = await collection.where('ownerId', '==', uid).where('slug', '==', familyId).limit(5).get();
+  const slugDoc = slugSnap.docs.find((doc) => doc.data()?.hidden !== true) ?? slugSnap.docs[0];
   if (slugDoc) return { input: docToFamilyInput(slugDoc, familyId), docId: slugDoc.id };
   return { input: { familyId, data: null }, docId: familyId };
 }

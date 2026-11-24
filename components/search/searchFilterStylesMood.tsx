@@ -1,8 +1,8 @@
 'use client';
 
+import { FilterBar } from '@/components/filters/FilterPrimitives';
 import type { SearchFacets, SearchFilters, SearchStyleRange } from '@/models/search.models';
-import { Button } from '@/components/ui/Button';
-import { facetLabel, toggle } from '@/components/search/searchFilterUtils';
+import { toggle } from '@/components/search/searchFilterUtils';
 
 interface Props {
   filters: SearchFilters;
@@ -12,47 +12,37 @@ interface Props {
 
 export function StylesSection({ filters, facets, onChange }: Props) {
   return (
-    <section>
-      <h3 className="mb-2 text-[10px] font-black uppercase opacity-60">Styles</h3>
+    <FilterBar.Group title="Styles">
       <div className="flex flex-wrap gap-1.5">
         {facets.styleRanges.map((facet) => (
-          <Button
+          <FilterBar.Chip
             key={facet.value}
-            type="button"
-            onClick={() =>
-              onChange({
-                ...filters,
-                styleRanges: toggle(filters.styleRanges, facet.value) as SearchStyleRange[],
-              })
-            }
-            size="filterTiny"
-            tone={filters.styleRanges.includes(facet.value as SearchStyleRange) ? 'active' : 'plain'}
-          >
-            {facetLabel(facet.label, facet.count)}
-          </Button>
+            label={facet.label}
+            count={facet.count}
+            pressed={filters.styleRanges.includes(facet.value as SearchStyleRange)}
+            onClick={() => onChange({ ...filters, styleRanges: toggle(filters.styleRanges, facet.value) as SearchStyleRange[] })}
+          />
         ))}
       </div>
-    </section>
+    </FilterBar.Group>
   );
 }
 
 export function MoodSection({ filters, facets, onChange }: Props) {
+  if (facets.moods.length === 0) return null;
   return (
-    <section>
-      <h3 className="mb-2 text-[10px] font-black uppercase opacity-60">Mood</h3>
+    <FilterBar.Group title="Mood">
       <div className="flex flex-wrap gap-1.5">
         {facets.moods.map((facet) => (
-          <Button
+          <FilterBar.Chip
             key={facet.value}
-            type="button"
+            label={facet.label}
+            count={facet.count}
+            pressed={filters.moods.includes(facet.value)}
             onClick={() => onChange({ ...filters, moods: toggle(filters.moods, facet.value) })}
-            size="filterTiny"
-            tone={filters.moods.includes(facet.value) ? 'active' : 'plain'}
-          >
-            {facetLabel(facet.label, facet.count)}
-          </Button>
+          />
         ))}
       </div>
-    </section>
+    </FilterBar.Group>
   );
 }

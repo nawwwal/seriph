@@ -22,25 +22,21 @@ async function readSearchResponse(response: Response): Promise<unknown> {
   return response.json();
 }
 
-export async function searchFontsForUser({
+export async function searchFontsWithMeta({
   fetcher = fetch,
   getIdToken,
   query,
   filters,
   similarTo,
   signal,
-}: SearchFontsForUserInput): Promise<SearchResultItem[]> {
+}: SearchFontsForUserInput): Promise<{ results: SearchResultItem[]; degraded: boolean }> {
   const idToken = await getIdToken();
   const init: RequestInit = {
     method: 'POST',
-    // text/plain keeps this a simple cross-origin request, avoiding a CORS
-    // preflight. The function verifies the token from the encrypted body.
     headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
     body: JSON.stringify({ q: query, filters, similarTo, idToken }),
   };
   if (signal) init.signal = signal;
-  // The function already authenticates the Firebase bearer token. Calling it
-  // directly avoids a second auth pass and the browser -> Next -> function hop.
   const endpoint = browserSearchFunctionUrl({
     NEXT_PUBLIC_SEARCH_FUNCTION_URL: process.env.NEXT_PUBLIC_SEARCH_FUNCTION_URL,
   });
@@ -54,9 +50,15 @@ export async function searchFontsForUser({
   }
 
   const envelope = isRecord(data) && isRecord(data.data) ? data.data : data;
-  return isRecord(envelope) && Array.isArray(envelope.results)
+  const results = isRecord(envelope) && Array.isArray(envelope.results)
     ? envelope.results.map(normalizeSearchResult).filter((item): item is SearchResultItem => item !== null)
     : [];
+  const degraded = isRecord(envelope) && envelope.degraded === true;
+  return { results, degraded };
+}
+
+export async function searchFontsForUser(input: SearchFontsForUserInput): Promise<SearchResultItem[]> {
+  return (await searchFontsWithMeta(input)).results;
 }
 
 export async function fetchSearchIndexForUser({

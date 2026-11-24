@@ -51,6 +51,9 @@ export default function HomeCatalogCanvas({
           families={view.visibleFamilies}
           mutations={view.mutations}
           mergeSuggestions={view.mergeSuggestions}
+          onDismissSuggestion={view.onDismissSuggestion}
+          hasActiveFilters={view.hasActiveFilters}
+          onResetFilters={view.resetFilters}
           isEmpty={view.isEmpty}
           showShelfSkeleton={view.showShelfSkeleton}
           onImport={view.handleAddFonts}

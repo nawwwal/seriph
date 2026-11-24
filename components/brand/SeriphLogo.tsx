@@ -15,7 +15,7 @@ type SeriphLogoProps = {
 export default function SeriphLogo({
   className,
   label,
-  shared = true,
+  shared = false,
   move,
 }: SeriphLogoProps) {
   const reduce = useReducedMotion();
@@ -23,7 +23,7 @@ export default function SeriphLogo({
 
   const mark = (
     <span
-      className={`inline-flex items-center leading-none ${className ?? ''}`}
+      className={`inline-flex items-center leading-none ${shared ? 'w-full' : (className ?? '')}`}
       role={label ? 'img' : undefined}
       aria-label={label}
     >
@@ -53,7 +53,7 @@ export default function SeriphLogo({
     <motion.span
       layout
       layoutId={LAYOUT.logo}
-      className="inline-flex leading-none"
+      className={`inline-flex leading-none ${className ?? ''}`}
       transition={transition}
     >
       {mark}

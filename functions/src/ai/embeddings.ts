@@ -79,3 +79,28 @@ export async function embedTexts(
     return result;
   }
 }
+
+/** Embed a rendered font specimen PNG into the shared gemini-embedding-2 space. */
+export async function embedImage(
+  imageBuffer: Buffer | null | undefined,
+  caption?: string
+): Promise<number[] | null> {
+  if (!imageBuffer || imageBuffer.byteLength === 0) return null;
+  const parts: Array<Record<string, unknown>> = [
+    { inlineData: { mimeType: 'image/png', data: imageBuffer.toString('base64') } },
+  ];
+  const trimmed = caption?.trim();
+  if (trimmed) parts.push({ text: embedPrompt(trimmed, 'RETRIEVAL_DOCUMENT') });
+  try {
+    const res = await ai().models.embedContent({
+      model: embeddingModelId(),
+      contents: [{ role: 'user', parts }] as never,
+      config: { outputDimensionality: embeddingDims() },
+    });
+    const values = res.embeddings?.[0]?.values;
+    return values && values.length ? values : null;
+  } catch (e: any) {
+    logger.warn('embedImage failed', { message: e?.message });
+    return null;
+  }
+}

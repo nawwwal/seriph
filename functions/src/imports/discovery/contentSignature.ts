@@ -65,6 +65,7 @@ export function detectContentSignature(bytes: Uint8Array): DetectedFormat {
   if (startsWith(head, "wOF2")) return "WOFF2";
   if (startsWith(head, "wOFF")) return "WOFF";
   if (startsWith(head, "OTTO")) return "OTF";
+  if (startsWith(head, "true")) return "TTF";
   if (head.length >= 4 && head[0] === 0 && head[1] === 1 && head[2] === 0 && head[3] === 0) return "TTF";
   if (validEotHeader(head)) return "EOT";
   if (head.length >= 4 && head[0] === 0x50 && head[1] === 0x4b &&

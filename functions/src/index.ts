@@ -7,8 +7,8 @@ function loadTriggers<T extends object>(names: readonly string[], load: () => T)
   return !target || names.includes(target) ? load() : {};
 }
 
-export const { beforecreated, beforesignedin, beforeemailsent } = loadTriggers(
-  ["beforecreated", "beforesignedin", "beforeemailsent"],
+export const { beforecreated, beforeemailsent } = loadTriggers(
+  ["beforecreated", "beforeemailsent"],
   () => require("./triggers/auth") as typeof import("./triggers/auth.js")
 );
 export const { syncEnrichmentBatchStatus } = loadTriggers(

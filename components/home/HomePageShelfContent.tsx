@@ -17,6 +17,9 @@ interface HomePageShelfContentProps {
   families: ShelfFamily[];
   mutations: ShelfMutations;
   mergeSuggestions: FamilyMergeSuggestion[];
+  onDismissSuggestion?: (suggestionId: string) => void;
+  hasActiveFilters?: boolean;
+  onResetFilters?: () => void;
   isEmpty: boolean;
   showShelfSkeleton: boolean;
   onImport: () => void;
@@ -27,6 +30,9 @@ export default function HomePageShelfContent({
   families,
   mutations,
   mergeSuggestions,
+  onDismissSuggestion,
+  hasActiveFilters = false,
+  onResetFilters,
   isEmpty,
   showShelfSkeleton,
   onImport,
@@ -36,13 +42,20 @@ export default function HomePageShelfContent({
 
   return (
     <>
-      <MergeSuggestionsBar suggestions={mergeSuggestions} onReview={mutations.selectFamilies} />
+      <MergeSuggestionsBar
+        suggestions={mergeSuggestions}
+        onReview={mutations.selectFamilies}
+        onDismiss={onDismissSuggestion}
+      />
       <ShelfState
         families={families}
         shelfMode="covers"
-        hasMore={shelf.hasMore}
+        hasMore={!hasActiveFilters && shelf.hasMore}
         isLoadingMore={shelf.isLoadingMore}
         isRefreshing={shelf.isRefreshing}
+        error={shelf.error}
+        hasActiveFilters={hasActiveFilters}
+        onResetFilters={onResetFilters}
         onLoadMore={shelf.loadMore}
         selectionState={mutations.selectionState}
         onEnterSelection={mutations.enterSelection}

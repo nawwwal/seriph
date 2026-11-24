@@ -56,11 +56,14 @@ function withoutAssets(family: Record<string, unknown>, assetIds: readonly strin
 export function firestoreRollbackDependencies(db: Firestore, ownerId: string, batchId: string): Pick<RollbackDependencies, "compareAndSetRollback"> {
   return { compareAndSetRollback: async (input) => db.runTransaction(async (tx) => {
     const mutationRef = importBatchRef(db, ownerId, batchId).collection("mutations").doc(input.mutationId);
-    const familyRef = db.collection("fontfamilies").doc(catalogFamilyDocId(ownerId, input.familyId));
-    const [mutation, family] = await Promise.all([tx.get(mutationRef), tx.get(familyRef)]);
-    const mutationData = mutation.data(); const familyData = family.data();
+    const mutation = await tx.get(mutationRef);
+    const mutationData = mutation.data();
+    const targetSlug = typeof mutationData?.familySlug === "string" && mutationData.familySlug ? mutationData.familySlug : input.familyId;
+    const familyRef = db.collection("fontfamilies").doc(catalogFamilyDocId(ownerId, targetSlug));
+    const family = await tx.get(familyRef);
+    const familyData = family.data();
     const familyIdentity = familyData?.familyId ?? familyData?.slug ?? familyData?.id;
-    const exactFamily = familyIdentity === undefined || familyIdentity === input.familyId || familyIdentity === familyRef.id;
+    const exactFamily = familyIdentity === undefined || familyIdentity === input.familyId || familyIdentity === targetSlug || familyIdentity === familyRef.id;
     if (!mutation.exists || !family.exists || !exactFamily || mutationData?.familyId !== input.familyId || mutationData?.familyVersion !== input.expectedFamilyVersion || familyData?.version !== input.expectedFamilyVersion) return { kind: "conflict" };
     if (mutationData.status === "rolled_back") return { kind: "already_rolled_back" };
     tx.update(familyRef, { ...withoutAssets(familyData, input.removeAssetIds), updatedAt: FieldValue.serverTimestamp() });

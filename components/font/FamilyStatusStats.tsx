@@ -32,15 +32,15 @@ export default function FamilyStatusStats({ family }: { family: FontFamily }) {
 
   return (
     <AppStatusStrip>
-      <dl className="flex min-w-max items-center gap-x-4 whitespace-nowrap pr-2">
+      <dl className="flex min-w-0 items-center gap-x-3 sm:gap-x-4 whitespace-nowrap pr-2">
         {items.map(([label, value], i) => (
           <div
             key={label}
-            className="status-metric-enter flex items-baseline gap-1"
+            className={`status-metric-enter items-baseline gap-1 ${i >= 2 ? 'hidden sm:flex' : 'flex'}`}
             style={{ animationDelay: `${i * TIMING.staggerMs}ms` }}
           >
             <dt className="font-bold opacity-60">{label}</dt>
-            <dd className="max-w-40 truncate font-black" title={value}>
+            <dd className="max-w-28 sm:max-w-40 truncate font-black" title={value}>
               {value}
             </dd>
           </div>

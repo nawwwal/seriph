@@ -3,6 +3,7 @@ import { initializeRemoteConfig } from "../../config/remoteConfig";
 import { isVertexEnabled } from "../../ai/vertex/vertexClient";
 import { batchEnrichEnabled } from "../../ingest/batch/client";
 import { processRealtimeEnrichmentJob } from "../../enrichment/realtime/processJob";
+import { firestoreEnrichmentJobStore } from "../../enrichment/jobs/jobStore";
 import type { EnrichmentJob } from "../../enrichment/jobs/jobTypes";
 import { firestoreSourceTimeoutStore } from "../reconcile/sourceTimeout";
 import { deliverPendingDispatch, pendingDispatch } from "../reconcile/pendingDispatch";
@@ -22,8 +23,11 @@ async function deliverPending(db: Firestore, ref: DocumentReference): Promise<vo
 export async function runEnrichmentJob(payload: ImportTaskPayload): Promise<{ status: 204 | 503 }> {
   if (!due(payload)) return { status: 503 };
   await initializeRemoteConfig();
-  if (!batchEnrichEnabled() || !isVertexEnabled()) return { status: 503 };
   const db = getFirestore();
+  if (!batchEnrichEnabled() || !isVertexEnabled()) {
+    await firestoreEnrichmentJobStore(db).updateState(payload.resourceId, "skipped_disabled");
+    return { status: 204 };
+  }
   const snap = await db.collection("enrichmentJobs").doc(payload.resourceId).get();
   const data = snap.data();
   if (!data || data.ownerId !== payload.ownerId || data.batchId !== payload.batchId) return { status: 204 };

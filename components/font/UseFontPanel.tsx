@@ -1,43 +1,47 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import type { FontFamily } from '@/models/font.models';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Font, FontFamily } from '@/models/font.models';
+import { useOptionalFamilyDetail } from './FamilyDetailContext';
+import { isItalicFace } from './typePlaygroundState';
 import CopyRow from './CopyRow';
 
-/**
- * Surfaces the stable, copyable ways to *use* a font: the CDN woff2 url, the
- * original download, and a Google-Fonts-style CSS <link> (the one-line drop-in).
- */
+function css2Spec(fonts: Font[]): string {
+  if (fonts.length === 0) return '';
+  const hasItalic = fonts.some((font) => isItalicFace(font));
+  if (hasItalic) {
+    const tuples = [...new Set(fonts.map((font) => `${isItalicFace(font) ? 1 : 0},${font.weight || 400}`))]
+      .sort((a, b) => {
+        const [ia, wa] = a.split(',').map(Number);
+        const [ib, wb] = b.split(',').map(Number);
+        return ia! - ib! || wa! - wb!;
+      });
+    return `:ital,wght@${tuples.join(';')}`;
+  }
+  const weights = [...new Set(fonts.map((font) => font.weight || 400))].sort((a, b) => a - b);
+  if (weights.length > 1) return `:wght@${weights.join(';')}`;
+  return weights[0] && weights[0] !== 400 ? `:wght@${weights[0]}` : '';
+}
+
 export default function UseFontPanel({ family }: { family: FontFamily }) {
+  const ctx = useOptionalFamilyDetail();
+  const activeFace = ctx?.state.selectedFace;
   const [copied, setCopied] = useState<string | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (copyTimerRef.current) clearTimeout(copyTimerRef.current); }, []);
 
   const info = useMemo(() => {
     const fonts = family.fonts || [];
-    const cover =
-      fonts.find((f) => f.weight === 400 && !/italic/i.test(f.subfamily || f.style)) || fonts[0];
-    const cdnUrl = (cover?.metadata as any)?.cdnUrl as string | undefined;
-    const downloadUrl = (cover?.metadata as any)?.downloadUrl as string | undefined;
-
+    const target = activeFace ?? fonts.find((f) => f.weight === 400 && !isItalicFace(f)) ?? fonts[0];
+    const cdnUrl = typeof target?.metadata?.cdnUrl === 'string' ? target.metadata.cdnUrl : undefined;
+    const downloadUrl = typeof target?.metadata?.downloadUrl === 'string' ? target.metadata.downloadUrl : undefined;
     let origin = '';
-    try {
-      if (cdnUrl) origin = new URL(cdnUrl).origin;
-    } catch {
-      origin = '';
-    }
-
-    const weights = [...new Set(fonts.map((f) => f.weight).filter(Boolean))].sort((a, b) => a - b);
-    const spec =
-      weights.length > 1
-        ? `:wght@${weights.join(';')}`
-        : weights[0] && weights[0] !== 400
-          ? `:wght@${weights[0]}`
-          : '';
+    try { if (cdnUrl) origin = new URL(cdnUrl).origin; } catch { origin = ''; }
     const familyParam = encodeURIComponent(family.name).replace(/%20/g, '+');
-    const cssHref = origin ? `${origin}/css2?family=${familyParam}${spec}&display=swap` : '';
+    const cssHref = origin ? `${origin}/css2?family=${familyParam}${css2Spec(fonts)}&display=swap` : '';
     const linkSnippet = cssHref ? `<link rel="stylesheet" href="${cssHref}">` : '';
-
     return { cdnUrl, downloadUrl, cssHref, linkSnippet };
-  }, [family]);
+  }, [activeFace, family.fonts, family.name]);
 
   if (!info.cdnUrl && !info.cssHref) return null;
 
@@ -45,29 +49,19 @@ export default function UseFontPanel({ family }: { family: FontFamily }) {
     try {
       await navigator.clipboard.writeText(value);
       setCopied(key);
-      setTimeout(() => setCopied((k) => (k === key ? null : k)), 1500);
-    } catch {
-      /* ignore */
-    }
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied((k) => (k === key ? null : k)), 1500);
+    } catch { /* ignore */ }
   };
 
   return (
     <section className="mt-6 rule p-4 rounded-[var(--radius)]">
-      <h2 className="uppercase font-bold text-sm mb-3">Use this font</h2>
       <div className="space-y-2">
-        {info.linkSnippet && (
-          <CopyRow label="CSS link" value={info.linkSnippet} copyKey="css" copied={copied} onCopy={copy} />
-        )}
-        {info.cdnUrl && (
-          <CopyRow label="woff2 URL" value={info.cdnUrl} copyKey="woff2" copied={copied} onCopy={copy} />
-        )}
+        {info.linkSnippet && <CopyRow label="CSS" value={info.linkSnippet} copyKey="css" copied={copied} onCopy={copy} />}
+        {info.cdnUrl && <CopyRow label="WOFF2" value={info.cdnUrl} copyKey="woff2" copied={copied} onCopy={copy} />}
         {info.downloadUrl && (
-          <div className="flex items-center gap-2">
-            <span className="w-20 sm:w-24 shrink-0 uppercase text-xs font-bold opacity-60">Download</span>
-            <a
-              href={info.downloadUrl}
-              className="uppercase text-xs font-bold rule px-2 py-1.5 rounded-[var(--radius)] btn-ink"
-            >
+          <div className="flex items-center pt-1">
+            <a href={info.downloadUrl} className="uppercase text-xs font-bold rule px-2.5 py-1.5 rounded-[var(--radius)] btn-ink">
               Download original
             </a>
           </div>

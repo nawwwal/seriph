@@ -40,8 +40,13 @@ function addReview(reviews: ReviewItem[], item: PlanItem, reasonCode: string, de
   if (existing) { existing.reasonCodes = [...item.reasonCodes]; existing.details.push(detail); return; }
   reviews.push({ itemId: item.id, reasonCode: item.reasonCodes[0] ?? item.reasonCode, reasonCodes: [...item.reasonCodes], detail, details: [detail] });
 }
-export function buildImportPlan(inputs: readonly PlanInventoryItem[], planVersion = 1): ImportPlan {
-  const ownerId = inputs[0]?.ownerId ?? ""; const batchId = inputs[0]?.batchId ?? "";
+export function buildImportPlan(
+  inputs: readonly PlanInventoryItem[],
+  planVersion = 1,
+  context?: { ownerId?: string; batchId?: string },
+): ImportPlan {
+  const ownerId = inputs[0]?.ownerId ?? context?.ownerId ?? "";
+  const batchId = inputs[0]?.batchId ?? context?.batchId ?? "";
   if (inputs.some((input) => input.ownerId !== ownerId)) throw new Error("all plan items must share ownerId");
   if (inputs.some((input) => input.batchId !== batchId)) throw new Error("all plan items must share batchId");
   const candidates = inputs.map(candidate).sort((a, b) => a.id.localeCompare(b.id));

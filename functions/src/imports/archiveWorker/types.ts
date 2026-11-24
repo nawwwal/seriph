@@ -29,6 +29,7 @@ export interface ArchivePersistence {
   completeArchive: (input: { ownerId: string; batchId: string; itemId: string; expectedChildren: number; reviews: ArchiveDecision[] }) => Promise<void>;
   transitionSource: (source: RegisteredArchiveSource, from: "uploaded" | "discovering", to: "discovering" | "discovered" | "failed") => Promise<void>;
   updateArchiveMetadata: (input: { ownerId: string; batchId: string; itemId: string; sha256: string; byteSize: number }) => Promise<void>;
+  requestFinalization?: (ownerId: string, batchId: string) => Promise<unknown>;
 }
 export interface ArchiveWorkerDependencies { source: ArchiveSourceReader; parser?: ArchiveParser; lease: ArchiveLease; persistence: ArchivePersistence; limits: ArchiveLimits; isCanceled?: (ownerId: string, batchId: string) => Promise<boolean>; enqueueReconcile?: (input: { ownerId: string; batchId: string }) => Promise<unknown>; queueName?: string; oversizedMinBytes?: number; oversizedMaxBytes?: number; }
 export interface ArchiveWorkerResult { status: 204 | 400 | 413 | 503; body?: { code: string; retryable?: boolean }; }

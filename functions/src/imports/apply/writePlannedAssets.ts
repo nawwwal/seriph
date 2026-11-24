@@ -6,7 +6,9 @@ import type { AssetClaimInput } from "../store/assetClaimStore";
 import { cdnUrl, originalPath, publicBucketName, servedPath } from "../../config/catalogConfig";
 import { toWoff2, type FontFormat } from "../../storage/transcode";
 
-export interface PlannedAssetClaim extends AssetClaimInput { bytes?: Buffer; sourcePath?: string; originalName?: string; }
+import type { DiscoveredFontMetadata } from "../discovery/inventory";
+
+export interface PlannedAssetClaim extends AssetClaimInput { bytes?: Buffer; sourcePath?: string; originalName?: string; sourceId?: string; fontMetadata?: DiscoveredFontMetadata; }
 export interface WrittenPlannedAsset extends PlanAsset {
   originalPath: string; servedPath: string; originalUrl: string; servedUrl: string; originalName: string; servedName: string;
   bytes: Buffer; servedBytes: Buffer; source: PlannedAssetClaim;

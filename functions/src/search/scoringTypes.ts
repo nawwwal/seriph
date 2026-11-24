@@ -4,6 +4,7 @@ export interface SearchWeights {
   textSemantic: number;
   moodSemantic: number;
   useCaseSemantic: number;
+  imageSemantic: number;
   exact: number;
   quality: number;
 }
@@ -12,6 +13,7 @@ export interface SearchScoreBreakdown {
   textSemantic: number;
   moodSemantic: number;
   useCaseSemantic: number;
+  imageSemantic: number;
   exact: number;
   quality: number;
   rerank?: number;
@@ -23,17 +25,19 @@ export interface SearchCandidate {
 }
 
 export const DEFAULT_SEARCH_WEIGHTS: SearchWeights = {
-  textSemantic: 0.45,
-  moodSemantic: 0.2,
+  textSemantic: 0.35,
+  moodSemantic: 0.25,
   useCaseSemantic: 0.2,
-  exact: 0.1,
-  quality: 0.05,
+  imageSemantic: 0.1,
+  exact: 0.07,
+  quality: 0.03,
 };
 
 export const EMPTY_SCORES: SearchScoreBreakdown = {
   textSemantic: 0,
   moodSemantic: 0,
   useCaseSemantic: 0,
+  imageSemantic: 0,
   exact: 0,
   quality: 0,
 };

@@ -26,7 +26,7 @@ export async function listShelfFamilies({
     .where('hidden', '==', false)
     .orderBy('name', 'asc')
     .orderBy(FieldPath.documentId())
-    .select('slug', 'name', 'ownerId', 'category', 'classification', 'updatedAt', 'styleCount', 'isVariable', 'axes', 'coverFace', 'status', 'hidden')
+    .select('slug', 'name', 'ownerId', 'category', 'classification', 'searchClass', 'enrichment', 'moods', 'updatedAt', 'styleCount', 'isVariable', 'axes', 'coverFace', 'status', 'hidden')
     .limit(limit + 1);
   let scanCursor = cursor;
   if (scanCursor) q = q.startAfter(scanCursor.sortValue, scanCursor.id);
@@ -39,7 +39,7 @@ export async function listShelfFamilies({
     const snap = await db.collection(FAMILIES_COLLECTION)
       .where('ownerId', '==', uid)
       .where('hidden', '==', false)
-      .select('slug', 'name', 'ownerId', 'category', 'classification', 'updatedAt', 'styleCount', 'isVariable', 'axes', 'coverFace', 'status', 'hidden')
+      .select('slug', 'name', 'ownerId', 'category', 'classification', 'searchClass', 'enrichment', 'moods', 'updatedAt', 'styleCount', 'isVariable', 'axes', 'coverFace', 'status', 'hidden')
       .get();
     const sorted = sortCatalogDocsByName(snap.docs);
     docs = scanCursor

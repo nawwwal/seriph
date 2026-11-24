@@ -49,21 +49,15 @@ export function MotionBody({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div
-      className="h-full min-h-0 min-w-0 w-full max-w-full"
-      style={{ perspective: params.depth.perspectivePx }}
+    <motion.div
+      className="h-full min-h-0 min-w-0 w-full max-w-full overflow-auto"
+      custom={nav}
+      variants={variants}
+      initial="initial"
+      animate="animate"
     >
-      <motion.div
-        className="h-full min-h-0 min-w-0 w-full max-w-full overflow-auto"
-        custom={nav}
-        variants={variants}
-        initial="initial"
-        animate="animate"
-        style={{ transformStyle: 'preserve-3d' }}
-      >
-        {children}
-      </motion.div>
-    </div>
+      {children}
+    </motion.div>
   );
 }
 
@@ -84,7 +78,7 @@ export function MotionSlot({
   const params = useShellMotionParams();
   if (!show) return null;
   const enter = {
-    duration: params.timing.enterMs / 1000,
+    duration: Math.min(0.18, params.timing.enterMs / 1000),
     delay: delayEnter ? params.timing.actionsDelayMs / 1000 : 0,
     ease: [0.23, 1, 0.32, 1] as [number, number, number, number],
   };
@@ -92,8 +86,8 @@ export function MotionSlot({
     <motion.div
       key={id}
       className={className}
-      initial={reduce ? false : { opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
+      initial={reduce ? false : { opacity: 0, transform: 'translateY(4px)' }}
+      animate={{ opacity: 1, transform: 'translateY(0px)' }}
       transition={reduce ? { duration: 0 } : enter}
     >
       {children}

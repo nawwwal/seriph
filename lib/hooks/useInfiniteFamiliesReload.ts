@@ -60,6 +60,7 @@ export function useInfiniteFamiliesReload(args: ReloadArgs) {
     setState(stateFromShelfCache(user.uid, cached));
     const tokenPromise = user.getIdToken();
     const getIdToken = () => tokenPromise;
+    const eagerFirstPage = cached ? null : fetchFamilyPage({ getIdToken, cursor: null, signal: controller.signal });
 
     const persisted = await readPersistentShelfCache(user.uid);
     if (requestId.current !== id) return;
@@ -68,7 +69,7 @@ export function useInfiniteFamiliesReload(args: ReloadArgs) {
       setState(stateFromShelfCache(user.uid, cached));
     }
 
-    if (cached) {
+    if (cached && !eagerFirstPage) {
       try {
         const stats = await fetchShelfStats({ getIdToken, signal: controller.signal });
         if (requestId.current !== id) return;
@@ -85,12 +86,11 @@ export function useInfiniteFamiliesReload(args: ReloadArgs) {
     }
 
     try {
-      const page = await fetchFamilyPage({ getIdToken, cursor: null, signal: controller.signal });
+      const page = await (eagerFirstPage ?? fetchFamilyPage({ getIdToken, cursor: null, signal: controller.signal }));
       if (requestId.current !== id) return;
-      const refreshedPage = mergeShelfRefreshPage(cached, cached?.stats ? { ...page, stats: cached.stats } : page);
+      const refreshedPage = mergeShelfRefreshPage(cached, page);
       writeShelfFamilyCache(user.uid, refreshedPage);
       setState(stateFromShelfPage(user.uid, refreshedPage));
-      if (page.stats) synchronizeShelfStats(user.uid, page.stats, setState);
     } catch (error) {
       if (isAbortError(error) || requestId.current !== id) return;
       setState((current) => ({

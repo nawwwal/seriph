@@ -1,14 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FontFamily } from '@/models/font.models';
 import { Button } from '@/components/ui/Button';
 
 export default function FamilyFooter({ family }: { family: FontFamily }) {
   const [shareLabel, setShareLabel] = useState<'Share' | 'Copied' | 'Failed'>('Share');
   const [downloadLabel, setDownloadLabel] = useState<'Download' | 'Preparing…' | 'Failed'>('Download');
+  const shareTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const downloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (shareTimerRef.current) clearTimeout(shareTimerRef.current);
+    if (downloadTimerRef.current) clearTimeout(downloadTimerRef.current);
+  }, []);
+
   const meta = family.metadata;
   const history = meta?.historical_context;
+  const metadataValues = [
+    meta?.foundry,
+    meta?.subClassification,
+    meta?.license?.type,
+    family.fonts[0]?.metadata?.version,
+    family.uploadDate ? new Date(family.uploadDate).toLocaleDateString() : undefined,
+    history?.period,
+    history?.cultural_influence?.join(', '),
+  ].filter((v): v is string => Boolean(v && v.trim()));
 
   const share = async () => {
     try {
@@ -17,56 +33,35 @@ export default function FamilyFooter({ family }: { family: FontFamily }) {
     } catch {
       setShareLabel('Failed');
     }
-    setTimeout(() => setShareLabel('Share'), 1500);
+    if (shareTimerRef.current) clearTimeout(shareTimerRef.current);
+    shareTimerRef.current = setTimeout(() => setShareLabel('Share'), 1500);
   };
 
   const download = async () => {
     setDownloadLabel('Preparing…');
+    let failed = false;
     try {
       const { downloadFamilyZip } = await import('@/lib/utils/downloadFamilyZip');
       const ok = await downloadFamilyZip(family);
+      failed = !ok;
       setDownloadLabel(ok ? 'Download' : 'Failed');
     } catch {
+      failed = true;
       setDownloadLabel('Failed');
     }
-    if (downloadLabel === 'Failed') setTimeout(() => setDownloadLabel('Download'), 1500);
+    if (failed) {
+      if (downloadTimerRef.current) clearTimeout(downloadTimerRef.current);
+      downloadTimerRef.current = setTimeout(() => setDownloadLabel((cur) => (cur === 'Failed' ? 'Download' : cur)), 1500);
+    }
   };
 
   return (
     <footer className="mt-10 rule-t pt-4 sm:pt-5 md:pt-6 text-sm sm:text-base">
-      <div className="grid sm:grid-cols-3 gap-4">
-        <div className="rule-r pr-4">
-          <div className="uppercase font-bold">About</div>
-          <p className="mt-2">{family.description || 'No description yet. Once analysis runs, this family earns its own write-up.'}</p>
-          {history && (
-            <div className="mt-3 space-y-1">
-              {history.period && <p className="text-xs opacity-70"><span className="font-bold">Period:</span> {history.period}</p>}
-              {history.cultural_influence && history.cultural_influence.length > 0 && (
-                <p className="text-xs opacity-70"><span className="font-bold">Influences:</span> {history.cultural_influence.join(', ')}</p>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="rule-r pr-4">
-          <div className="uppercase font-bold">Details</div>
-          <div className="mt-2 text-sm space-y-1">
-            {family.uploadDate && <p><span className="font-bold">Uploaded:</span> {new Date(family.uploadDate).toLocaleDateString()}</p>}
-            {family.fonts[0]?.metadata?.version && <p><span className="font-bold">Version:</span> {family.fonts[0].metadata.version}</p>}
-            {meta?.foundry && <p><span className="font-bold">Foundry:</span> {meta.foundry}</p>}
-            {meta?.subClassification && <p><span className="font-bold">Style:</span> {meta.subClassification}</p>}
-            {meta?.license && <p><span className="font-bold">License:</span> {meta.license.type}</p>}
-          </div>
-        </div>
-        <div>
-          <div className="uppercase font-bold">Actions</div>
-          <div className="mt-2 flex gap-2">
-            <Button onClick={download} disabled={downloadLabel === 'Preparing…'} size="compact">
-              {downloadLabel}
-            </Button>
-            <Button onClick={share} size="compact">
-              {shareLabel}
-            </Button>
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {metadataValues.length > 0 && <p className="text-sm opacity-75">{metadataValues.join(' · ')}</p>}
+        <div className="flex gap-2 shrink-0 sm:ml-auto">
+          <Button onClick={download} disabled={downloadLabel === 'Preparing…'} size="compact">{downloadLabel}</Button>
+          <Button onClick={share} size="compact">{shareLabel}</Button>
         </div>
       </div>
     </footer>

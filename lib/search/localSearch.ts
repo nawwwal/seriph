@@ -25,7 +25,13 @@ function cheapNameScore(query: PreparedSearchQuery, item: PreparedSearchItem): n
   return 0;
 }
 
+function conflictsWithStrictSerifQuery(query: PreparedSearchQuery, item: SearchIndexItem): boolean {
+  const wantsSerifOnly = /\bserif\b/i.test(query.text) && !/\bsans\b/i.test(query.text);
+  return wantsSerifOnly && /sans/i.test(item.classification || '');
+}
+
 function cheapScore(query: PreparedSearchQuery, item: PreparedSearchItem): number {
+  if (conflictsWithStrictSerifQuery(query, item.item)) return 0;
   const primary = tokenScore(query.tokens, item.primaryTokens, item.primarySet);
   const secondary = tokenScore(query.tokens, item.secondaryTokens, item.secondarySet);
   const lexical = tokenScore(query.tokens, item.allTokens, item.allSet);
@@ -45,6 +51,7 @@ function bestTokenDice(query: PreparedSearchQuery, tokens: string[], item: Prepa
 }
 
 function fuzzyScore(query: PreparedSearchQuery, item: PreparedSearchItem): number {
+  if (conflictsWithStrictSerifQuery(query, item.item)) return 0;
   const name = Math.max(diceFromTrigrams(query.grams, item.nameGrams), diceFromTrigrams(query.grams, item.slugGrams)) * 0.78;
   const tokens = Math.max(
     bestTokenDice(query, item.primaryTokens, item) * 0.72,

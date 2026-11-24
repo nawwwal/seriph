@@ -1,5 +1,6 @@
 import type { Font, VariableAxis } from '@/models/font.models';
-import type { FacePlaygroundState } from './typePlaygroundState';
+import { quoteCssFontFamily } from '@/lib/utils/cssFont';
+import { isItalicFace, type FacePlaygroundState } from './typePlaygroundState';
 import {
   FONT_SIZE_RANGE,
   letterSpacingCss,
@@ -36,10 +37,6 @@ export function buildVariationSettings(
   return axes.map((axis) => `'${axis.tag}' ${values[axis.tag] ?? axis.defaultValue}`).join(', ');
 }
 
-function cssString(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-}
-
 export function serializePlaygroundCss({
   familyName,
   face,
@@ -49,13 +46,18 @@ export function serializePlaygroundCss({
   face: Font;
   state: FacePlaygroundState;
 }): string {
+  const axes = face.isVariable ? face.variableAxes : undefined;
+  const weight = axes?.length ? Math.round(state.axisValues.wght ?? face.weight ?? 400) : face.weight || 400;
+  const dynamicItal = Boolean(axes?.some((axis) => axis.tag === 'ital') && (state.axisValues.ital ?? 0) >= 0.5);
   const declarations = [
-    `font-family: '${cssString(familyName)}';`,
+    `font-family: ${quoteCssFontFamily(familyName)};`,
+    `font-weight: ${weight};`,
+    `font-style: ${dynamicItal || isItalicFace(face) ? 'italic' : 'normal'};`,
     `font-size: ${clampFontSize(state.fontSize)}px;`,
     `letter-spacing: ${letterSpacingCss(state.letterSpacingValue, state.letterSpacingMode)};`,
     `line-height: ${lineHeightCss(state.lineHeightValue, state.lineHeightMode)};`,
   ];
-  const variations = buildVariationSettings(face.variableAxes, state.axisValues);
+  const variations = buildVariationSettings(axes, state.axisValues);
   if (variations) declarations.push(`font-variation-settings: ${variations};`);
   return declarations.join('\n');
 }

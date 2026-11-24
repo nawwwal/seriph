@@ -3,7 +3,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import { db } from "../bootstrap/adminApp";
 import { resolveImportTriggerBucket } from "../imports/config/sourceTriggerConfig";
-import { getConfigValue } from "../config/remoteConfig";
+import { getConfigValue, initializeRemoteConfig } from "../config/remoteConfig";
 import { RC_DEFAULTS, RC_KEYS } from "../config/rcKeys";
 import { confirmFinalizedSource, firestoreSourceLifecycleStore } from "../imports/reconcile/sourceFinalized";
 import { dispatchImportTask, productionImportStages } from "../imports/tasks/dispatch";
@@ -15,6 +15,7 @@ import { IMPORT_SOURCE_FINALIZED_OPTIONS, IMPORT_TASK_WORKER_OPTIONS } from "../
 const sourceBucket = resolveImportTriggerBucket(process.env);
 
 export const importTaskWorker = onRequest(IMPORT_TASK_WORKER_OPTIONS, async (req, res) => {
+  await initializeRemoteConfig().catch(() => undefined);
   const cloudTaskName = req.get("X-CloudTasks-TaskName");
   const result = await dispatchImportTask({ body: req.body, cloudTaskName }, { stages: productionImportStages });
   if (result.status === 503) logger.error("Import task failed", { cloudTaskName, body: req.body });
@@ -24,6 +25,7 @@ export const importTaskWorker = onRequest(IMPORT_TASK_WORKER_OPTIONS, async (req
 export const confirmFinalizedImportSource = onObjectFinalized({ ...IMPORT_SOURCE_FINALIZED_OPTIONS, bucket: sourceBucket }, async (event) => {
   const data = event.data;
   if (!data?.name || !data.generation || data.size === undefined) return { kind: "ignored" } as const;
+  await initializeRemoteConfig().catch(() => undefined);
   const prefix = getConfigValue(RC_KEYS.intakeBucketPath, RC_DEFAULTS[RC_KEYS.intakeBucketPath]);
   return confirmFinalizedSource({ name: data.name, generation: String(data.generation), size: Number(data.size) },
     firestoreSourceLifecycleStore({ db, enqueue: enqueueImportTask }), prefix);

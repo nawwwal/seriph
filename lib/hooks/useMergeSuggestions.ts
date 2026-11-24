@@ -1,13 +1,22 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { fetchMergeSuggestions, type FamilyMergeSuggestion } from '@/lib/api/mergeSuggestions';
-import type { ShelfFamily } from '@/models/shelf.models';
+import {
+  dismissMergeSuggestionRequest,
+  fetchMergeSuggestions,
+  type FamilyMergeSuggestion,
+} from '@/lib/api/mergeSuggestions';
 
-export function useMergeSuggestions(user: User | null, families: ShelfFamily[]) {
+export function useMergeSuggestions(user: User | null) {
   const [suggestions, setSuggestions] = useState<FamilyMergeSuggestion[]>([]);
-  const visibleIds = useMemo(() => new Set(families.map((family) => family.id)), [families]);
+
+  const reload = useCallback(() => {
+    if (!user) return;
+    fetchMergeSuggestions(() => user.getIdToken())
+      .then((items) => setSuggestions(items))
+      .catch(() => setSuggestions([]));
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -18,5 +27,15 @@ export function useMergeSuggestions(user: User | null, families: ShelfFamily[]) 
     return () => { active = false; };
   }, [user]);
 
-  return suggestions.filter((item) => item.slugs.every((slug) => visibleIds.has(slug) || families.some((family) => family.normalizedName === slug)));
+  const dismiss = useCallback(async (suggestionId: string) => {
+    if (!user) return;
+    setSuggestions((prev) => prev.filter((item) => item.id !== suggestionId));
+    try {
+      await dismissMergeSuggestionRequest(() => user.getIdToken(), suggestionId);
+    } catch {
+      reload();
+    }
+  }, [reload, user]);
+
+  return useMemo(() => ({ suggestions, dismiss, reload }), [suggestions, dismiss, reload]);
 }

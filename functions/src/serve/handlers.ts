@@ -26,7 +26,8 @@ export async function css2Handler(req: Request, res: Response): Promise<void> {
   }
 
   const { families, display } = parseCss2Query(queryString(req));
-  const slugs = [...new Set(families.map((f) => f.slug))];
+  const cappedFamilies = families.slice(0, 20);
+  const slugs = [...new Set(cappedFamilies.map((f) => f.slug))];
   if (slugs.length === 0) {
     res.status(400).set('Content-Type', 'text/plain').send('/* missing family= */');
     return;
@@ -34,7 +35,7 @@ export async function css2Handler(req: Request, res: Response): Promise<void> {
 
   const db = getFirestore();
   const bySlug = await loadCssFamiliesBySlug(db, slugs);
-  const css = buildCss2(families, display, (slug) => bySlug.get(slug));
+  const css = buildCss2(cappedFamilies, display, (slug) => bySlug.get(slug));
   res
     .status(200)
     .set('Content-Type', 'text/css; charset=utf-8')
@@ -57,7 +58,13 @@ export async function serveFontHandler(req: Request, res: Response): Promise<voi
     return;
   }
 
-  const path = decodeURIComponent(req.path || '');
+  let path: string;
+  try {
+    path = decodeURIComponent(req.path || '');
+  } catch {
+    res.status(400).json({ error: 'Invalid URL encoding' });
+    return;
+  }
   const m = path.match(/\/(s|d)\/(.+)$/);
   if (!m || path.includes('..')) {
     res.status(400).json({ error: 'Invalid path' });
@@ -77,7 +84,8 @@ export async function serveFontHandler(req: Request, res: Response): Promise<voi
   res.set('Content-Type', CONTENT_TYPES[ext] || 'application/octet-stream');
   res.set('Cache-Control', 'public, max-age=31536000, immutable');
   if (kind === 'd') {
-    res.set('Content-Disposition', `attachment; filename="${storagePath.split('/').pop()}"`);
+    const safeFilename = (storagePath.split('/').pop() || 'font').replace(/[\u0000-\u001f\u007f"\r\n;\\]/g, '_');
+    res.set('Content-Disposition', `attachment; filename="${safeFilename}"`);
   }
 
   file
@@ -85,6 +93,7 @@ export async function serveFontHandler(req: Request, res: Response): Promise<voi
     .on('error', (err) => {
       logger.error('serveFont stream error', { storagePath, message: err.message });
       if (!res.headersSent) res.status(500).json({ error: 'Stream error' });
+      else res.end();
     })
     .pipe(res);
 }

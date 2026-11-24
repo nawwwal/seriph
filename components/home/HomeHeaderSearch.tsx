@@ -37,7 +37,13 @@ export default function HomeHeaderSearch() {
   };
 
   return (
-    <form onSubmit={submit} className="relative min-w-0 flex-1">
+    <form
+      onSubmit={submit}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
+      }}
+      className="relative min-w-0 flex-1"
+    >
       <label className="flex min-w-0 items-center gap-3">
         <Search size={20} className="shrink-0 opacity-45" aria-hidden="true" />
         <span
@@ -49,14 +55,17 @@ export default function HomeHeaderSearch() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onFocus={() => setFocused(true)}
-            onBlur={() => window.setTimeout(() => setFocused(false), 120)}
             onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                setFocused(false);
+                return;
+              }
               if (event.key !== 'Enter') return;
               event.preventDefault();
               commit();
             }}
             aria-label="Search your type library"
-            className="header-search-input w-full relative z-10 col-start-1 row-start-1 min-w-0 border-0 bg-transparent text-xl font-bold uppercase not-italic leading-none tracking-tight text-[var(--ink)] outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none sm:text-3xl md:text-4xl"
+            className="header-search-input theme-focus-ring w-full relative z-10 col-start-1 row-start-1 min-w-0 rounded-[var(--radius)] border-0 bg-transparent text-xl font-bold uppercase not-italic leading-none tracking-tight text-[var(--ink)] outline-none ring-0 sm:text-3xl md:text-4xl"
           />
           {!query ? (
             <span

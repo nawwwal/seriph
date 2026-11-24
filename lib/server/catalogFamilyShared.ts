@@ -21,14 +21,20 @@ export async function findOwnedTopLevelFamily(
   uid: string,
   familyId: string
 ): Promise<DocumentSnapshot | null> {
-  const canonical = await db.collection(FAMILIES_COLLECTION).doc(canonicalFamilyDocId(uid, familyId)).get();
+  if (!familyId || familyId === '.' || familyId === '..' || familyId.includes('/')) return null;
+  const canonicalId = canonicalFamilyDocId(uid, familyId);
+  const canonical = await db.collection(FAMILIES_COLLECTION).doc(canonicalId).get();
   if (canonical.exists && canonical.data()?.ownerId === uid) return canonical;
+  if (canonicalId !== familyId) {
+    const direct = await db.collection(FAMILIES_COLLECTION).doc(familyId).get();
+    if (direct.exists && direct.data()?.ownerId === uid) return direct;
+  }
   const slugSnap = await db.collection(FAMILIES_COLLECTION)
     .where('ownerId', '==', uid)
     .where('slug', '==', familyId)
-    .limit(1)
+    .limit(5)
     .get();
-  return slugSnap.docs[0] ?? null;
+  return slugSnap.docs.find((doc) => doc.data()?.hidden !== true) ?? slugSnap.docs[0] ?? null;
 }
 
 export async function findReadableFamily(db: Firestore, uid: string, familyId: string): Promise<DocumentSnapshot | null> {

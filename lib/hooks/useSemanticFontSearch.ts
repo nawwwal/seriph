@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { searchFontsForUser } from '@/lib/search/searchApi';
+import { searchFontsWithMeta } from '@/lib/search/searchApi';
 import { buildSemanticSearchCacheKey, readPersistentSemanticSearch, writePersistentSemanticSearch } from '@/lib/search/persistentSemanticSearch';
 import { searchFiltersKey } from '@/lib/search/searchFilterUrl';
 import type { SearchFilters, SearchResultItem } from '@/models/search.models';
 
-const REMOTE_SEARCH_DEBOUNCE_MS = 0;
+const REMOTE_SEARCH_DEBOUNCE_MS = 220;
 
 interface SemanticSearchState {
   query: string;
@@ -40,8 +40,8 @@ export function useSemanticFontSearch(query: string, user: User | null, filters:
       readPersistentSemanticSearch(searchUser.uid, cacheKey)
         .then(async (cached) => {
           if (cached) return cached;
-          const results = await searchFontsForUser({ getIdToken: () => searchUser.getIdToken(), query, filters, signal: controller.signal });
-          void writePersistentSemanticSearch(searchUser.uid, cacheKey, libraryRevision, results);
+          const { results, degraded } = await searchFontsWithMeta({ getIdToken: () => searchUser.getIdToken(), query, filters, signal: controller.signal });
+          if (!degraded) void writePersistentSemanticSearch(searchUser.uid, cacheKey, libraryRevision, results);
           return results;
         })
         .then((results) => {
@@ -68,5 +68,5 @@ export function useSemanticFontSearch(query: string, user: User | null, filters:
     };
   }, [filters, filtersKey, libraryRevision, query, user]);
 
-  return state;
+  return query.length < 3 || !user ? null : state;
 }

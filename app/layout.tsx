@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import { League_Spartan } from "next/font/google";
-import { InterfaceKit } from "interface-kit/react";
-import { Agentation } from "agentation";
 import "./globals.css";
 import Script from "next/script";
+import DevOverlays from "@/components/dev/DevOverlays";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import AppFrame from "@/components/layout/AppFrame";
 import { AuthProvider } from "@/lib/contexts/AuthContext";
@@ -65,8 +64,7 @@ export default function RootLayout({
               <AppFrame>
                 {children}
               </AppFrame>
-              {isDevelopment && <InterfaceKit />}
-              {isDevelopment && <Agentation />}
+              {isDevelopment && <DevOverlays />}
               <ImportOverlay />
             </UploadProvider>
           </AuthProvider>

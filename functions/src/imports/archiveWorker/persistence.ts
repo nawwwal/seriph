@@ -8,6 +8,7 @@ import { importBatchRef, importSourceRef } from "../store/paths";
 import { createItemOnce, completeArchiveIfReady, importItemRef, markArchiveInventoryDurableOnce } from "../store/itemStore";
 import { reserveArchiveBytesOnce } from "../store/batchStore";
 import { transitionSource, type SourceInput } from "../store/sourceStore";
+import { requestPlanFinalization } from "../planning/finalizePlan";
 import { getImportConfig } from "../config/importConfig";
 import type { ArchiveDecision, ArchiveLimits } from "../discovery/archivePolicy";
 import type { ArchiveChild } from "../discovery/discoverZip";
@@ -15,7 +16,12 @@ import type { ArchiveLease, ArchivePersistence, ArchiveSourceReader, ArchiveWork
 import { isImportBatchCanceled } from "../tasks/cancellation";
 
 const taskLeaseId = (taskName: string): string => createHash("sha256").update(taskName).digest("hex");
-const sourceInput = (source: RegisteredArchiveSource): SourceInput => ({ ownerId: source.ownerId, batchId: source.batchId, sourceId: source.sourceId, originalPath: source.originalPath, filename: source.filename, declaredSize: source.declaredSize, declaredMimeType: source.declaredMimeType, storagePath: source.storagePath });
+const sourceInput = (source: RegisteredArchiveSource & { normalizedRelativePath?: string; relativePath?: string; declaredContentType?: string }): SourceInput => ({
+  ownerId: source.ownerId, batchId: source.batchId, sourceId: source.sourceId,
+  originalPath: source.originalPath ?? source.normalizedRelativePath ?? source.relativePath ?? source.filename,
+  filename: source.filename, declaredSize: source.declaredSize,
+  declaredMimeType: source.declaredMimeType ?? source.declaredContentType ?? "", storagePath: source.storagePath,
+});
 const pendingArchive = (source: RegisteredArchiveSource, itemId: string): InventoryItem => ({ ...sourceInput(source), archiveLineage: [], filename: source.filename, extension: ".zip", stagingPath: source.storagePath, itemId, sha256: "pending", byteSize: source.uploadedSize ?? source.declaredSize, mimeType: "application/zip", format: "ZIP", detectedFormat: "ZIP", role: "archive", action: "expand", reasonCode: "archive_container" });
 
 function leaseDurationMs(): number {
@@ -52,11 +58,12 @@ function productionPersistence(db: Firestore, storage: Storage): ArchivePersiste
     completeArchive: async ({ ownerId, batchId, itemId, expectedChildren, reviews }) => { await markArchiveInventoryDurableOnce(db, { ownerId, batchId, itemId, expectedChildren, reviewCount: reviews.length, reviewEntries: reviews.map((entry) => ({ path: entry.entryPath, reasonCode: entry.reasonCode, parentItemId: entry.parentItemId ?? itemId, lineage: entry.lineage ?? [{ archiveItemId: itemId, entryPath: entry.entryPath }] })) }); await completeArchiveIfReady(db, { ownerId, batchId, itemId }); },
     transitionSource: async (source, from, to) => { await transitionSource(db, sourceInput(source), from, to); },
     updateArchiveMetadata: async ({ ownerId, batchId, itemId, sha256, byteSize }) => { await db.runTransaction(async (tx) => { const ref = importItemRef(db, ownerId, batchId, itemId); if ((await tx.get(ref)).exists) tx.update(ref, { sha256, contentHash: sha256, byteSize, updatedAt: new Date() }); }); },
+    requestFinalization: (ownerId, batchId) => requestPlanFinalization(db, ownerId, batchId, enqueueImportTask),
   };
 }
 
 export function productionArchiveWorkerDependencies(): ArchiveWorkerDependencies {
   const db = getFirestore(); const storage = getStorage(); const config = getImportConfig();
   const limits: ArchiveLimits = { maxDepth: config.archiveMaxDepth, maxEntries: config.archiveMaxEntries, maxExpandedBatchBytes: config.archiveMaxExpandedBatchBytes, maxEntryBytes: config.archiveMaxEntryBytes, maxCompressionRatio: config.archiveMaxCompressionRatio, maxPathBytes: config.archiveMaxPathBytes };
-  return { source: productionSource(db, storage), lease: productionLease(db), persistence: productionPersistence(db, storage), isCanceled: (ownerId, batchId) => isImportBatchCanceled(db, ownerId, batchId), enqueueReconcile: ({ ownerId, batchId }) => enqueueImportTask({ kind: "reconcile_batch", ownerId, batchId, resourceId: batchId }), queueName: process.env.IMPORT_TASKS_QUEUE ?? "seriph-import", limits };
+  return { source: productionSource(db, storage), lease: productionLease(db), persistence: productionPersistence(db, storage), isCanceled: (ownerId, batchId) => isImportBatchCanceled(db, ownerId, batchId), enqueueReconcile: ({ ownerId, batchId }) => enqueueImportTask({ kind: "reconcile_batch", ownerId, batchId, resourceId: batchId, observedAtMs: Date.now() }), queueName: process.env.IMPORT_TASKS_QUEUE ?? "seriph-import", limits };
 }

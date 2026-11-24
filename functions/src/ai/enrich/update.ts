@@ -2,7 +2,7 @@ import { getStorage } from "firebase-admin/storage";
 import { FieldValue } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { renderSpecimen } from "../../render/specimen";
-import { embedTexts, embeddingModelId, embeddingDims } from "../embeddings";
+import { embedImage, embedTexts, embeddingModelId, embeddingDims } from "../embeddings";
 import { publicBucketName } from "../../config/catalogConfig";
 import type { FontEnrichment, FontFamilyDoc } from "../../models/catalog.models";
 import { PROMPT_VERSION, buildEmbeddingText, buildMoodEmbeddingText, buildUseCaseEmbeddingText } from "./schema";
@@ -32,16 +32,22 @@ export async function renderFamilySpecimen(family: FontFamilyDoc): Promise<Buffe
   }
 }
 
-/** Embed enrichment text + build the family doc update written after analysis. */
+/** Embed enrichment text (+ optional specimen image) and build the family doc update. */
 export async function buildEnrichmentUpdate(
   family: FontFamilyDoc,
-  enrichment: FontEnrichment
+  enrichment: FontEnrichment,
+  specimen?: Buffer | null
 ): Promise<Record<string, unknown>> {
-  const [textVec, moodVec, useCaseVec] = await embedTexts([
-    buildEmbeddingText(family, enrichment),
-    buildMoodEmbeddingText(family, enrichment),
-    buildUseCaseEmbeddingText(family, enrichment),
-  ], "RETRIEVAL_DOCUMENT");
+  const embeddingText = buildEmbeddingText(family, enrichment);
+  const resolvedSpecimen = specimen === undefined ? await renderFamilySpecimen(family) : specimen;
+  const [[textVec, moodVec, useCaseVec], imageVec] = await Promise.all([
+    embedTexts([
+      embeddingText,
+      buildMoodEmbeddingText(family, enrichment),
+      buildUseCaseEmbeddingText(family, enrichment),
+    ], "RETRIEVAL_DOCUMENT"),
+    embedImage(resolvedSpecimen, embeddingText),
+  ]);
   const embeddingModel = embeddingModelId();
   const embeddingVersion = `${embeddingModel}:${embeddingDims()}`;
   if (!textVec || !moodVec || !useCaseVec) {
@@ -88,5 +94,6 @@ export async function buildEnrichmentUpdate(
   update.text_vec = FieldValue.vector(textVec);
   update.mood_vec = FieldValue.vector(moodVec);
   update.use_case_vec = FieldValue.vector(useCaseVec);
+  if (imageVec) update.image_vec = FieldValue.vector(imageVec);
   return update;
 }

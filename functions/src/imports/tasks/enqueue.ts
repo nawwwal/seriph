@@ -12,6 +12,7 @@ export interface ImportTaskPayload {
   batchId: string;
   resourceId: string;
   planVersion?: number;
+  retryAttempt?: number;
   archiveBudgetKey?: string;
   sourceSize?: number;
   eventId?: string;
@@ -33,7 +34,7 @@ function requiredString(value: unknown, field: string): string {
 export function canonicalizeImportTaskPayload(input: unknown): ImportTaskPayload {
   if (!input || typeof input !== "object" || Array.isArray(input)) return rejectPayload("object required");
   const source = input as Record<PropertyKey, unknown>;
-  const allowed = new Set(["kind", "ownerId", "batchId", "resourceId", "planVersion", "archiveBudgetKey", "sourceSize", "eventId", "observedAtMs", "dueAtMs"]);
+  const allowed = new Set(["kind", "ownerId", "batchId", "resourceId", "planVersion", "retryAttempt", "archiveBudgetKey", "sourceSize", "eventId", "observedAtMs", "dueAtMs"]);
   if (Reflect.ownKeys(source).some((key) => typeof key !== "string" || !allowed.has(key))) return rejectPayload("unknown field");
   for (const field of ["kind", "ownerId", "batchId", "resourceId"]) {
     if (!Object.prototype.hasOwnProperty.call(source, field)) return rejectPayload(`${field} must be an own property`);
@@ -48,6 +49,10 @@ export function canonicalizeImportTaskPayload(input: unknown): ImportTaskPayload
     if (!Number.isSafeInteger(source.planVersion) || (source.planVersion as number) < 1) return rejectPayload("planVersion must be a positive safe integer");
     payload.planVersion = source.planVersion as number;
   }
+  if (Object.prototype.hasOwnProperty.call(source, "retryAttempt")) {
+    if (!Number.isSafeInteger(source.retryAttempt) || (source.retryAttempt as number) < 1) return rejectPayload("retryAttempt must be a positive safe integer");
+    payload.retryAttempt = source.retryAttempt as number;
+  }
   if (Object.prototype.hasOwnProperty.call(source, "archiveBudgetKey")) payload.archiveBudgetKey = requiredString(source.archiveBudgetKey, "archiveBudgetKey");
   if (Object.prototype.hasOwnProperty.call(source, "sourceSize")) {
     if (!Number.isSafeInteger(source.sourceSize) || (source.sourceSize as number) < 0) return rejectPayload("sourceSize must be a non-negative safe integer");
@@ -58,6 +63,14 @@ export function canonicalizeImportTaskPayload(input: unknown): ImportTaskPayload
     for (const field of ["observedAtMs", "dueAtMs"] as const) {
       if (!Number.isSafeInteger(source[field]) || (source[field] as number) < 1) return rejectPayload(`${field} must be a positive safe integer`);
       payload[field] = source[field] as number;
+    }
+  } else if (payload.kind === "reconcile_batch") {
+    if (["eventId", "dueAtMs"].some((field) => Object.prototype.hasOwnProperty.call(source, field))) {
+      return rejectPayload("timer fields require an event task");
+    }
+    if (Object.prototype.hasOwnProperty.call(source, "observedAtMs")) {
+      if (!Number.isSafeInteger(source.observedAtMs) || (source.observedAtMs as number) < 1) return rejectPayload("observedAtMs must be a positive safe integer");
+      payload.observedAtMs = source.observedAtMs as number;
     }
   } else if (["eventId", "observedAtMs", "dueAtMs"].some((field) => Object.prototype.hasOwnProperty.call(source, field))) {
     return rejectPayload("timer fields require an event task");

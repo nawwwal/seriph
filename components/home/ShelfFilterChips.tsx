@@ -1,7 +1,8 @@
 'use client';
 
-import { Button } from '@/components/ui/Button';
+import { FilterBar } from '@/components/filters/FilterPrimitives';
 import {
+  emptyShelfFilters,
   SHELF_CLASSIFICATIONS,
   type ShelfBuildFilter,
   type ShelfFilterState,
@@ -17,76 +18,51 @@ interface ShelfFilterChipsProps {
 const BUILD_OPTIONS: ShelfBuildFilter[] = ['variable', 'static'];
 
 export default function ShelfFilterChips({ filters, moods, onChange }: ShelfFilterChipsProps) {
+  const activeCount = filters.classifications.length + filters.builds.length + filters.moods.length;
+
   return (
-    <div className="mt-5 space-y-4">
-      <section>
-        <h3 className="mb-2 text-[10px] font-black uppercase tracking-wide opacity-60">Voice</h3>
-        <div className="flex flex-wrap gap-2">
-          {SHELF_CLASSIFICATIONS.map((classification) => {
-            const active = filters.classifications.includes(classification);
-            return (
-              <Button
+    <FilterBar.Root activeCount={activeCount} onReset={() => onChange(emptyShelfFilters)}>
+      <div className="mt-5 space-y-4">
+        <FilterBar.Header />
+        <FilterBar.Group title="Voice">
+          <div className="flex flex-wrap gap-1.5">
+            {SHELF_CLASSIFICATIONS.map((classification) => (
+              <FilterBar.Chip
                 key={classification}
-                type="button"
-                size="filterTiny"
-                tone={active ? 'active' : 'plain'}
-                onClick={() => onChange({
-                  ...filters,
-                  classifications: toggleFilterValue(filters.classifications, classification),
-                })}
-              >
-                {classification.replace(' & ', '/')}
-              </Button>
-            );
-          })}
-        </div>
-      </section>
-      <section>
-        <h3 className="mb-2 text-[10px] font-black uppercase tracking-wide opacity-60">Build</h3>
-        <div className="flex flex-wrap gap-2">
-          {BUILD_OPTIONS.map((build) => {
-            const active = filters.builds.includes(build);
-            return (
-              <Button
-                key={build}
-                type="button"
-                size="filterTiny"
-                tone={active ? 'active' : 'plain'}
-                onClick={() => onChange({
-                  ...filters,
-                  builds: toggleFilterValue(filters.builds, build),
-                })}
-              >
-                {build}
-              </Button>
-            );
-          })}
-        </div>
-      </section>
-      {moods.length > 0 ? (
-        <section>
-          <h3 className="mb-2 text-[10px] font-black uppercase tracking-wide opacity-60">Mood</h3>
-          <div className="flex flex-wrap gap-2">
-            {moods.map((mood) => {
-              const active = filters.moods.includes(mood);
-              return (
-                <Button
-                  key={mood}
-                  type="button"
-                  size="filterTiny"
-                  tone={active ? 'active' : 'plain'}
-                  onClick={() => onChange({
-                    ...filters,
-                    moods: toggleFilterValue(filters.moods, mood),
-                  })}
-                >
-                  {mood}
-                </Button>
-              );
-            })}
+                label={classification.replace(' & ', '/')}
+                pressed={filters.classifications.includes(classification)}
+                onClick={() => onChange({ ...filters, classifications: toggleFilterValue(filters.classifications, classification) })}
+              />
+            ))}
           </div>
-        </section>
-      ) : null}
-    </div>
+        </FilterBar.Group>
+        <FilterBar.Group title="Build">
+          <div className="flex flex-wrap gap-1.5">
+            {BUILD_OPTIONS.map((build) => (
+              <FilterBar.Chip
+                key={build}
+                label={build}
+                pressed={filters.builds.includes(build)}
+                onClick={() => onChange({ ...filters, builds: toggleFilterValue(filters.builds, build) })}
+              />
+            ))}
+          </div>
+        </FilterBar.Group>
+        {moods.length > 0 && (
+          <FilterBar.Group title="Mood">
+            <div className="flex flex-wrap gap-1.5">
+              {moods.map((mood) => (
+                <FilterBar.Chip
+                  key={mood}
+                  label={mood}
+                  pressed={filters.moods.includes(mood)}
+                  onClick={() => onChange({ ...filters, moods: toggleFilterValue(filters.moods, mood) })}
+                />
+              ))}
+            </div>
+          </FilterBar.Group>
+        )}
+      </div>
+    </FilterBar.Root>
   );
 }

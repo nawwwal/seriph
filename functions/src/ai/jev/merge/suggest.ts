@@ -6,6 +6,7 @@ import { RC_KEYS } from "../../../config/rcKeys";
 import { getConfigBoolean } from "../../../config/remoteConfig";
 import { ownerFamilyNeighbors } from "../neighbors";
 import { judgeMergePair, type MergePairInput } from "./judge";
+import { deterministicSameFamily } from "./stem";
 
 export const MERGE_SUGGESTIONS_COLLECTION = "familyMergeSuggestions";
 
@@ -31,7 +32,10 @@ export async function suggestFamilyMerges(db: Firestore, family: FontFamilyDoc):
     const source = pairInput(family);
     const writes = [];
     for (const candidate of candidates) {
-      const judged = await judgeMergePair(source, pairInput(candidate));
+      const exactStem = deterministicSameFamily(family, candidate);
+      const judged = exactStem
+        ? { candidateId: candidate.id, level: 2, nameAlign: 1, foundryAlign: 1, styleAlign: 1 }
+        : await judgeMergePair(source, pairInput(candidate));
       if (!judged) continue;
       writes.push({
         ref: db.collection(MERGE_SUGGESTIONS_COLLECTION).doc(suggestionId(family.ownerId!, family.id, candidate.id)),
@@ -40,7 +44,7 @@ export async function suggestFamilyMerges(db: Firestore, family: FontFamilyDoc):
           familyIds: [family.id, candidate.id].sort(),
           slugs: [family.slug, candidate.slug],
           names: [family.name, candidate.name],
-          verdict: judged.level >= 2 ? "same" : "related",
+          verdict: "same",
           score: judged.level,
           nameAlign: judged.nameAlign,
           foundryAlign: judged.foundryAlign,

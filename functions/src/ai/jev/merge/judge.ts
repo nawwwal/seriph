@@ -42,14 +42,11 @@ export async function judgeMergePair(source: MergePairInput, candidate: MergePai
   try {
     const judged = await evaluateSystemOne({ source, candidate }, QUESTIONS);
     const level = nearestScoreLevel(judged, "relation", MERGE_LEVELS.length);
-    if (level < 1) return null;
-    return {
-      candidateId: candidate.id,
-      level,
-      nameAlign: noulValue(judged, "name"),
-      foundryAlign: noulValue(judged, "foundry"),
-      styleAlign: noulValue(judged, "style"),
-    };
+    const nameAlign = noulValue(judged, "name");
+    const foundryAlign = noulValue(judged, "foundry");
+    const styleAlign = noulValue(judged, "style");
+    if (level < 2 || nameAlign < 0.75) return null;
+    return { candidateId: candidate.id, level, nameAlign, foundryAlign, styleAlign };
   } catch {
     return null;
   }

@@ -111,6 +111,7 @@ export async function searchCatalogWithJev(
         textSemantic: hasMatch,
         moodSemantic: 0,
         useCaseSemantic: 0,
+        imageSemantic: 0,
         exact: exactMatchScore(query, family),
         quality: qualityScore(family),
         rerank: score,

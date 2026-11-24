@@ -1,7 +1,6 @@
 import {
   beforeEmailSent,
   beforeUserCreated,
-  beforeUserSignedIn,
   type AuthBlockingEvent,
 } from "firebase-functions/v2/identity";
 import { db } from "../bootstrap/adminApp";
@@ -21,15 +20,10 @@ function eventEmail(event: AuthBlockingEvent): string | null | undefined {
 }
 
 /**
- * Closed-beta gate: reject account creation unless email is allowlisted
- * in Firestore `betaAllowlist/{email}`. Manage via:
- *   npm run auth:beta-allowlist -- --list|--add=|--remove=
+ * Closed-beta gate: reject account creation and password-reset emails unless
+ * email is allowlisted in Firestore `betaAllowlist/{email}`.
  */
 export const beforecreated = beforeUserCreated(AUTH_FUNCTION_OPTIONS, async (event) => {
-  await assertBetaAccess(db, eventEmail(event));
-});
-
-export const beforesignedin = beforeUserSignedIn(AUTH_FUNCTION_OPTIONS, async (event) => {
   await assertBetaAccess(db, eventEmail(event));
 });
 

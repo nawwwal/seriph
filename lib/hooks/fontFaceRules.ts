@@ -1,13 +1,6 @@
 import type { Font as FontVariant, FontFamily } from '@/models/font.models';
-
-function cssFormatFor(fontFormat: string): string {
-  const fmt = (fontFormat || '').toLowerCase();
-  if (fmt === 'ttf') return 'truetype';
-  if (fmt === 'otf') return 'opentype';
-  if (fmt === 'woff2') return 'woff2';
-  if (fmt === 'woff') return 'woff';
-  return fmt || 'truetype';
-}
+import { isItalicFace } from '@/components/font/typePlaygroundState';
+import { escapeCssString, fontFormatFromUrl, quoteCssFontFamily } from '@/lib/utils/cssFont';
 
 function weightRangeFor(variant: FontVariant): string {
   const weight = variant.weight || 400;
@@ -19,15 +12,21 @@ function weightRangeFor(variant: FontVariant): string {
   return min < max ? `${min} ${max}` : String(weight);
 }
 
-function buildFontFaceRule(familyName: string, variant: FontVariant, proxiedSrc: string): string {
-  const isItalic = (variant.style || variant.subfamily || '').toLowerCase().includes('italic');
-  const srcExt = (proxiedSrc.split('?')[0].split('.').pop() || '').toLowerCase();
-  const format = cssFormatFor(srcExt || String(variant.format || ''));
+function fontStylesFor(variant: FontVariant): Array<'normal' | 'italic'> {
+  const axes = variant.isVariable ? variant.variableAxes ?? [] : [];
+  if (axes.some((axis) => axis.tag === 'ital' || axis.tag === 'slnt')) {
+    return ['normal', 'italic'];
+  }
+  return [isItalicFace(variant) ? 'italic' : 'normal'];
+}
+
+function buildFontFaceRule(familyName: string, variant: FontVariant, src: string, fontStyle: 'normal' | 'italic'): string {
+  const format = fontFormatFromUrl(src, String(variant.format || ''));
   return `@font-face {
-    font-family: '${familyName}';
-    src: url('${proxiedSrc}') format('${format}');
+    font-family: ${quoteCssFontFamily(familyName)};
+    src: url('${escapeCssString(src)}') format('${escapeCssString(format)}');
     font-weight: ${weightRangeFor(variant)};
-    font-style: ${isItalic ? 'italic' : 'normal'};
+    font-style: ${fontStyle};
     font-display: swap;
   }`;
 }
@@ -44,11 +43,14 @@ export function buildFamilyFontFaceRules(family: FontFamily, representativeOnly:
   const seen = new Set<string>();
   const faces = representativeOnly ? pickRepresentativeFace(family.fonts) : family.fonts;
   for (const face of faces) {
-    const cdn = typeof face.metadata?.cdnUrl === 'string' ? face.metadata.cdnUrl : undefined;
-    const src = cdn || null;
-    if (!src || seen.has(`${face.id}::${src}`)) continue;
-    seen.add(`${face.id}::${src}`);
-    rules.push(buildFontFaceRule(family.name, face, src));
+    const src = typeof face.metadata?.cdnUrl === 'string' && face.metadata.cdnUrl ? face.metadata.cdnUrl : null;
+    if (!src) continue;
+    for (const fontStyle of fontStylesFor(face)) {
+      const key = `${face.id}::${src}::${fontStyle}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rules.push(buildFontFaceRule(family.name, face, src, fontStyle));
+    }
   }
   return rules.join('\n\n');
 }

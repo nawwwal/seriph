@@ -81,7 +81,8 @@ export async function rebuildCatalogSummary(db: Firestore, ownerId: string, task
     const tokens = processedTokens(data);
     if (invalidationToken && tokens.includes(invalidationToken)) return;
     const summary = summarizeCatalogFamilyRecords(families.map((doc) => doc.data()), new Date().toISOString(), revision(data));
-    tx.set(ref, { ...summary, ...(invalidationToken ? { lastInvalidationToken: invalidationToken, catalogSummaryInvalidationTokens: [...tokens, invalidationToken] } : data?.lastInvalidationToken ? { lastInvalidationToken: data.lastInvalidationToken } : {}) });
+    const cappedTokens = invalidationToken ? [...tokens, invalidationToken].slice(-50) : tokens.slice(-50);
+    tx.set(ref, { ...summary, ...(invalidationToken ? { lastInvalidationToken: invalidationToken, catalogSummaryInvalidationTokens: cappedTokens } : data?.lastInvalidationToken ? { lastInvalidationToken: data.lastInvalidationToken } : {}) });
   });
   })();
   pendingSummaryRebuilds.set(taskKey, work);

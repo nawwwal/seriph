@@ -1,11 +1,11 @@
 import type { Request, Response } from 'express';
 import { logger } from 'firebase-functions';
 import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
 import { initializeRemoteConfig } from '../config/remoteConfig';
-import { primeSearchCatalog } from './jevCatalogSearch';
 import { searchFonts } from './searchFonts';
 import { parseHttpSearchFilters } from './httpFilters';
+
+const SEARCH_REQUEST_DEADLINE_MS = 5000;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -46,10 +46,7 @@ export async function serveSearchRequest(req: Request, res: Response): Promise<v
     : undefined;
   const bodyToken = typeof payload.idToken === 'string' ? payload.idToken : undefined;
   const [, uid] = await Promise.all([
-    Promise.all([
-      initializeRemoteConfig().catch(() => undefined),
-      primeSearchCatalog(getFirestore()).catch(() => undefined),
-    ]),
+    initializeRemoteConfig().catch(() => undefined),
     uidFromToken(bearer || bodyToken),
   ]);
   if (!uid) {
@@ -58,13 +55,22 @@ export async function serveSearchRequest(req: Request, res: Response): Promise<v
   }
   try {
     const similarTo = typeof payload.similarTo === 'string' ? payload.similarTo.trim() : '';
-    const response = await searchFonts({
+    const searchPromise = searchFonts({
       q: typeof payload.q === 'string' ? payload.q : '',
       limit: typeof payload.limit === 'number' ? payload.limit : undefined,
       debug: payload.debug === true,
       similarTo: similarTo || undefined,
       filters: parseHttpSearchFilters(payload.filters, uid),
     });
+    void searchPromise.catch((err) => {
+      logger.warn('search promise rejected', { message: err instanceof Error ? err.message : String(err) });
+    });
+    const response = await Promise.race([
+      searchPromise,
+      new Promise<{ results: []; degraded: true }>((resolve) =>
+        setTimeout(() => resolve({ results: [], degraded: true }), SEARCH_REQUEST_DEADLINE_MS)
+      ),
+    ]);
     logger.info('search request complete', { totalMs: Date.now() - started, resultCount: response.results.length });
     res.status(200).json(response);
   } catch (error: unknown) {
