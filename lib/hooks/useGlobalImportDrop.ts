@@ -16,7 +16,10 @@ export function useGlobalImportDrop({ disabled = false, onDrop }: Options) {
   const depth = useRef(0);
 
   useEffect(() => {
-    if (disabled) return;
+    if (disabled) {
+      depth.current = 0;
+      return;
+    }
     const enter = (event: DragEvent) => {
       if (!hasFiles(event)) return;
       depth.current += 1;
@@ -45,6 +48,8 @@ export function useGlobalImportDrop({ disabled = false, onDrop }: Options) {
     window.addEventListener('dragleave', leave, true);
     window.addEventListener('drop', drop, true);
     return () => {
+      depth.current = 0;
+      setIsDragging(false);
       window.removeEventListener('dragenter', enter, true);
       window.removeEventListener('dragover', over, true);
       window.removeEventListener('dragleave', leave, true);
@@ -52,5 +57,5 @@ export function useGlobalImportDrop({ disabled = false, onDrop }: Options) {
     };
   }, [disabled, onDrop]);
 
-  return isDragging;
+  return disabled ? false : isDragging;
 }

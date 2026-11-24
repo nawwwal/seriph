@@ -58,7 +58,7 @@ export default function ElasticSlider({
   return (
     <div className="elastic-slider" data-active={active ? 'true' : 'false'} style={style}>
       <div className="elastic-slider__head">
-        <label htmlFor={id} className="elastic-slider__label">{label}</label>
+        <label htmlFor={`${id}-value`} id={`${id}-label`} className="elastic-slider__label">{label}</label>
         <div className="elastic-slider__value-cluster">
           {valuePrefix}
           <motion.div animate={{ y: active ? -1 : 0 }} transition={transition}>
@@ -78,7 +78,8 @@ export default function ElasticSlider({
         aria-valuemax={max}
         aria-valuenow={normalizedValue}
         aria-valuetext={ariaValueText ?? `${normalizedValue}${unit ?? ''}`}
-        aria-label={ariaLabel ?? label}
+        aria-labelledby={ariaLabel ? undefined : `${id}-label`}
+        aria-label={ariaLabel}
         className="elastic-slider__track-hit"
         onPointerDown={(event) => {
           event.preventDefault();

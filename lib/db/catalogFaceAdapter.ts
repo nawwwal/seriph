@@ -61,6 +61,7 @@ function mapFace(value: unknown, index: number): Font | null {
     subfamily: text(face, 'styleName') ?? weightName,
     weight: number(face, 'weight', 400),
     style: weightName as Font['style'],
+    italic: Boolean(face.italic),
     isVariable: Boolean(face.isVariable),
     variableAxes: Array.isArray(face.axes)
       ? face.axes.map(axis).filter((item): item is VariableAxis => item !== null)

@@ -1,17 +1,13 @@
 'use client';
 
-import { useMemo, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { peekShellSnap } from '@/lib/motion/shellContinuity';
-import { useShellMotionParams } from '@/components/motion/ShellMotionParamsContext';
+import { EASE } from '@/lib/motion/catalogDetailStoryboard';
 import { cn } from '@/lib/utils/cn';
 
 type Move = { duration: number; ease?: [number, number, number, number] };
 
-/**
- * Rail width 0 ↔ rem. Reverse (detail→catalog) starts closed then opens
- * so the canvas never full-bleeds under a delayed rail.
- */
+/** Fixed-width sidebar rail using GPU-only transform + opacity (zero width/flexBasis reflow). */
 export function MotionRail({
   open,
   className,
@@ -24,40 +20,23 @@ export function MotionRail({
   move: Move;
 }) {
   const reduce = useReducedMotion();
-  const params = useShellMotionParams();
-  const from = useMemo(() => peekShellSnap(), []);
-  const rem = params.shell.railWidthRem;
+  if (!open) return null;
 
-  // First paint after reverse: force closed, then open on next commit via open prop.
-  const paintOpen = open;
-  const startClosed = Boolean(open && from && !from.railOpen);
-  const startOpen = Boolean(!open && from && from.railOpen);
-
-  const transition = reduce ? { duration: 0 } : move;
-  // When expanding from detail, animate from 0; when collapsing, from rem.
-  const width = paintOpen ? `${rem}rem` : 0;
-  const initialWidth = startClosed ? 0 : startOpen ? `${rem}rem` : false;
+  const duration = reduce ? 0 : Math.min(0.18, move.duration ?? 0.16);
 
   return (
     <motion.aside
       data-app-sidebar
       data-alphabet-rail
-      aria-hidden={paintOpen ? undefined : true}
       className={cn(
-        paintOpen
-          ? 'min-w-0 shrink-0 overflow-hidden border-b border-[var(--ink)] bg-[var(--paper)] lg:border-b-0 lg:border-r'
-          : 'pointer-events-none min-w-0 shrink-0 overflow-hidden border-0 p-0',
+        'min-w-0 w-[var(--shell-rail-width)] shrink-0 overflow-hidden border-b border-[var(--ink)] bg-[var(--paper)] lg:border-b-0 lg:border-r',
         className,
       )}
-      initial={initialWidth === false ? false : { width: initialWidth, opacity: startClosed ? 0 : 1 }}
-      animate={{ width, opacity: paintOpen ? 1 : 0 }}
-      transition={transition}
-      style={{ flexBasis: width }}
+      initial={reduce ? false : { opacity: 0, transform: 'translateX(-8px)' }}
+      animate={{ opacity: 1, transform: 'translateX(0px)' }}
+      transition={{ duration, ease: EASE.out }}
     >
-      <div
-        className="h-full min-h-0 w-full"
-        style={{ width: `${rem}rem`, minWidth: `${rem}rem` }}
-      >
+      <div className="h-full min-h-0 w-full">
         {children}
       </div>
     </motion.aside>

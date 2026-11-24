@@ -2,10 +2,11 @@ import type { Query, QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
 import { tokenizeSearchText, type SearchVectorLane } from "./searchDocument";
 
-const VECTOR_FIELD_BY_LANE: Record<SearchVectorLane, "text_vec" | "mood_vec" | "use_case_vec"> = {
+const VECTOR_FIELD_BY_LANE: Record<SearchVectorLane, "text_vec" | "mood_vec" | "use_case_vec" | "image_vec"> = {
   text: "text_vec",
   mood: "mood_vec",
   useCase: "use_case_vec",
+  image: "image_vec",
 };
 
 // Search ranking needs the enriched description and compact display metadata,

@@ -26,7 +26,7 @@ export default function ShellFilterRail({ children, move, className = '', railCl
         Filters
         <ChevronDown size={16} aria-hidden className={`ml-auto transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
-      <div id={id} className={`${expanded ? 'block' : 'hidden'} absolute inset-x-0 top-full lg:contents`}>
+      <div id={id} className={`${expanded ? 'block border-b border-[var(--ink)] bg-[var(--paper)]' : 'hidden'} lg:contents`}>
         <MotionRail open move={move} className={`mobile-filter-rail max-h-[40dvh] !w-full !basis-auto overflow-y-auto lg:max-h-none lg:!w-[var(--shell-rail-width)] lg:!basis-[var(--shell-rail-width)] lg:overflow-hidden ${railClassName}`}>
           {children}
         </MotionRail>

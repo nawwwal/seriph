@@ -3,6 +3,7 @@
 import { Suspense, useCallback } from 'react';
 import Link from 'next/link';
 import AppShell from '@/components/layout/AppShell';
+import CenteredShell from '@/components/layout/CenteredShell';
 import LoadingSplash from '@/components/ui/LoadingSplash';
 import { buttonClassName } from '@/components/ui/buttonStyles';
 import SearchWorkspaceFallback from '@/components/search/SearchWorkspaceFallback';
@@ -34,14 +35,14 @@ export default function SearchPage() {
   }
   if (!user) {
     return (
-      <Gate>
+      <CenteredShell>
         <div className="max-w-lg rounded-[var(--radius)] rule p-10 text-center">
           <p className="mb-4 text-xl">Sign in to search your type library.</p>
-          <Link href="/" className={buttonClassName({ size: 'mdInline' })}>
-            ← Back home
+          <Link href="/login" className={buttonClassName({ size: 'mdInline' })}>
+            Sign in
           </Link>
         </div>
-      </Gate>
+      </CenteredShell>
     );
   }
 

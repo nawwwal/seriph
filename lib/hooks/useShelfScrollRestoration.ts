@@ -26,10 +26,13 @@ export function useShelfScrollRestoration({
   loadMore: () => Promise<void>;
 }) {
   const restoredSnapshotKey = useRef<string | null>(null);
+  const restoringRef = useRef(false);
+  const userScrolledRef = useRef(false);
   const loadMoreRef = useRef(loadMore);
   const saveScroll = useCallback(() => {
     const element = scrollRef.current;
-    if (!element || familyCount === 0) return;
+    if (!element || familyCount === 0 || restoringRef.current) return;
+    if (element.scrollTop === 0 && !userScrolledRef.current) return;
     writeShelfScrollSnapshot(uid, {
       top: element.scrollTop,
       ...getShelfAnchorSnapshot(element),
@@ -46,6 +49,7 @@ export function useShelfScrollRestoration({
     if (!element) return;
     let frame = 0;
     const save = () => {
+      userScrolledRef.current = true;
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(saveScroll);
     };
@@ -73,7 +77,9 @@ export function useShelfScrollRestoration({
     if (restoredSnapshotKey.current === snapshotKey) return;
 
     if (restoreShelfAnchor(element, snapshot)) {
+      restoringRef.current = true;
       restoredSnapshotKey.current = snapshotKey;
+      requestAnimationFrame(() => { restoringRef.current = false; });
       return;
     }
 
@@ -85,8 +91,10 @@ export function useShelfScrollRestoration({
     const maxTop = element.scrollHeight - element.clientHeight;
     const canReachSavedTop = maxTop + RESTORE_TOLERANCE_PX >= snapshot.top;
     if (canReachSavedTop || !hasMore) {
+      restoringRef.current = true;
       element.scrollTop = Math.min(snapshot.top, Math.max(0, maxTop));
       restoredSnapshotKey.current = snapshotKey;
+      requestAnimationFrame(() => { restoringRef.current = false; });
       return;
     }
     if (!isLoadingMore) void loadMoreRef.current();

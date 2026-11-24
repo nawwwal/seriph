@@ -7,12 +7,14 @@ function toFamilyDoc(id: string, data: FirebaseFirestore.DocumentData | undefine
 }
 
 async function findVisibleFamilyBySlug(db: Firestore, slug: string): Promise<FontFamilyDoc | null> {
+  const snap = await db.collection(FAMILIES_COLLECTION).where('slug', '==', slug).limit(10).get();
+  const docs = snap.docs.map((doc) => toFamilyDoc(doc.id, doc.data())).filter((doc): doc is FontFamilyDoc => doc !== null);
+  const visible = docs.find((doc) => doc.hidden !== true && doc.status !== 'merged' && !doc.mergedInto && !doc.aliasOf);
+  if (visible) return visible;
+  if (docs.length > 0) return docs[0]!;
+  if (slug.includes('/')) return null;
   const direct = await db.collection(FAMILIES_COLLECTION).doc(slug).get();
-  const directFamily = toFamilyDoc(direct.id, direct.data());
-  if (direct.exists && directFamily) return directFamily;
-  const snap = await db.collection(FAMILIES_COLLECTION).where('slug', '==', slug).limit(1).get();
-  const doc = snap.docs[0];
-  return doc ? toFamilyDoc(doc.id, doc.data()) : null;
+  return direct.exists ? toFamilyDoc(direct.id, direct.data()) : null;
 }
 
 export async function loadCssFamiliesBySlug(db: Firestore, slugs: string[]): Promise<Map<string, FontFamilyDoc>> {
@@ -26,14 +28,21 @@ export async function loadCssFamiliesBySlug(db: Firestore, slugs: string[]): Pro
     else if (family.status !== 'merged' && family.hidden !== true) bySlug.set(slug, family);
   }
 
-  const missingTargets = [...new Set(aliases.map((alias) => alias.targetSlug).filter((slug) => !bySlug.has(slug)))];
-  for (const targetSlug of missingTargets) {
-    const family = await findVisibleFamilyBySlug(db, targetSlug);
-    if (family) bySlug.set(targetSlug, family);
-  }
   for (const alias of aliases) {
-    const target = bySlug.get(alias.targetSlug);
-    if (target) bySlug.set(alias.sourceSlug, target);
+    const visited = new Set<string>();
+    let targetSlug: string | undefined = alias.targetSlug;
+    let resolved: FontFamilyDoc | undefined;
+    for (let depth = 0; targetSlug && depth < 6 && !visited.has(targetSlug); depth += 1) {
+      visited.add(targetSlug);
+      const cached = bySlug.get(targetSlug);
+      const next: FontFamilyDoc | null = cached ?? (await findVisibleFamilyBySlug(db, targetSlug));
+      if (!next) break;
+      const hop: string | undefined = next.mergedInto ?? next.aliasOf;
+      if (hop) { targetSlug = hop; continue; }
+      if (next.status !== 'merged' && next.hidden !== true) resolved = next;
+      break;
+    }
+    if (resolved) bySlug.set(alias.sourceSlug, resolved);
   }
   return bySlug;
 }

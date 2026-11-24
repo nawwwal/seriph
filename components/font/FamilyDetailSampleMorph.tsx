@@ -1,6 +1,7 @@
 'use client';
 
 import { getSampleChars } from '@/components/font/FamilyCoverArt';
+import { quoteCssFontFamily } from '@/lib/utils/cssFont';
 
 /**
  * Preview-only specimen stand-in while full detail loads.
@@ -27,7 +28,7 @@ export default function FamilyDetailSampleMorph({
         <div className="cover-stripe pointer-events-none absolute inset-0" />
         <div
           className="relative z-10 text-6xl font-black uppercase leading-none tracking-normal sm:text-7xl"
-          style={{ fontFamily: familyName, letterSpacing: '0' }}
+          style={{ fontFamily: quoteCssFontFamily(familyName), letterSpacing: '0' }}
           aria-hidden
         >
           {sample}

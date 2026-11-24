@@ -6,7 +6,7 @@ import ThemeSwitcher from '@/components/theme/ThemeSwitcher';
 import ProfileMenu from './ProfileMenu';
 import NavSearch from './NavSearch';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { useUploads } from '@/lib/contexts/UploadContext';
+import { useUploadActions } from '@/lib/contexts/UploadContext';
 import { Button } from '@/components/ui/Button';
 import { buttonClassName } from '@/components/ui/buttonStyles';
 import SeriphLogo from '@/components/brand/SeriphLogo';
@@ -14,10 +14,12 @@ import SeriphLogo from '@/components/brand/SeriphLogo';
 export default function NavBar() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const { openImport } = useUploads();
+  const { openImport } = useUploadActions();
 
   const isActive = (path: string) => (path === '/' ? pathname === '/' : pathname.startsWith(path));
   const shelfActive = isActive('/') && !pathname.includes('family');
+  const hideNavSearch = pathname === '/search';
+  const hideSignIn = pathname === '/login';
 
   return (
     <nav className="w-full rule-b bg-[var(--paper)] sticky top-0 z-10">
@@ -30,22 +32,21 @@ export default function NavBar() {
             <Button onClick={openImport} size="nav">
               Import
             </Button>
-            <NavSearch />
+            {!hideNavSearch && <NavSearch />}
           </>
         ) : (
-          <SeriphLogo className="w-24" label="Seriph" />
+          <Link href="/" className="theme-focus-ring inline-flex items-center rounded-[var(--radius)]">
+            <SeriphLogo className="w-24" label="Seriph" />
+          </Link>
         )}
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {user ? (
             <ProfileMenu />
-          ) : (
-            <Link
-              href="/login"
-              className={buttonClassName({ size: 'navLink' })}
-            >
+          ) : !hideSignIn ? (
+            <Link href="/login" className={buttonClassName({ size: 'navLink' })}>
               Sign in
             </Link>
-          )}
+          ) : null}
           <ThemeSwitcher />
         </div>
       </div>

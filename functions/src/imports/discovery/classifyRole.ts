@@ -57,9 +57,12 @@ const recognizedWebPayload = (extension: string, bytes: Uint8Array): boolean => 
 
 export function classifyRole(input: { bytes: Uint8Array; name: string; safeText?: boolean }): ClassifiedInventory {
   const format = detectContentSignature(input.bytes);
-  const basename = (input.name.split(/[\\/]/).pop() ?? input.name).toLowerCase();
+  const normalizedPath = input.name.replace(/\\/g, "/");
+  const basename = (normalizedPath.split("/").pop() ?? normalizedPath).toLowerCase();
+  const isMacOsx = normalizedPath.split("/").some((segment) => segment === "__MACOSX") || basename.startsWith("._");
+  const isAppleDouble = input.bytes.length >= 4 && input.bytes[0] === 0x00 && input.bytes[1] === 0x05 && input.bytes[2] === 0x16 && input.bytes[3] === 0x07;
   const isDsStore = input.bytes.length >= 4 && Buffer.from(input.bytes.subarray(0, 4)).toString("ascii") === "Bud1";
-  if (disposableNames.has(basename) || isDsStore) {
+  if (disposableNames.has(basename) || isDsStore || isMacOsx || isAppleDouble) {
     return { format, detectedFormat: format, role: "junk", action: "discard", reasonCode: "disposable_name" };
   }
   if (["TTF", "OTF", "WOFF", "WOFF2", "EOT"].includes(format)) {

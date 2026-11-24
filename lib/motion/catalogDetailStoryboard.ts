@@ -17,15 +17,15 @@
  */
 
 export const TIMING = {
-  moveMs: 220,
-  exitMs: 260,
-  enterMs: 260,
+  moveMs: 160,
+  exitMs: 140,
+  enterMs: 160,
   enterDelayMs: 0,
-  actionsDelayMs: 80,
-  settleStartMs: 200,
-  staggerMs: 40,
-  holdMs: 280,
-  crossfadeMs: 160,
+  actionsDelayMs: 40,
+  settleStartMs: 140,
+  staggerMs: 28,
+  holdMs: 240,
+  crossfadeMs: 140,
 } as const;
 
 export const EASE = {

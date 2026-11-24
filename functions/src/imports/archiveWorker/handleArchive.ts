@@ -99,7 +99,9 @@ export async function handleArchive(request: ArchiveWorkerRequest, deps: Archive
     await deps.lease.renew(payload, name, lease.attempt);
     await deps.persistence.updateArchiveMetadata({ ownerId: source.ownerId, batchId: source.batchId, itemId, sha256: metadata.sha256, byteSize: metadata.byteSize });
     await deps.persistence.completeArchive({ ownerId: source.ownerId, batchId: source.batchId, itemId, expectedChildren: children, reviews });
-    await deps.persistence.transitionSource(source, "discovering", "discovered"); await deps.lease.complete(payload, name, lease.attempt); return { status: 204 };
+    await deps.persistence.transitionSource(source, "discovering", "discovered");
+    await deps.persistence.requestFinalization?.(source.ownerId, source.batchId);
+    await deps.lease.complete(payload, name, lease.attempt); return { status: 204 };
   } catch (error) {
     let failure = error;
     try { await pool.drain(); } catch (poolError) { failure = poolError; }

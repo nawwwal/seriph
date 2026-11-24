@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { CheckSquare, ExternalLink, Trash2 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/Button';
 import { buttonClassName } from '@/components/ui/buttonStyles';
 
@@ -23,14 +24,15 @@ export default function FamilyContextMenu({ familyId, x, y, onSelect, onDelete, 
     const onPointerDown = (event: PointerEvent) => {
       if (event.target instanceof Node && !ref.current?.contains(event.target)) onClose();
     };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    const onScroll = () => onClose();
     window.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('scroll', onScroll, true);
     return () => {
       window.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [onClose]);
 
@@ -45,11 +47,10 @@ export default function FamilyContextMenu({ familyId, x, y, onSelect, onDelete, 
   }, [x, y]);
 
   const itemClass = buttonClassName({ size: 'menuItem' });
-
-  return (
+  const menu = (
     <div
       ref={ref}
-      className="fixed z-50 min-w-40 rule rounded-[var(--radius)] bg-[var(--paper)] theme-shadow-lg overflow-hidden"
+      className="fixed z-[60] min-w-40 rule rounded-[var(--radius)] bg-[var(--paper)] theme-shadow-lg overflow-hidden"
       style={{ left: position.left, top: position.top }}
       role="menu"
     >
@@ -57,31 +58,16 @@ export default function FamilyContextMenu({ familyId, x, y, onSelect, onDelete, 
         <ExternalLink size={14} aria-hidden="true" />
         Open
       </Link>
-      <Button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          onSelect(familyId);
-          onClose();
-        }}
-        size="menuItem"
-      >
+      <Button type="button" role="menuitem" onClick={() => { onSelect(familyId); onClose(); }} size="menuItem">
         <CheckSquare size={14} aria-hidden="true" />
         Select
       </Button>
-      <Button
-        type="button"
-        role="menuitem"
-        onClick={() => {
-          onDelete([familyId]);
-          onClose();
-        }}
-        size="menuItem"
-        tone="danger"
-      >
+      <Button type="button" role="menuitem" onClick={() => { onDelete([familyId]); onClose(); }} size="menuItem" tone="danger">
         <Trash2 size={14} aria-hidden="true" />
         Delete
       </Button>
     </div>
   );
+
+  return typeof document === 'undefined' ? menu : createPortal(menu, document.body);
 }

@@ -12,35 +12,35 @@ import { notifySearchQueryChange, queryFromSearchEvent, searchQueryChangedEvent 
 import { buildLocalSearchView, buildSearchRefinementState } from '@/lib/search/searchView';
 import type { SearchFilters } from '@/models/search.models';
 
-/** Drives the search field + results, auto-running whenever the URL `q` changes. */
+/** Drives the search field + results, synchronizing cleanly with URL params and filter controls. */
 export function useFontSearch() {
   const searchParams = useSearchParams();
   const { user } = useAuth();
   const urlQuery = searchParams.get('q') ?? '';
-  const urlFilters = parseSearchFilters(new URLSearchParams(searchParams.toString()));
+  const urlFilters = useMemo(() => parseSearchFilters(new URLSearchParams(searchParams.toString())), [searchParams]);
+  const urlFiltersKey = searchFiltersKey(urlFilters);
+  const urlKey = `${urlQuery}::${urlFiltersKey}`;
   const userId = user?.uid ?? null;
-  const [inputState, setInputState] = useState({ urlQuery, q: urlQuery, filters: urlFilters, filtersKey: searchFiltersKey(urlFilters) });
+  const [draft, setDraft] = useState<{ urlKey: string; q: string; filters: SearchFilters } | null>(null);
+  const q = draft?.urlKey === urlKey ? draft.q : urlQuery;
+  const filters = draft?.urlKey === urlKey ? draft.filters : urlFilters;
+  const filtersKey = searchFiltersKey(filters);
   const routeSyncFrame = useRef<number | null>(null);
   const routeSyncQuery = useRef(urlQuery);
   const searchIndex = useSearchIndex({ enabled: Boolean(user) });
-  const liveQuery = inputState.q.trim();
+  const liveQuery = q.trim();
   const searchQuery = useDeferredValue(liveQuery);
-  const searchState = useSemanticFontSearch(searchQuery, user ?? null, inputState.filters, searchIndex.libraryRevision);
-  const activeFilters = inputState.filters;
-
-  if (inputState.urlQuery !== urlQuery || !sameSearchFilters(inputState.filters, urlFilters)) {
-    setInputState({ urlQuery, q: urlQuery, filters: urlFilters, filtersKey: searchFiltersKey(urlFilters) });
-  }
+  const searchState = useSemanticFontSearch(searchQuery, user ?? null, filters, searchIndex.libraryRevision);
 
   useEffect(() => {
     const syncFromSearchEvent = (event: Event) => {
-      const query = queryFromSearchEvent(event);
-      if (query === null) return;
-      setInputState((current) => current.q === query ? current : { ...current, q: query });
+      const nextQ = queryFromSearchEvent(event);
+      if (nextQ === null) return;
+      setDraft((cur) => ({ urlKey, q: nextQ, filters: cur?.urlKey === urlKey ? cur.filters : urlFilters }));
     };
     window.addEventListener(searchQueryChangedEvent, syncFromSearchEvent);
     return () => window.removeEventListener(searchQueryChangedEvent, syncFromSearchEvent);
-  }, []);
+  }, [urlKey, urlFilters]);
 
   useEffect(() => () => {
     if (routeSyncFrame.current !== null) window.cancelAnimationFrame(routeSyncFrame.current);
@@ -55,15 +55,15 @@ export function useFontSearch() {
     });
   }, []);
 
-  const localView = useMemo(() => buildLocalSearchView(searchIndex.items, liveQuery, activeFilters), [activeFilters, liveQuery, searchIndex.items]);
+  const localView = useMemo(() => buildLocalSearchView(searchIndex.items, liveQuery, filters), [filters, liveQuery, searchIndex.items]);
   const hasCurrentSearchState = searchQuery === liveQuery
     && searchState?.query === searchQuery
     && searchState.userId === userId
-    && searchState.filtersKey === inputState.filtersKey
+    && searchState.filtersKey === filtersKey
     && searchState.libraryRevision === searchIndex.libraryRevision;
-  const semanticResults = hasCurrentSearchState ? filterSearchResults(searchState.results, activeFilters) : [];
+  const semanticResults = hasCurrentSearchState ? filterSearchResults(searchState.results, filters) : [];
   const refining = Boolean(searchQuery && hasCurrentSearchState && searchState?.loading);
-  const { results, isRefining: isRefining, resultPresentation } = buildSearchRefinementState({
+  const { results, isRefining, resultPresentation } = buildSearchRefinementState({
     query: liveQuery,
     localView,
     semanticResults,
@@ -72,30 +72,15 @@ export function useFontSearch() {
   });
   const resultCount = Math.max(localView.resultCount, results.length);
   const loading = Boolean(searchIndex.isLoading && results.length === 0);
-  const error = searchErrorForDisplay({
-    hasResults: results.length > 0,
-    indexError: searchIndex.error,
-    indexLoading: searchIndex.isLoading,
-  });
-  function setQ(q: string) {
-    setInputState((current) => current.q === q ? current : { ...current, q });
-    scheduleRouteSync(q);
-  }
-  function setFilters(filters: SearchFilters) {
-    setInputState((current) => sameSearchFilters(current.filters, filters) ? current : { ...current, filters, filtersKey: searchFiltersKey(filters) });
-  }
-
-  return {
-    q: inputState.q,
-    filters: inputState.filters,
-    facets: localView.facets,
-    resultCount,
-    setQ,
-    setFilters,
-    results,
-    loading,
-    refining: isRefining,
-    resultPresentation,
-    error,
+  const error = searchErrorForDisplay({ hasResults: results.length > 0, indexError: searchIndex.error, indexLoading: searchIndex.isLoading });
+  const setQ = (nextQ: string) => {
+    setDraft({ urlKey, q: nextQ, filters });
+    scheduleRouteSync(nextQ);
   };
+  const setFilters = (nextFilters: SearchFilters) => {
+    if (sameSearchFilters(filters, nextFilters)) return;
+    setDraft({ urlKey, q, filters: nextFilters });
+  };
+
+  return { q, filters, facets: localView.facets, resultCount, setQ, setFilters, results, loading, refining: isRefining, resultPresentation, error };
 }

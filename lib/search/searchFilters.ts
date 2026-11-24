@@ -29,8 +29,13 @@ export function matchesSearchFilters(item: SearchResultItem, filters: SearchFilt
 function countedOptions(values: string[], selected: string[] = [], limit = 10): SearchFacetOption[] {
   const counts = new Map<string, number>();
   for (const value of values) if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
+  for (const value of selected) if (value && !counts.has(value)) counts.set(value, 0);
   return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .sort((a, b) => {
+      const aSelected = selected.includes(a[0]) ? 1 : 0;
+      const bSelected = selected.includes(b[0]) ? 1 : 0;
+      return bSelected - aSelected || b[1] - a[1] || a[0].localeCompare(b[0]);
+    })
     .slice(0, Math.max(limit, selected.length))
     .map(([value, count]) => ({ value, label: value, count }));
 }

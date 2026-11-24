@@ -1,6 +1,7 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import { useCallback, useLayoutEffect, useRef, type CSSProperties } from 'react';
+import { useOptionalFamilyDetail } from './FamilyDetailContext';
 
 interface TypePlaygroundEditorProps {
   value: string;
@@ -27,6 +28,23 @@ export default function TypePlaygroundEditor({
   lineHeight,
   fontVariationSettings,
 }: TypePlaygroundEditorProps) {
+  const ctx = useOptionalFamilyDetail();
+  const localRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const registerEditor = ctx?.actions.registerEditor;
+
+  const assignRef = useCallback((node: HTMLTextAreaElement | null) => {
+    localRef.current = node;
+    registerEditor?.(node);
+  }, [registerEditor]);
+
+  useLayoutEffect(() => {
+    const el = localRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value, fontSize, lineHeight, letterSpacing, fontFamily, fontWeight, fontStyle, fontVariationSettings]);
+
   const style: CSSProperties = {
     fontFamily,
     fontWeight,
@@ -43,13 +61,11 @@ export default function TypePlaygroundEditor({
     <section className="mt-4">
       <div
         className="specimen-container relative rule overflow-hidden rounded-[var(--radius)] p-6"
-        style={{
-          background:
-            'linear-gradient(180deg, color-mix(in srgb, var(--ink) 10%, transparent), transparent 60%)',
-        }}
+        style={{ background: 'linear-gradient(180deg, color-mix(in srgb, var(--ink) 10%, transparent), transparent 60%)' }}
       >
         <div className="cover-stripe pointer-events-none absolute inset-0" />
         <textarea
+          ref={assignRef}
           dir="ltr"
           value={value}
           onChange={(event) => onChange(event.target.value)}

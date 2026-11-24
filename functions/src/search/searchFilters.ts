@@ -14,7 +14,7 @@ export function isAliasFamily(family: FontFamilyDoc): boolean {
 }
 
 export function isSearchableStatus(family: FontFamilyDoc): boolean {
-  return !isAliasFamily(family) && (family.status === "ready" || family.status === "enriched");
+  return !isAliasFamily(family) && (family.status === "ready" || family.status === "enriched" || family.status === "enriching");
 }
 
 function variableFilter(req: SearchRequest): boolean | undefined {

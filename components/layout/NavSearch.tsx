@@ -59,18 +59,27 @@ export default function NavSearch() {
   };
 
   return (
-    <form onSubmit={submit} className="relative order-last basis-full sm:order-none sm:basis-auto sm:flex-1 sm:max-w-md sm:ml-1">
+    <form
+      onSubmit={submit}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
+      }}
+      className="relative order-last basis-full sm:order-none sm:basis-auto sm:flex-1 sm:max-w-md sm:ml-1"
+    >
       <TextInput
         type="search"
         value={query}
         onChange={(event) => change(event.target.value)}
         onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            setFocused(false);
+            return;
+          }
           if (event.key !== 'Enter') return;
           event.preventDefault();
           commit();
         }}
         onFocus={() => setFocused(true)}
-        onBlur={() => window.setTimeout(() => setFocused(false), 120)}
         placeholder="Search by mood, intent, vibe…"
         aria-label="Search your type library"
         size="navSearch"

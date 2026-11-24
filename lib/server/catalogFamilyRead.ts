@@ -1,21 +1,27 @@
 import type { Firestore } from 'firebase-admin/firestore';
 import { adaptFamilyDoc, isCatalogAliasDoc, isCatalogDoc, mergedInto } from '@/lib/db/catalogAdapter';
 import type { FontFamily } from '@/models/font.models';
-import { FAMILIES_COLLECTION, findReadableFamily } from '@/lib/server/catalogFamilyShared';
+import { findReadableFamily } from '@/lib/server/catalogFamilyShared';
 
 export interface OwnedFamilyDetail {
   family: FontFamily;
   canonicalId: string;
 }
 
-export async function getOwnedFamilyDetail(db: Firestore, uid: string, familyId: string): Promise<OwnedFamilyDetail | null> {
-  if (!familyId) return null;
+export async function getOwnedFamilyDetail(
+  db: Firestore,
+  uid: string,
+  familyId: string,
+  visited = new Set<string>(),
+): Promise<OwnedFamilyDetail | null> {
+  if (!familyId || visited.has(familyId) || visited.size >= 8) return null;
+  visited.add(familyId);
   const snap = await findReadableFamily(db, uid, familyId);
   if (!snap || !snap.exists) return null;
   const data = snap.data();
   if (!data || (data.ownerId && data.ownerId !== uid) || !isCatalogDoc(data)) return null;
   const targetId = mergedInto(data);
-  if (targetId) return getOwnedFamilyDetail(db, uid, targetId);
+  if (targetId) return getOwnedFamilyDetail(db, uid, targetId, visited);
   if (isCatalogAliasDoc(data)) return null;
   return { family: adaptFamilyDoc(data, snap.id), canonicalId: snap.id };
 }

@@ -7,8 +7,9 @@ import { analysisModelId, batchClient, batchGenerationConfig, SAFETY_SETTINGS } 
 
 export async function enrichmentUpdateForRealtime(db: Firestore, family: FontFamilyDoc): Promise<Record<string, unknown>> {
   let enrichment = hasCurrentAnalysis(family) ? family.enrichment : undefined;
+  let specimen: Buffer | null | undefined;
   if (!enrichment) {
-    const specimen = await renderFamilySpecimen(family);
+    specimen = await renderFamilySpecimen(family);
     const parts: Array<Record<string, unknown>> = [];
     if (specimen) parts.push({ inlineData: { mimeType: "image/png", data: specimen.toString("base64") } });
     parts.push({ text: buildPrompt(family, Boolean(specimen)) });
@@ -19,5 +20,5 @@ export async function enrichmentUpdateForRealtime(db: Firestore, family: FontFam
     enrichment = await composeEnrichment(family, response.text) ?? undefined;
   }
   if (!enrichment) throw new Error("invalid_model_output");
-  return buildEnrichmentUpdate(family, await pairFamilyWithJev(db, family, enrichment));
+  return buildEnrichmentUpdate(family, await pairFamilyWithJev(db, family, enrichment), specimen);
 }

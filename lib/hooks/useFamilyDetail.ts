@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { clearFamilyCacheForUser, getCachedFamily } from '@/lib/cache/familyCache';
 import {
   loadFamilyDetail,
@@ -26,15 +26,13 @@ export async function loadFamilyDetailWithRefresh(
   }
 }
 
-/** Load one family by id (owner-scoped). Returns null family when logged out. */
 export function useFamilyDetail(familyId: string | undefined) {
   const { user, isLoading: authLoading } = useAuth();
   const [request, setRequest] = useState<FamilyDetailRequestState>({ uid: null, familyId: null, outcome: null });
+  const [reloadNonce, setReloadNonce] = useState(0);
   const previousUid = useRef<string | null>(null);
   const activeFamilyId = familyId ?? null;
   const activeUid = user?.uid;
-  // Detail navigation can still be instant when a full family was already loaded
-  // in this session; the shelf itself now stores only lightweight summaries.
   const cached = getCachedFamily(activeUid, activeFamilyId ?? undefined);
   const preview = getCachedFamilyPreview(activeUid, activeFamilyId ?? undefined);
   const routeState = deriveFamilyDetailRouteState({
@@ -59,25 +57,33 @@ export function useFamilyDetail(familyId: string | undefined) {
   useEffect(() => {
     if (authLoading || !user || !familyId) return;
     let isActive = true;
-    void loadFamilyDetailWithRefresh(
-      {
-        uid: user.uid,
-        familyId,
-        getIdToken: (forceRefresh) => user.getIdToken(Boolean(forceRefresh)),
-      },
-      (outcome) => {
-        if (!isActive) return;
-        if (outcome.kind === 'load-error' && !/unauthorized/i.test(outcome.error.message)) {
-          console.error(`Error fetching font family ${familyId}:`, outcome.error);
-        }
-        setRequest({ uid: user.uid, familyId, outcome });
-      },
-    );
+    const run = reloadNonce > 0
+      ? refreshFamilyDetail(
+          { uid: user.uid, familyId, getIdToken: (forceRefresh) => user.getIdToken(Boolean(forceRefresh)) },
+        ).then((outcome) => {
+          if (isActive) setRequest({ uid: user.uid, familyId, outcome });
+        })
+      : loadFamilyDetailWithRefresh(
+          {
+            uid: user.uid,
+            familyId,
+            getIdToken: (forceRefresh) => user.getIdToken(Boolean(forceRefresh)),
+          },
+          (outcome) => {
+            if (!isActive) return;
+            if (outcome.kind === 'load-error' && !/unauthorized/i.test(outcome.error.message)) {
+              console.error(`Error fetching font family ${familyId}:`, outcome.error);
+            }
+            setRequest({ uid: user.uid, familyId, outcome });
+          },
+        );
+    void run;
 
     return () => {
       isActive = false;
     };
-  }, [familyId, user, authLoading]);
+  }, [familyId, user, authLoading, reloadNonce]);
 
-  return routeState;
+  const reload = useCallback(() => setReloadNonce((n) => n + 1), []);
+  return { ...routeState, reload };
 }

@@ -23,9 +23,13 @@ export interface DiscoveryRuntime {
 
 const extensionOf = (name: string): string => { const dot = name.lastIndexOf("."); return dot < 0 ? "" : name.slice(dot).toLowerCase(); };
 const sourceInput = (data: Record<string, any>) => ({ ownerId: data.ownerId, batchId: data.batchId, sourceId: data.sourceId,
-  originalPath: data.originalPath, archiveLineage: [], filename: data.filename, extension: extensionOf(data.filename), declaredMimeType: data.declaredMimeType });
+  originalPath: data.originalPath ?? data.normalizedRelativePath ?? data.relativePath ?? data.filename ?? "",
+  archiveLineage: [], filename: data.filename, extension: extensionOf(data.filename),
+  declaredMimeType: data.declaredMimeType ?? data.declaredContentType ?? "" });
 const sourceLifecycleInput = (data: Record<string, any>): SourceInput => ({ ownerId: data.ownerId, batchId: data.batchId, sourceId: data.sourceId,
-  originalPath: data.originalPath, filename: data.filename, declaredSize: data.declaredSize, declaredMimeType: data.declaredMimeType, storagePath: data.storagePath });
+  originalPath: data.originalPath ?? data.normalizedRelativePath ?? data.relativePath ?? data.filename ?? "",
+  filename: data.filename, declaredSize: data.declaredSize,
+  declaredMimeType: data.declaredMimeType ?? data.declaredContentType ?? "", storagePath: data.storagePath });
 
 async function expandItem(item: InventoryItem, bytes: Buffer, runtime: DiscoveryRuntime): Promise<boolean> {
   const discovery = await discoverZip({ ...item, archiveItemId: item.itemId, bytes, limits: runtime.limits, depth: item.archiveLineage.length,
@@ -61,6 +65,7 @@ export async function discoverSourceTask(payload: ImportTaskPayload, runtime: Di
   if (await runtime.isCanceled?.(payload.ownerId, payload.batchId)) return { status: 204 };
   if (item.role === "archive") {
     if (!(await expandItem(item, bytes, runtime))) return { status: 204 };
+    await requestPlanFinalization(runtime.db, item.ownerId, item.batchId, runtime.enqueue);
   } else {
     await markItemTerminalOnce(runtime.db, { ownerId: item.ownerId, batchId: item.batchId, itemId: item.itemId }, terminalState(item));
   }
@@ -82,6 +87,7 @@ export async function discoverItemTask(payload: ImportTaskPayload, runtime: Disc
     try { bytes = await runtime.download(item.stagingPath); }
     catch (error) { if (!isMissingStorageObject(error)) throw error; await markItemTerminalOnce(runtime.db, { ownerId: item.ownerId, batchId: item.batchId, itemId: item.itemId }, "failed"); return { status: 204 }; }
     if (!(await expandItem(item, bytes, runtime))) return { status: 204 };
+    await requestPlanFinalization(runtime.db, item.ownerId, item.batchId, runtime.enqueue);
   }
   else {
     if (await runtime.isCanceled?.(payload.ownerId, payload.batchId)) return { status: 204 };

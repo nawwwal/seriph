@@ -9,6 +9,8 @@ import {
 } from '@/lib/server/familyMutationTypes';
 import { isRecord } from '@/lib/server/familyMutationUtils';
 import { applyDeletedFields, docIdMap, getFamilyInputs } from '@/lib/server/familyMutationStore';
+import { queueEnrichmentJobInBatch, resolveEnrichmentJobConfig } from '@/lib/server/enrichmentJobQueue';
+import { cleanupSuggestionsForFamilies } from '@/lib/server/mergeSuggestions';
 
 export async function applyFamilyMerge({
   db,
@@ -32,7 +34,15 @@ export async function applyFamilyMerge({
   const ids = docIdMap(resolved);
   const batch = db.batch();
   const collection = db.collection(FAMILIES_COLLECTION);
-  batch.set(collection.doc(ids.get(plan.value.targetFamilyId) ?? plan.value.targetFamilyId), applyDeletedFields(plan.value.targetDoc), { merge: true });
+  const nextVersion = Number((plan.value.targetDoc as Record<string, unknown>).version ?? 0) + 1;
+  const targetSlug = typeof plan.value.targetDoc.slug === 'string' && plan.value.targetDoc.slug
+    ? plan.value.targetDoc.slug
+    : plan.value.targetFamilyId;
+  batch.set(
+    collection.doc(ids.get(plan.value.targetFamilyId) ?? plan.value.targetFamilyId),
+    applyDeletedFields({ ...plan.value.targetDoc, version: nextVersion }),
+    { merge: true },
+  );
   for (const alias of plan.value.aliasDocs) {
     batch.set(collection.doc(ids.get(alias.familyId) ?? alias.familyId), applyDeletedFields(alias.doc), { merge: true });
   }
@@ -40,7 +50,10 @@ export async function applyFamilyMerge({
     ...plan.value.operation,
     createdAt: FieldValue.serverTimestamp(),
   });
+  const enrichmentConfig = await resolveEnrichmentJobConfig();
+  queueEnrichmentJobInBatch(batch, db, { ownerId: uid, familySlug: targetSlug, familyVersion: nextVersion, now, config: enrichmentConfig });
   await batch.commit();
+  await cleanupSuggestionsForFamilies(db, uid, familyIds).catch(() => undefined);
   return plan;
 }
 

@@ -3,6 +3,7 @@ import {
   sendPasswordResetEmail,
   signInWithEmailAndPassword as firebaseSignInWithEmailAndPassword,
 } from 'firebase/auth';
+import { auth } from '@/lib/firebase/auth';
 import { mapFirebaseAuthError, normalizeAuthEmail, validateEmailPassword } from '@/lib/auth/emailPasswordCore';
 export { mapFirebaseAuthError, normalizeAuthEmail, validateEmailPassword } from '@/lib/auth/emailPasswordCore';
 
@@ -10,17 +11,14 @@ type EmailPasswordOperation = (email: string, password: string) => Promise<unkno
 type ResetOperation = (email: string) => Promise<unknown>;
 
 async function defaultSignIn(email: string, password: string): Promise<unknown> {
-  const { auth } = await import('@/lib/firebase/auth');
   return firebaseSignInWithEmailAndPassword(auth, email, password);
 }
 
 async function defaultCreateAccount(email: string, password: string): Promise<unknown> {
-  const { auth } = await import('@/lib/firebase/auth');
   return createUserWithEmailAndPassword(auth, email, password);
 }
 
 async function defaultSendReset(email: string): Promise<unknown> {
-  const { auth } = await import('@/lib/firebase/auth');
   return sendPasswordResetEmail(auth, email);
 }
 

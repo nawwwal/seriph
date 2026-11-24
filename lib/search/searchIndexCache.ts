@@ -88,6 +88,5 @@ export function readShelfSearchSeed(uid: string): SearchIndexResponse | null {
     searchTokens: [family.name, family.normalizedName, family.classification].flatMap((part) => part.toLowerCase().split(/[^a-z0-9]+/)).filter(Boolean),
     source: 'local' as const,
   }));
-  const stats = isRecord(data.stats) ? data.stats : {};
-  return { items, generatedAt: '', libraryRevision: typeof stats.libraryRevision === 'number' ? stats.libraryRevision : 0 };
+  return { items, generatedAt: '', libraryRevision: -1 };
 }

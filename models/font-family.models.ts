@@ -82,6 +82,7 @@ export interface Font {
   subfamily: string;
   weight: number;
   style: FontStyle;
+  italic?: boolean;
   isVariable: boolean;
   variableAxes?: VariableAxis[];
   fileSize: number;

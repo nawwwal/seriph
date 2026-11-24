@@ -2,7 +2,7 @@ import type { DocumentData, Firestore, QueryDocumentSnapshot } from "firebase-ad
 import type { FontFamilyDoc } from "../../models/catalog.models";
 import { FAMILIES_COLLECTION } from "../../storage/familyStore";
 import { isAliasFamily, isSearchableStatus } from "../../search/searchFilters";
-import { tokenizeSearchText } from "../../search/searchDocument";
+import { meaningfulNameTokens } from "./merge/stem";
 
 function asFamily(doc: QueryDocumentSnapshot): FontFamilyDoc {
   return { ...doc.data(), id: doc.id } as FontFamilyDoc;
@@ -13,11 +13,11 @@ function keep(family: FontFamilyDoc, source: FontFamilyDoc): boolean {
 }
 
 function nameTokens(family: FontFamilyDoc): string[] {
-  return tokenizeSearchText([family.name]).filter((token) => token.length >= 3 && !/^\d+$/.test(token)).slice(0, 10);
+  return meaningfulNameTokens(family.name);
 }
 
 function slugStem(slug: string): string {
-  return (slug.split("-").find((part) => part.length >= 3 && !/^\d+$/.test(part)) ?? "").slice(0, 24);
+  return meaningfulNameTokens(slug.replace(/-/g, " "))[0]?.slice(0, 24) ?? "";
 }
 
 async function byTokens(db: Firestore, ownerId: string, tokens: string[]): Promise<QueryDocumentSnapshot[]> {

@@ -4,6 +4,8 @@ import { useEffect, useMemo } from 'react';
 import type { FontFamily } from '@/models/font.models';
 import { buildFamilyFontFaceRules } from '@/lib/hooks/fontFaceRules';
 
+const registeredStyles = new Map<string, { count: number; fullCount: number }>();
+
 export function useRegisterFamilyFonts(
   family: FontFamily | null | undefined,
   options?: { enabled?: boolean; representativeOnly?: boolean }
@@ -18,6 +20,10 @@ export function useRegisterFamilyFonts(
 
   useEffect(() => {
     if (!styleId || !fontFaceRules || !enabled) return;
+    const entry = registeredStyles.get(styleId) ?? { count: 0, fullCount: 0 };
+    entry.count += 1;
+    if (!representativeOnly) entry.fullCount += 1;
+    registeredStyles.set(styleId, entry);
 
     let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
     if (!styleEl) {
@@ -25,9 +31,19 @@ export function useRegisterFamilyFonts(
       styleEl.id = styleId;
       document.head.appendChild(styleEl);
     }
-    styleEl.textContent = fontFaceRules;
+    if (!representativeOnly || entry.fullCount === 0 || !styleEl.textContent) {
+      styleEl.textContent = fontFaceRules;
+    }
+
     return () => {
-      document.getElementById(styleId)?.remove();
+      const current = registeredStyles.get(styleId);
+      if (!current) return;
+      current.count = Math.max(0, current.count - 1);
+      if (!representativeOnly) current.fullCount = Math.max(0, current.fullCount - 1);
+      if (current.count === 0) {
+        registeredStyles.delete(styleId);
+        document.getElementById(styleId)?.remove();
+      }
     };
-  }, [styleId, fontFaceRules, enabled]);
+  }, [styleId, fontFaceRules, enabled, representativeOnly]);
 }

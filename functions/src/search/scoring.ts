@@ -1,4 +1,5 @@
 import type { FontFamilyDoc } from "../models/catalog.models";
+import { canonicalSearchClassification } from "./searchClassification";
 import { normalizeSearchText, tokenizeSearchText, type SearchVectorLane } from "./searchDocument";
 import { DEFAULT_SEARCH_WEIGHTS, EMPTY_SCORES, clamp01, type SearchCandidate, type SearchScoreBreakdown, type SearchWeights } from "./scoringTypes";
 
@@ -18,6 +19,16 @@ function nameScore(query: string, family: FontFamilyDoc): number {
   return 0;
 }
 
+function classificationMatchScore(query: string, family: FontFamilyDoc): number {
+  const canonicalFamily = canonicalSearchClassification(family.enrichment?.classification ?? family.classification ?? family.category);
+  const canonicalQuery = canonicalSearchClassification(query);
+  if (canonicalFamily && canonicalQuery) return canonicalFamily === canonicalQuery ? 0.75 : 0;
+  const normalizedClass = normalizeSearchText(family.enrichment?.classification ?? family.classification ?? "");
+  if (!normalizedClass || !query) return 0;
+  if (query === "serif" && /\bsans\b/.test(normalizedClass)) return 0;
+  return new RegExp(`\\b${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(normalizedClass) ? 0.7 : 0;
+}
+
 export function exactMatchScore(rawQuery: string, family: FontFamilyDoc): number {
   const query = normalizeSearchText(rawQuery);
   const queryTokens = tokenizeSearchText([query]);
@@ -34,25 +45,24 @@ export function exactMatchScore(rawQuery: string, family: FontFamilyDoc): number
     ...(family.enrichment?.useCases ?? []),
   ]));
 
-  const matches = queryTokens.filter((token) => tokenSet.has(token)).length;
+  const filteredTokens = query === "serif" && tokenSet.has("sans") ? new Set([...tokenSet].filter((t) => t !== "serif")) : tokenSet;
+  const matches = queryTokens.filter((token) => filteredTokens.has(token)).length;
   const tokenScore = matches / queryTokens.length;
-  const categoryScore = normalizeSearchText(family.category).includes(query) ? 0.8 : 0;
-  const classification = normalizeSearchText(family.enrichment?.classification ?? family.classification ?? "");
-  const classificationScore = classification.includes(query) ? 0.7 : 0;
-  return clamp01(Math.max(nameScore(query, family), tokenScore, categoryScore, classificationScore));
+  return clamp01(Math.max(nameScore(query, family), tokenScore, classificationMatchScore(query, family)));
 }
 
 export function qualityScore(family: FontFamilyDoc): number {
   const confidence = family.enrichment?.confidence;
   if (typeof confidence === "number") return clamp01(confidence);
   if (family.status === "enriched") return 0.75;
-  if (family.status === "ready") return 0.5;
+  if (family.status === "ready" || family.status === "enriching") return 0.5;
   return 0.25;
 }
 
-function laneScoreKey(lane: SearchVectorLane): "textSemantic" | "moodSemantic" | "useCaseSemantic" {
+function laneScoreKey(lane: SearchVectorLane): "textSemantic" | "moodSemantic" | "useCaseSemantic" | "imageSemantic" {
   if (lane === "mood") return "moodSemantic";
   if (lane === "useCase") return "useCaseSemantic";
+  if (lane === "image") return "imageSemantic";
   return "textSemantic";
 }
 
@@ -79,6 +89,7 @@ export function fuseCandidateScore(scores: SearchScoreBreakdown, weights: Search
     scores.textSemantic * weights.textSemantic +
     scores.moodSemantic * weights.moodSemantic +
     scores.useCaseSemantic * weights.useCaseSemantic +
+    scores.imageSemantic * weights.imageSemantic +
     scores.exact * weights.exact +
     scores.quality * weights.quality
   );

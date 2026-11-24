@@ -22,7 +22,7 @@ export function useThemeRollerGesture(
   stopSettle: () => void,
 ) {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const drag = useRef<null | { y: number; pos: number }>(null);
+  const drag = useRef<null | { y: number; pos: number; active: boolean }>(null);
   const samples = useRef<Sample[]>([]);
   const wheelTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastWheelT = useRef(0);
@@ -68,29 +68,37 @@ export function useThemeRollerGesture(
   }, [positionRef, setPos, settle, stopSettle]);
 
   const onPointerDown = useCallback((event: React.PointerEvent) => {
-    stopSettle();
+    drag.current = { y: event.clientY, pos: positionRef.current, active: false };
     samples.current = [];
-    drag.current = { y: event.clientY, pos: positionRef.current };
-    pushSample(positionRef.current);
-    setDragging(true);
-    event.currentTarget.setPointerCapture(event.pointerId);
-  }, [positionRef, stopSettle]);
+  }, [positionRef]);
 
   const onPointerMove = useCallback((event: React.PointerEvent) => {
-    if (!drag.current) return;
-    const dy = event.clientY - drag.current.y;
-    const next = drag.current.pos + dy / GESTURE.pxPerFace;
+    const current = drag.current;
+    if (!current) return;
+    const dy = event.clientY - current.y;
+    if (!current.active) {
+      if (Math.abs(dy) <= 4) return;
+      current.active = true;
+      stopSettle();
+      pushSample(current.pos);
+      setDragging(true);
+      try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* ignore */ }
+    }
+    const next = current.pos + dy / GESTURE.pxPerFace;
     setPos(next);
     pushSample(next);
-  }, [setPos]);
+  }, [setPos, stopSettle]);
 
   const endDrag = useCallback((event: React.PointerEvent) => {
-    if (!drag.current) return;
+    const current = drag.current;
+    if (!current) return;
     drag.current = null;
+    if (!current.active) {
+      samples.current = [];
+      return;
+    }
     setDragging(false);
-    try {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    } catch { /* released */ }
+    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch { /* released */ }
     const v = velocityFromSamples(samples.current);
     samples.current = [];
     settle(v);

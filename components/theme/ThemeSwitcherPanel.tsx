@@ -25,7 +25,7 @@ export default function ThemeSwitcherPanel({
         alignItemWithTrigger={false}
         className="z-50"
       >
-        <Select.Popup className="overflow-hidden rounded-[12px] border-2 border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)] theme-shadow-xl">
+        <Select.Popup tabIndex={-1} className="overflow-hidden rounded-[12px] border-2 border-[var(--ink)] bg-[var(--paper)] text-[var(--ink)] theme-shadow-xl">
           <div className="py-3">
             <ThemeRoller
               committed={committedValue}

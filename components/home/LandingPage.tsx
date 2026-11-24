@@ -34,7 +34,7 @@ export default function LandingPage() {
               >
                 <div className="flex-1 flex items-end p-3 sm:p-6 min-h-[110px] sm:min-h-[140px]">
                   <div
-                    className="leading-none font-black uppercase tracking-tight text-[18vw] sm:text-[10vw] lg:text-[5vw]"
+                    className="leading-none font-black tracking-tight text-[18vw] sm:text-[10vw] lg:text-[5vw]"
                     style={{ fontWeight: spec.weight, fontStyle: spec.italic ? 'italic' : 'normal' }}
                   >
                     {spec.sample}
@@ -73,10 +73,6 @@ export default function LandingPage() {
             Get started <span className="caret"></span>
           </Link>
         </section>
-
-        <footer className="mt-10 sm:mt-12 rule-t pt-4 text-sm opacity-70">
-          One color, many voices. Pick a theme up top and make it yours.
-        </footer>
     </div>
   );
 }

@@ -31,8 +31,12 @@ export function observe(source: NodeJS.ReadableStream | AsyncIterable<Uint8Array
   return { stream: output, complete };
 }
 
-export const sourceLooksLikeZip = (source: { filename: string; declaredMimeType: string }, prefix: Buffer): boolean =>
-  source.declaredMimeType.toLowerCase() === "application/zip" && /\.zip$/i.test(source.filename) && ["504b0304", "504b0506", "504b0708"].some((signature) => prefix.subarray(0, 4).toString("hex") === signature);
+const ZIP_MIME_TYPES = new Set(["", "application/zip", "application/x-zip-compressed", "application/octet-stream", "multipart/x-zip"]);
+
+export const sourceLooksLikeZip = (source: { filename: string; declaredMimeType?: string }, prefix: Buffer): boolean =>
+  ZIP_MIME_TYPES.has((source.declaredMimeType ?? "").toLowerCase())
+  && /\.zip$/i.test(source.filename)
+  && ["504b0304", "504b0506", "504b0708"].some((signature) => prefix.subarray(0, 4).toString("hex") === signature);
 
 export const validateSource = async (source: { filename: string; declaredMimeType: string; createReadStream: () => NodeJS.ReadableStream | AsyncIterable<Uint8Array> }, expectedSize: number, maxBytes: number): Promise<{ sha256: string; byteSize: number; prefix: Buffer } | { code: "source_not_zip" | "source_size_mismatch" }> => {
   if (!sourceLooksLikeZip(source, Buffer.from("PK\x03\x04", "binary"))) return { code: "source_not_zip" };

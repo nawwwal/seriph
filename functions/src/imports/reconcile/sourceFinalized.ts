@@ -1,12 +1,13 @@
 import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { getImportConfig } from "../config/importConfig";
 import { enqueueImportTask, type ImportTaskPayload } from "../tasks/enqueue";
-import { importSourceRef } from "../store/paths";
+import { importBatchRef, importSourceRef } from "../store/paths";
 import { deliverPendingDispatch, pendingDispatch, type PendingImportDispatch } from "./pendingDispatch";
 
 export interface FinalizedObject { name: string; generation: string; size: number; }
 export interface RegisteredIntakePath { ownerId: string; batchId: string; sourceId: string; filename: string; storagePath: string; }
 export interface RegisteredSource extends Omit<RegisteredIntakePath, "filename"> { state: string; declaredSize?: number; uploadedSize?: number; declaredMimeType?: string; }
-export type ConfirmResult = { kind: "ignored" } | { kind: "rejected"; code: "path_mismatch" } |
+export type ConfirmResult = { kind: "ignored" } | { kind: "rejected"; code: "path_mismatch" | "source_too_large" } |
   { kind: "uploaded" | "already_confirmed"; generation: string };
 export interface SourceLifecycleStore {
   load(path: RegisteredIntakePath): Promise<RegisteredSource | null>;
@@ -52,9 +53,20 @@ export function firestoreSourceLifecycleStore(deps: FirestoreSourceLifecycleDeps
         const snap = await tx.get(ref); if (!snap.exists) return { result: { kind: "ignored" as const }, pending: null };
         const current = snap.data() as Record<string, unknown>;
         if (current.storagePath !== object.name) return { result: { kind: "rejected", code: "path_mismatch" as const }, pending: null };
+        const maxSourceBytes = getImportConfig().maxSourceBytes;
+        if (object.size > maxSourceBytes) {
+          tx.update(ref, { state: "failed", errorCode: "source_too_large", uploadedSize: object.size, updatedAt: FieldValue.serverTimestamp() });
+          const observedAtMs = Date.now();
+          tx.update(importBatchRef(deps.db, source.ownerId, source.batchId), {
+            reconciliation: { state: "scheduled", requestedAt: FieldValue.serverTimestamp() },
+            pendingDispatch: { token: `reconcile:${source.batchId}:${source.sourceId}:${observedAtMs}`, task: { kind: "reconcile_batch", ownerId: source.ownerId, batchId: source.batchId, resourceId: source.batchId, observedAtMs } },
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          return { result: { kind: "rejected", code: "source_too_large" as const }, pending: null };
+        }
         const existing = pendingDispatch(current.pendingDispatch);
         if (existing) return { result: { kind: "already_confirmed" as const, generation: String(current.uploadGeneration ?? object.generation) }, pending: existing };
-        if (current.uploadGeneration === object.generation || !["registered", "uploading"].includes(String(current.state))) {
+        if (current.uploadGeneration === object.generation || !["registered", "uploading", "failed"].includes(String(current.state))) {
           return { result: { kind: "already_confirmed" as const, generation: String(current.uploadGeneration ?? object.generation) }, pending: null };
         }
         const pending = sourceDispatch(source, object.generation, object.size);

@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { FontFamily } from '@/models/font.models';
 import type { ShelfFamily } from '@/models/shelf.models';
+import { escapeCssString, fontFormatFromUrl, quoteCssFontFamily } from '@/lib/utils/cssFont';
 
 export function getSampleChars(_classification?: string): string {
   return 'ABC';
@@ -44,18 +45,12 @@ function ensureShelfStyleElement(): HTMLStyleElement {
 
 function shelfFaceRule(family: ShelfFamily): { key: string; rule: string } | null {
   if (!family.coverFace?.cdnUrl) return null;
-  const key = `${family.coverFace.cdnUrl}:${family.coverFace.weight}:${family.coverFace.italic}`;
+  const cdnUrl = family.coverFace.cdnUrl;
+  const key = `${cdnUrl}:${family.coverFace.weight}:${family.coverFace.italic}`;
+  const format = fontFormatFromUrl(cdnUrl, 'woff2');
   return {
     key,
-    rule: `
-      @font-face {
-        font-family: '${family.name.replace(/'/g, "\\'")}';
-        src: url('${family.coverFace.cdnUrl}') format('woff2');
-        font-weight: ${family.coverFace.weight};
-        font-style: ${family.coverFace.italic ? 'italic' : 'normal'};
-        font-display: swap;
-      }
-    `,
+    rule: `@font-face { font-family: ${quoteCssFontFamily(family.name)}; src: url('${escapeCssString(cdnUrl)}') format('${escapeCssString(format)}'); font-weight: ${family.coverFace.weight}; font-style: ${family.coverFace.italic ? 'italic' : 'normal'}; font-display: swap; }`,
   };
 }
 
@@ -66,7 +61,16 @@ export function useRegisterShelfFace(family: FontFamily | ShelfFamily, enabled: 
     const next = shelfFaceRule(family);
     if (!next || shelfFaceRules.get(id)?.key === next.key) return;
     shelfFaceRules.set(id, next);
-    ensureShelfStyleElement().textContent = [...shelfFaceRules.values()].map((entry) => entry.rule).join('\n');
+    const styleEl = ensureShelfStyleElement();
+    if (styleEl.sheet) {
+      try {
+        styleEl.sheet.insertRule(next.rule, styleEl.sheet.cssRules.length);
+        return;
+      } catch {
+        /* Fallback to textContent if stylesheet insertion fails */
+      }
+    }
+    styleEl.appendChild(document.createTextNode(`${next.rule}\n`));
   }, [enabled, family]);
 }
 

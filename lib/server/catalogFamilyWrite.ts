@@ -4,10 +4,14 @@ import type { FontFamily } from '@/models/font.models';
 import { STALE_ENRICHMENT_FIELDS } from '@/lib/server/familyMutationTypes';
 import { findOwnedTopLevelFamily } from '@/lib/server/catalogFamilyShared';
 import { getOwnedFamily } from '@/lib/server/catalogFamilyRead';
+import { queueEnrichmentJobInBatch, resolveEnrichmentJobConfig } from '@/lib/server/enrichmentJobQueue';
 
-function markNeedsEnrichment(update: Record<string, unknown>): Record<string, unknown> {
+function clearVectorFields(update: Record<string, unknown>, preserveEnrichment: boolean): Record<string, unknown> {
   const next: Record<string, unknown> = { ...update, status: 'ready', updatedAt: FieldValue.serverTimestamp() };
-  for (const field of STALE_ENRICHMENT_FIELDS) next[field] = FieldValue.delete();
+  for (const field of STALE_ENRICHMENT_FIELDS) {
+    if (preserveEnrichment && field === 'enrichment') continue;
+    next[field] = FieldValue.delete();
+  }
   return next;
 }
 
@@ -20,26 +24,37 @@ export async function patchOwnedFamily({
   uid,
   familyId,
   payload,
+  visited = new Set<string>(),
 }: {
   db: Firestore;
   uid: string;
   familyId: string;
   payload: Record<string, unknown>;
+  visited?: Set<string>;
 }): Promise<FontFamily | null> {
+  if (!familyId || visited.has(familyId) || visited.size >= 8) return null;
+  visited.add(familyId);
   const snap = await findOwnedTopLevelFamily(db, uid, familyId);
   const current = snap?.data();
   if (!snap?.exists || !current || current.ownerId !== uid) return null;
   const targetId = mergedInto(current);
-  if (targetId) return patchOwnedFamily({ db, uid, familyId: targetId, payload });
+  if (targetId) return patchOwnedFamily({ db, uid, familyId: targetId, payload, visited });
   if (isCatalogAliasDoc(current)) return null;
 
-  const update: Record<string, unknown> = {};
+  const nextVersion = Number(current.version ?? 0) + 1;
+  const slug = typeof current.slug === 'string' && current.slug ? current.slug : snap.id;
+  const update: Record<string, unknown> = { version: nextVersion };
   const enrichment = typeof current.enrichment === 'object' && current.enrichment !== null ? { ...current.enrichment } : {};
   if (typeof payload.description === 'string') enrichment.summary = payload.description;
   if (Array.isArray(payload.tags)) enrichment.moods = payload.tags.filter((tag): tag is string => typeof tag === 'string');
   if (typeof payload.foundry === 'string') update.foundry = payload.foundry;
   if (Object.keys(enrichment).length > 0) update.enrichment = enrichment;
-  await snap.ref.set(markNeedsEnrichment(update), { merge: true });
+
+  const enrichmentConfig = await resolveEnrichmentJobConfig();
+  const batch = db.batch();
+  batch.set(snap.ref, clearVectorFields(update, true), { merge: true });
+  queueEnrichmentJobInBatch(batch, db, { ownerId: uid, familySlug: slug, familyVersion: nextVersion, config: enrichmentConfig });
+  await batch.commit();
   return getOwnedFamily(db, uid, familyId);
 }
 
@@ -66,6 +81,16 @@ export async function deleteOwnedFamilyFace({
   const coverFaceId = nextFaces.some((face) => faceId(face) === current.coverFaceId)
     ? current.coverFaceId
     : faceId(nextFaces[0]);
-  await snap.ref.set(markNeedsEnrichment({ faces: nextFaces, coverFaceId }), { merge: true });
+  const nextVersion = Number(current.version ?? 0) + 1;
+  const slug = typeof current.slug === 'string' && current.slug ? current.slug : snap.id;
+  const enrichmentConfig = await resolveEnrichmentJobConfig();
+  const batch = db.batch();
+  batch.set(
+    snap.ref,
+    clearVectorFields({ faces: nextFaces, styleCount: nextFaces.length, coverFaceId, version: nextVersion }, false),
+    { merge: true },
+  );
+  queueEnrichmentJobInBatch(batch, db, { ownerId: uid, familySlug: slug, familyVersion: nextVersion, config: enrichmentConfig });
+  await batch.commit();
   return { deleted: true, faces: nextFaces };
 }

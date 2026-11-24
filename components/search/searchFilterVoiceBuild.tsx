@@ -1,8 +1,8 @@
 'use client';
 
+import { FilterBar } from '@/components/filters/FilterPrimitives';
 import type { SearchFacets, SearchFilters, SearchVariableFilter } from '@/models/search.models';
-import { Button } from '@/components/ui/Button';
-import { facetLabel, toggle } from '@/components/search/searchFilterUtils';
+import { toggle } from '@/components/search/searchFilterUtils';
 
 interface Props {
   filters: SearchFilters;
@@ -11,53 +11,37 @@ interface Props {
 }
 
 export function VoiceSection({ filters, facets, onChange }: Props) {
+  if (facets.classifications.length === 0) return null;
   return (
-    <section>
-      <h3 className="mb-2 text-[10px] font-black uppercase opacity-60">Voice</h3>
-      <div className="grid grid-cols-1 gap-2">
+    <FilterBar.Group title="Voice">
+      <div className="flex flex-wrap gap-1.5">
         {facets.classifications.map((facet) => (
-          <label key={facet.value} className="flex items-center gap-2 text-xs font-bold uppercase">
-            <input
-              type="checkbox"
-              checked={filters.classifications.includes(facet.value)}
-              onChange={() =>
-                onChange({
-                  ...filters,
-                  classifications: toggle(filters.classifications, facet.value),
-                })
-              }
-            />
-            <span className="truncate">{facetLabel(facet.label, facet.count)}</span>
-          </label>
+          <FilterBar.Chip
+            key={facet.value}
+            label={facet.label.replace(' & ', '/')}
+            count={facet.count}
+            pressed={filters.classifications.includes(facet.value)}
+            onClick={() => onChange({ ...filters, classifications: toggle(filters.classifications, facet.value) })}
+          />
         ))}
       </div>
-    </section>
+    </FilterBar.Group>
   );
 }
 
-export function BuildSection({
-  filters,
-  onChange,
-}: {
-  filters: SearchFilters;
-  onChange: (filters: SearchFilters) => void;
-}) {
+export function BuildSection({ filters, onChange }: { filters: SearchFilters; onChange: (filters: SearchFilters) => void }) {
   return (
-    <section>
-      <h3 className="mb-2 text-[10px] font-black uppercase opacity-60">Build</h3>
+    <FilterBar.Group title="Build">
       <div className="grid grid-cols-3 gap-1">
         {(['any', 'variable', 'static'] satisfies SearchVariableFilter[]).map((value) => (
-          <Button
+          <FilterBar.Chip
             key={value}
-            type="button"
+            label={value}
+            pressed={filters.variable === value}
             onClick={() => onChange({ ...filters, variable: value })}
-            size="filterTiny"
-            tone={filters.variable === value ? 'active' : 'plain'}
-          >
-            {value}
-          </Button>
+          />
         ))}
       </div>
-    </section>
+    </FilterBar.Group>
   );
 }

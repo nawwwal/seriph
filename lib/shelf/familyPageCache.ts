@@ -64,11 +64,11 @@ export function mergeShelfRefreshPage(
   return cached?.stats && !page.stats ? { ...page, stats: cached.stats } : page;
 }
 
-export function clearShelfFamilyCache(uid: string): void {
-  void clearPersistentShelfCache(uid);
+export function clearShelfFamilyCache(uid: string): Promise<void> {
   try {
     localStorage.removeItem(cacheKey(uid));
   } catch {
     /* If storage is unavailable, network reload remains canonical. */
   }
+  return clearPersistentShelfCache(uid);
 }

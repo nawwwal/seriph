@@ -201,6 +201,31 @@
     {
       "collectionGroup": "fontfamilies",
       "queryScope": "COLLECTION",
+      "density": "SPARSE_ALL",
+      "fields": [
+        { "fieldPath": "image_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "image_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "category", "order": "ASCENDING" },
+        { "fieldPath": "image_vec", "vectorConfig": { "dimension": 2048, "flat": {} } }
+      ]
+    },
+    {
+      "collectionGroup": "fontfamilies",
+      "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "ownerId", "order": "ASCENDING" },
         { "fieldPath": "searchTokens", "arrayConfig": "CONTAINS" }

@@ -6,11 +6,11 @@ import ThemeSwitcher from '@/components/theme/ThemeSwitcher';
 import ProfileMenu from '@/components/layout/ProfileMenu';
 import UploadTray from '@/components/upload/UploadTray';
 import { Button } from '@/components/ui/Button';
-import { useUploads } from '@/lib/contexts/UploadContext';
+import { useUploadActions } from '@/lib/contexts/UploadContext';
 
 /** Shared status footer: optional metrics + theme + profile. */
 export default function AppStatusStrip({ children }: { children?: ReactNode }) {
-  const { openImport } = useUploads();
+  const { openImport } = useUploadActions();
 
   return (
     <section

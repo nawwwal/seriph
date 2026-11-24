@@ -19,11 +19,13 @@ export interface FamilyRequest {
 
 const DEFAULT_DISPLAY = "swap";
 const VALID_DISPLAY = new Set(["auto", "block", "swap", "fallback", "optional"]);
+const clampWeight = (value: number) => (Number.isFinite(value) ? Math.min(1000, Math.max(1, value)) : 400);
 
 /** Parse a single `family=` spec value into a FamilyRequest. */
-export function parseFamilySpec(spec: string): FamilyRequest {
+export function parseFamilySpec(spec: string): FamilyRequest | null {
   const [familyRaw, axisSpec] = spec.split(":");
-  const family = familyRaw.replace(/\+/g, " ").trim();
+  const family = (familyRaw ?? "").replace(/\+/g, " ").trim();
+  if (!family) return null;
   const base: FamilyRequest = { family, slug: familySlug(family), styles: [] };
 
   if (!axisSpec) {
@@ -45,10 +47,12 @@ export function parseFamilySpec(spec: string): FamilyRequest {
 
     let weight: number | [number, number] = 400;
     if (wghtToken && wghtToken.includes("..")) {
-      const [lo, hi] = wghtToken.split("..").map((n) => parseInt(n, 10));
-      weight = [lo, hi];
+      const [rawLo, rawHi] = wghtToken.split("..").map((n) => parseInt(n, 10));
+      const lo = clampWeight(rawLo ?? 400);
+      const hi = clampWeight(rawHi ?? lo);
+      weight = lo <= hi ? [lo, hi] : [hi, lo];
     } else if (wghtToken) {
-      weight = parseInt(wghtToken, 10) || 400;
+      weight = clampWeight(parseInt(wghtToken, 10));
     }
     base.styles.push({ italic, weight });
   }
@@ -58,7 +62,7 @@ export function parseFamilySpec(spec: string): FamilyRequest {
 
 /** Parse a full css2 query (already-decoded params) into family requests. */
 export function parseCss2Query(params: URLSearchParams): { families: FamilyRequest[]; display: string } {
-  const families = params.getAll("family").map(parseFamilySpec);
+  const families = params.getAll("family").map(parseFamilySpec).filter((f): f is FamilyRequest => f !== null);
   const displayRaw = params.get("display") ?? DEFAULT_DISPLAY;
   const display = VALID_DISPLAY.has(displayRaw) ? displayRaw : DEFAULT_DISPLAY;
   return { families, display };

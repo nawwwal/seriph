@@ -2,15 +2,13 @@
 
 import type { RefObject } from 'react';
 import type { FontFamily } from '@/models/font.models';
+import { quoteCssFontFamily } from '@/lib/utils/cssFont';
+import { useOptionalFamilyDetail } from './FamilyDetailContext';
 import TypePlaygroundActions from './TypePlaygroundActions';
 import TypePlaygroundControls from './TypePlaygroundControls';
 import TypePlaygroundEditor from './TypePlaygroundEditor';
 import TypePlaygroundStyleSelect from './TypePlaygroundStyleSelect';
-import {
-  buildVariationSettings,
-  isItalicFace,
-  serializePlaygroundCss,
-} from './typePlaygroundModel';
+import { buildVariationSettings, isItalicFace, serializePlaygroundCss } from './typePlaygroundModel';
 import { resetFaceState } from './typePlaygroundState';
 import { letterSpacingCss, lineHeightCss } from './typePlaygroundUnits';
 import { copyTextWithFallback } from './typePlaygroundCopy';
@@ -22,35 +20,31 @@ interface TypePlaygroundProps {
 }
 
 export default function TypePlayground({ family, testerRef }: TypePlaygroundProps) {
-  const pg = useTypePlayground(family);
+  const ctx = useOptionalFamilyDetail();
+  const pg = useTypePlayground(family, ctx ? { selectedFaceId: ctx.state.selectedFaceId, onSelectFace: ctx.actions.selectFace } : undefined);
   const { selectedFace, faceState, axes, fonts } = pg;
+
   if (!selectedFace || !faceState) return null;
 
   const variations = buildVariationSettings(axes, faceState.axisValues);
   const cssFamily = axes.length
-    ? `'${pg.variableFamily}'`
+    ? quoteCssFontFamily(pg.variableFamily)
     : pg.fixedRegistration
-      ? `'${pg.fixedRegistration.cssFamily}'`
-      : family.name;
+      ? quoteCssFontFamily(pg.fixedRegistration.cssFamily)
+      : quoteCssFontFamily(family.name);
+  const hasDynamicItal = axes.some((axis) => axis.tag === 'ital') && (faceState.axisValues.ital ?? 0) >= 0.5;
+  const effectiveWeight = axes.length ? Math.round(faceState.axisValues.wght ?? selectedFace.weight) : selectedFace.weight;
+  const effectiveStyle: 'normal' | 'italic' = hasDynamicItal || isItalicFace(selectedFace) ? 'italic' : 'normal';
 
   const copyCss = async () => {
-    const css = serializePlaygroundCss({
-      familyName: family.name,
-      face: selectedFace,
-      state: faceState,
-    });
+    const css = serializePlaygroundCss({ familyName: family.name, face: selectedFace, state: faceState });
     pg.flashCopyLabel(await copyTextWithFallback(css));
   };
 
-  // Toolbar (style + actions) → specimen → sliders.
   return (
     <div ref={testerRef} className="mt-8">
       <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
-        <TypePlaygroundStyleSelect
-          fonts={fonts}
-          value={selectedFace.id}
-          onChange={pg.selectFace}
-        />
+        <TypePlaygroundStyleSelect fonts={fonts} value={selectedFace.id} onChange={pg.selectFace} />
         <div className="ml-auto">
           <TypePlaygroundActions
             copyLabel={pg.copyLabel}
@@ -63,12 +57,8 @@ export default function TypePlayground({ family, testerRef }: TypePlaygroundProp
         value={faceState.text}
         onChange={(text) => pg.patchFace({ text })}
         fontFamily={cssFamily}
-        fontWeight={
-          axes.length
-            ? Math.round(faceState.axisValues.wght ?? selectedFace.weight)
-            : selectedFace.weight
-        }
-        fontStyle={axes.length ? 'normal' : isItalicFace(selectedFace) ? 'italic' : 'normal'}
+        fontWeight={effectiveWeight}
+        fontStyle={effectiveStyle}
         fontSize={faceState.fontSize}
         letterSpacing={letterSpacingCss(faceState.letterSpacingValue, faceState.letterSpacingMode)}
         lineHeight={lineHeightCss(faceState.lineHeightValue, faceState.lineHeightMode)}
@@ -81,9 +71,7 @@ export default function TypePlayground({ family, testerRef }: TypePlaygroundProp
             state={faceState}
             axes={axes}
             onPatch={pg.patchFace}
-            onAxisChange={(tag, value) =>
-              pg.patchFace({ axisValues: { ...faceState.axisValues, [tag]: value } })
-            }
+            onAxisChange={(tag, value) => pg.patchFace({ axisValues: { ...faceState.axisValues, [tag]: value } })}
           />
         </div>
       </section>

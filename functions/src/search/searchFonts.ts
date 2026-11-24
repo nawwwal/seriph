@@ -1,5 +1,5 @@
 /**
- * Fast semantic font search over vector lanes and the exact-token lane.
+ * Fast semantic font search over multi-lane Firestore vectors and exact tokens.
  */
 import { getFirestore } from "firebase-admin/firestore";
 import { logger } from "firebase-functions";
@@ -9,7 +9,7 @@ import { FAMILIES_COLLECTION } from "../storage/familyStore";
 import { interpretSearchQuery } from "../ai/jev/search/interpret";
 import { rerankSearchResults } from "../ai/jev/search/rerank";
 import { getOrCreateQueryEmbedding } from "./queryEmbeddingCache";
-import { searchCatalogWithJev } from "./jevCatalogSearch";
+import { analyzeQueryIntent } from "./queryIntent";
 import { normalizeSearchText } from "./searchDocument";
 import { applyStructuredFilters, fetchSearchableListing } from "./searchFilters";
 import { retrieveSearchDocs } from "./searchRetrieve";
@@ -36,14 +36,9 @@ export async function searchFonts(req: SearchRequest): Promise<{ results: Search
     return { results: listing.map((family) => toSearchItem(family)) };
   }
 
-  const jevResults = await searchCatalogWithJev(db, req, normalizedQuery, topK);
-  if (jevResults !== null) {
-    logger.info("JEEV catalog search complete", { results: jevResults.length, totalMs: Date.now() - totalStarted });
-    return { results: jevResults };
-  }
-
+  const localIntent = analyzeQueryIntent(normalizedQuery).intent;
   const interpretedPromise = normalizedQuery
-    ? interpretSearchQuery(normalizedQuery, req.filters)
+    ? interpretSearchQuery(normalizedQuery, req.filters).catch(() => ({ filters: req.filters, intent: localIntent }))
     : Promise.resolve({ filters: req.filters, intent: undefined });
   const queryVectorPromise = normalizedQuery && !req.similarTo
     ? getOrCreateQueryEmbedding({ db, query: normalizedQuery })
@@ -51,12 +46,13 @@ export async function searchFonts(req: SearchRequest): Promise<{ results: Search
   const ranked = await retrieveSearchDocs(
     req,
     normalizedQuery,
-    interpretedPromise.then((value) => value.intent),
+    interpretedPromise.then((value) => value.intent ?? localIntent),
     topK,
     queryVectorPromise,
   );
   const interpreted = await interpretedPromise;
-  const results = await rerankSearchResults(normalizedQuery, interpreted.intent, ranked, req.debug);
+  const results = await rerankSearchResults(normalizedQuery, interpreted.intent ?? localIntent, ranked, req.debug)
+    .catch(() => ranked);
   logger.info("search complete", { results: results.length, totalMs: Date.now() - totalStarted });
   return { results };
 }

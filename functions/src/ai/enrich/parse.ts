@@ -1,6 +1,6 @@
 import { logger } from "firebase-functions";
 import { embeddingModelId, embeddingDims } from "../embeddings";
-import { RC_KEYS } from "../../config/rcKeys";
+import { RC_DEFAULTS, RC_KEYS } from "../../config/rcKeys";
 import { getConfigBoolean, getConfigValue } from "../../config/remoteConfig";
 import type { FontEnrichment, FontFamilyDoc } from "../../models/catalog.models";
 import type { GfCategory } from "../../storage/canonicalize";
@@ -44,7 +44,7 @@ export function parseAnalysis(family: FontFamilyDoc, text: string | undefined | 
     useCases: taxonomyUseCases(stringArray(data, "useCases")),
     pairingHints: stringArray(data, "pairingHints"),
     confidence: typeof data.confidence === "number" ? data.confidence : undefined,
-    modelId: getConfigValue(RC_KEYS.analysisModelName, ""),
+    modelId: getConfigValue(RC_KEYS.analysisModelName, RC_DEFAULTS[RC_KEYS.analysisModelName]),
     promptVersion: PROMPT_VERSION,
   };
 }
@@ -52,7 +52,7 @@ export function parseAnalysis(family: FontFamilyDoc, text: string | undefined | 
 /** Current model/prompt/embedding identity — used for the idempotency guard. */
 export function currentEnrichmentVersions(): { analysisModel: string; promptVersion: string; embedVersion: string; jevVersion: string } {
   return {
-    analysisModel: getConfigValue(RC_KEYS.analysisModelName, ""),
+    analysisModel: getConfigValue(RC_KEYS.analysisModelName, RC_DEFAULTS[RC_KEYS.analysisModelName]),
     promptVersion: PROMPT_VERSION,
     embedVersion: `${embeddingModelId()}:${embeddingDims()}`,
     jevVersion: JEV_VERSION,

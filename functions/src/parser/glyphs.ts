@@ -7,15 +7,30 @@ function toRanges(codePoints: Set<number>): string[] {
   if (codePoints.size === 0) return [];
   const sorted = Array.from(codePoints).sort((a, b) => a - b);
   const ranges: string[] = [];
-  let start = sorted[0];
+  let start = sorted[0]!;
   let end = start;
   const push = () => ranges.push(start === end ? hex(start) : `${hex(start)}-${hex(end)}`);
   for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] === end + 1) end = sorted[i];
-    else { push(); start = sorted[i]; end = start; }
+    if (sorted[i] === end + 1) end = sorted[i]!;
+    else { push(); start = sorted[i]!; end = start; }
   }
   push();
   return ranges;
+}
+
+function recordCodePoints(glyph: any, codePoints: Set<number>): void {
+  if (!glyph) return;
+  if (typeof glyph.unicode === "number" && glyph.unicode >= 0) codePoints.add(glyph.unicode);
+  if (Array.isArray(glyph.unicodes)) {
+    glyph.unicodes.forEach((cp: unknown) => {
+      if (typeof cp === "number" && cp >= 0) codePoints.add(cp);
+    });
+  }
+  if (Array.isArray(glyph.codePoints)) {
+    glyph.codePoints.forEach((cp: unknown) => {
+      if (typeof cp === "number" && cp >= 0) codePoints.add(cp);
+    });
+  }
 }
 
 /** Glyph count + character-set coverage (as U+ ranges). */
@@ -25,12 +40,14 @@ export function readGlyphCoverage(font: any) {
 
   if ("glyphs" in font && font.glyphs) {
     const glyphs = font.glyphs as any;
-    glyphCount = Array.isArray(glyphs) ? glyphs.length : Object.keys(glyphs).length;
-    const glyphArray = Array.isArray(glyphs) ? glyphs : Object.values(glyphs);
-    glyphArray.forEach((glyph: any) => {
-      if (glyph && typeof glyph.unicode === "number" && glyph.unicode >= 0) codePoints.add(glyph.unicode);
-      else if (glyph && Array.isArray(glyph.codePoints)) glyph.codePoints.forEach((cp: number) => { if (cp >= 0) codePoints.add(cp); });
-    });
+    if (typeof glyphs.get === "function" && typeof glyphs.length === "number") {
+      glyphCount = glyphs.length;
+      for (let i = 0; i < glyphs.length; i++) recordCodePoints(glyphs.get(i), codePoints);
+    } else {
+      const glyphArray = Array.isArray(glyphs) ? glyphs : Object.values(glyphs);
+      glyphCount = glyphArray.length;
+      glyphArray.forEach((glyph: any) => recordCodePoints(glyph, codePoints));
+    }
   } else if ("characterSet" in font && font.characterSet) {
     const chars = font.characterSet as any;
     glyphCount = Array.isArray(chars) ? chars.length : 0;

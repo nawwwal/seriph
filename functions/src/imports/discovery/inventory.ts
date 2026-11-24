@@ -34,6 +34,16 @@ export interface DiscoveredFontMetadata {
   wwsFamilyName?: string;
   wwsSubfamilyName?: string;
   fullName?: string;
+  classification?: string;
+  category?: string;
+  foundry?: string;
+  designer?: string;
+  licenseUrl?: string;
+  glyphCount?: number;
+  openTypeFeatures?: readonly string[];
+  languageSupport?: readonly string[];
+  characterSetCoverage?: readonly string[];
+  isFixedPitch?: boolean;
 }
 export interface InventoryItem extends ClassifiedInventory, InventoryProvenance {
   itemId: string;
@@ -59,6 +69,8 @@ const canonicalIdentity = (input: InventoryItem): string => JSON.stringify({
 const fontMetadataKeys: Array<keyof DiscoveredFontMetadata> = [
   "familyName", "subfamilyName", "postScriptName", "version", "format", "weight", "style", "isVariable",
   "variableAxes", "preferredFamily", "preferredSubfamily", "wwsFamilyName", "wwsSubfamilyName", "fullName",
+  "classification", "category", "foundry", "designer", "licenseUrl", "glyphCount",
+  "openTypeFeatures", "languageSupport", "characterSetCoverage", "isFixedPitch",
 ];
 
 function persistFontMetadata(value: Record<string, unknown>): DiscoveredFontMetadata {

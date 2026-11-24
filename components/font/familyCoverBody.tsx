@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useSafeCoverFontNormalization } from './useSafeCoverFontNormalization';
 import FittedSpecimenLine from './FittedSpecimenLine';
+import { quoteCssFontFamily } from '@/lib/utils/cssFont';
 
 const UPPERCASE_SAMPLE = 'ABCDEFGHIJKLM';
 const LOWERCASE_SAMPLE = 'abcdefghijklm';
@@ -36,7 +37,7 @@ export default function FamilyCoverBody({
 
       <div
         className="family-sample mt-auto min-w-0 pt-8"
-        style={{ fontFamily: name, fontSizeAdjust, letterSpacing: '0' }}
+        style={{ fontFamily: quoteCssFontFamily(name), fontSizeAdjust, letterSpacing: '0' }}
       >
         <FittedSpecimenLine
           allowGrowth
